@@ -1,0 +1,8 @@
+# Rust
+ai-shell-suggest/target/
+
+# Swift
+ai-suggest-menubar/.build/
+
+# macOS
+.DS_Store

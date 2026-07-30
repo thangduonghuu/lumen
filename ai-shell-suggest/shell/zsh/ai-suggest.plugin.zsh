@@ -378,11 +378,18 @@ _ai_suggest_render_box() {
   local -i i=1 avail fill content_len sel row_start badge_start label_start label_end
   local pad sel_desc=""
   for label in "${labels[@]}"; do
-    avail=$(( width - 5 ))
+    # Badge text " $ " (see below) is 3 real characters, not 4: `\$` inside
+    # the double-quoted string is a literal-`$` escape, not a 4th char. The
+    # width/overhead constants here are 4 (badge) + 1 (space before label),
+    # not 5 — using 5 previously left both the row's right border one column
+    # short of the top/bottom border, AND (see badge_start math below) made
+    # every label's first character inherit the badge's highlight color
+    # instead of its own.
+    avail=$(( width - 4 ))
     (( avail < 4 )) && avail=4
     (( ${#label} > avail )) && label="${label:0:$((avail-1))}…"
 
-    content_len=$(( 5 + ${#label} ))
+    content_len=$(( 4 + ${#label} ))
     fill=$(( width - content_len ))
     (( fill < 0 )) && fill=0
     pad=${(l:fill:)empty}
@@ -400,13 +407,14 @@ _ai_suggest_render_box() {
 
     badge_start=$pos
     post+=" \$ "
+    # 3 real characters (space, $, space) — badge_start+3, not +4.
     if (( sel )); then
-      rh+=("$badge_start $((badge_start+4)) bg=24")
-      rh+=("$((badge_start+1)) $((badge_start+3)) bg=97,fg=255")
+      rh+=("$badge_start $((badge_start+3)) bg=24")
+      rh+=("$((badge_start+1)) $((badge_start+2)) bg=97,fg=255")
     else
-      rh+=("$badge_start $((badge_start+4)) bg=97,fg=255")
+      rh+=("$badge_start $((badge_start+3)) bg=97,fg=255")
     fi
-    (( pos += 4 ))
+    (( pos += 3 ))
 
     label_start=$pos
     post+=" ${label}${pad}"
