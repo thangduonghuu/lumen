@@ -78,6 +78,24 @@
 : ${AI_SUGGEST_DEBOUNCE_MS:=250}
 : ${AI_SUGGEST_DEBUG:=0}
 : ${AI_SUGGEST_DEBUG_LOG:=/tmp/ai-suggest-debug.log}
+: ${AI_SUGGEST_STATE_FILE:=$HOME/.cache/ai-suggest/enabled}
+
+# Runtime on/off switch for AUTOMATIC suggestions, toggled from the
+# ai-suggest-menubar app (a separate menu-bar icon/toggle — see
+# ai-suggest-menubar/), not from this shell. The two are different
+# processes with no shared memory, so a file is the simplest thing that
+# works across both; reading one small file per keystroke is cheap enough
+# not to matter. Missing file = enabled (so it works before the menu bar
+# app has ever run). Deliberately does NOT gate the manual trigger
+# ($AI_SUGGEST_KEY): the point of the toggle is to let automatic
+# suggestions default to paused rather than always firing, not to block an
+# explicit ask.
+_ai_suggest_auto_enabled() {
+  [[ -f $AI_SUGGEST_STATE_FILE ]] || return 0
+  local content
+  content=$(<$AI_SUGGEST_STATE_FILE)
+  [[ $content != "0" ]]
+}
 
 typeset -ga _AI_SUGGEST_CANDIDATES=()
 typeset -ga _AI_SUGGEST_DESCRIPTIONS=()
@@ -497,6 +515,13 @@ _ai_suggest_fd_handler() {
   # Buffer moved on since this request was sent — result is stale, discard.
   [[ $sent_buffer == $BUFFER ]] || return
 
+  # Toggled off (menu bar icon) after this request was already sent —
+  # _ai_suggest_edit_wrapper's check only covers *scheduling*, not a
+  # response that was already in flight when the toggle flipped, so it has
+  # to be re-checked here too or a suggestion could still show up right
+  # after being disabled.
+  _ai_suggest_auto_enabled || return
+
   local -a lines
   lines=("${(@f)output}")
   lines=(${lines:#})
@@ -634,6 +659,7 @@ _ai_suggest_history_match() {
 _ai_suggest_edit_wrapper() {
   zle .$WIDGET
   _ai_suggest_clear_display
+  _ai_suggest_auto_enabled || return
 
   # Known-tool subcommand list (e.g. typing "git ") beats everything else:
   # it's exact, known data, not a guess, and needs no round-trip — so it

@@ -1,0 +1,61 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     '/Users/thangduong/Documents/project/Lumen/ai-suggest-menubar/.build/arm64-apple-macosx/release/ai-suggest-menubar'
+relocations:
+  - { offset: 0xDE153, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar8stateDir_WZ', symObjAddr: 0x0, symBinAddr: 0x100001278, symSize: 0xFC }
+  - { offset: 0xDE194, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar9stateFile_WZ', symObjAddr: 0xFC, symBinAddr: 0x100001374, symSize: 0xF4 }
+  - { offset: 0xDE3C3, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar19AiSuggestMenuBarAppVAC7SwiftUI0H0AAWl', symObjAddr: 0xFE8, symBinAddr: 0x100002260, symSize: 0x40 }
+  - { offset: 0xDE3D7, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11ToggleStateCMU', symObjAddr: 0x1028, symBinAddr: 0x1000022A0, symSize: 0x8 }
+  - { offset: 0xDE3EB, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11ToggleStateCMa', symObjAddr: 0x1030, symBinAddr: 0x1000022A8, symSize: 0x38 }
+  - { offset: 0xDE3FF, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11ToggleStateCMr', symObjAddr: 0x1068, symBinAddr: 0x1000022E0, symSize: 0x6C }
+  - { offset: 0xDE413, size: 0x8, addend: 0x0, symName: '_$s7Combine9PublishedVySbGMa', symObjAddr: 0x10D4, symBinAddr: 0x10000234C, symSize: 0x50 }
+  - { offset: 0xDE427, size: 0x8, addend: 0x0, symName: '_$s7SwiftUI11StateObjectV7StorageOy18ai_suggest_menubar06ToggleC0C_GWOy', symObjAddr: 0x1128, symBinAddr: 0x1000023A0, symSize: 0x8 }
+  - { offset: 0xDE43B, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar19AiSuggestMenuBarAppVwxx', symObjAddr: 0x1130, symBinAddr: 0x1000023A8, symSize: 0x10 }
+  - { offset: 0xDE44F, size: 0x8, addend: 0x0, symName: '_$s7SwiftUI11StateObjectV7StorageOy18ai_suggest_menubar06ToggleC0C_GWOe', symObjAddr: 0x1140, symBinAddr: 0x1000023B8, symSize: 0x8 }
+  - { offset: 0xDE463, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar19AiSuggestMenuBarAppVwca', symObjAddr: 0x1190, symBinAddr: 0x100002408, symSize: 0x54 }
+  - { offset: 0xDE477, size: 0x8, addend: 0x0, symName: ___swift_memcpy17_8, symObjAddr: 0x11E4, symBinAddr: 0x10000245C, symSize: 0x14 }
+  - { offset: 0xDE48B, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar19AiSuggestMenuBarAppVwta', symObjAddr: 0x11F8, symBinAddr: 0x100002470, symSize: 0x44 }
+  - { offset: 0xDE49F, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar19AiSuggestMenuBarAppVwet', symObjAddr: 0x123C, symBinAddr: 0x1000024B4, symSize: 0x48 }
+  - { offset: 0xDE4B3, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar19AiSuggestMenuBarAppVwst', symObjAddr: 0x1284, symBinAddr: 0x1000024FC, symSize: 0x44 }
+  - { offset: 0xDE4C7, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar19AiSuggestMenuBarAppVMa', symObjAddr: 0x12C8, symBinAddr: 0x100002540, symSize: 0x10 }
+  - { offset: 0xDE4DB, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11ToggleStateC7Combine16ObservableObjectAA0H19WillChangePublisherAdEP_AD0K0PWT', symObjAddr: 0x12D8, symBinAddr: 0x100002550, symSize: 0xC }
+  - { offset: 0xDE4EF, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar19AiSuggestMenuBarAppV7SwiftUI0H0AA4BodyAdEP_AD5ScenePWT', symObjAddr: 0x12E4, symBinAddr: 0x10000255C, symSize: 0x10 }
+  - { offset: 0xDE503, size: 0x8, addend: 0x0, symName: ___swift_project_value_buffer, symObjAddr: 0x12F4, symBinAddr: 0x10000256C, symSize: 0x18 }
+  - { offset: 0xDE517, size: 0x8, addend: 0x0, symName: '_$sS2SSysWl', symObjAddr: 0x130C, symBinAddr: 0x100002584, symSize: 0x40 }
+  - { offset: 0xDE52B, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11ToggleStateC7enabledSbvpACTK', symObjAddr: 0x134C, symBinAddr: 0x1000025C4, symSize: 0x68 }
+  - { offset: 0xDE561, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11ToggleStateC7enabledSbvpACTk', symObjAddr: 0x13B4, symBinAddr: 0x10000262C, symSize: 0x70 }
+  - { offset: 0xDE58F, size: 0x8, addend: 0x0, symName: ___swift_allocate_value_buffer, symObjAddr: 0x1424, symBinAddr: 0x10000269C, symSize: 0x40 }
+  - { offset: 0xDE5A3, size: 0x8, addend: 0x0, symName: ___swift_instantiateConcreteTypeFromMangledNameV2, symObjAddr: 0x1464, symBinAddr: 0x1000026DC, symSize: 0x50 }
+  - { offset: 0xDE5B7, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11ToggleStateCAC7Combine16ObservableObjectAAWl', symObjAddr: 0x14B4, symBinAddr: 0x10000272C, symSize: 0x44 }
+  - { offset: 0xDE5E7, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar19AiSuggestMenuBarAppV4bodyQrvgAA0F7ContentVyXEfU_TA', symObjAddr: 0x14F8, symBinAddr: 0x100002770, symSize: 0x70 }
+  - { offset: 0xDE659, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11MenuContentVAC7SwiftUI4ViewAAWl', symObjAddr: 0x1568, symBinAddr: 0x1000027E0, symSize: 0x40 }
+  - { offset: 0xDE66D, size: 0x8, addend: 0x0, symName: ___swift_instantiateConcreteTypeFromMangledNameAbstractV2, symObjAddr: 0x15A8, symBinAddr: 0x100002820, symSize: 0x54 }
+  - { offset: 0xDE681, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11MenuContentVwCP', symObjAddr: 0x15FC, symBinAddr: 0x100002874, symSize: 0x2C }
+  - { offset: 0xDE695, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11MenuContentVwxx', symObjAddr: 0x1628, symBinAddr: 0x1000028A0, symSize: 0x8 }
+  - { offset: 0xDE6A9, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11MenuContentVwca', symObjAddr: 0x1630, symBinAddr: 0x1000028A8, symSize: 0x40 }
+  - { offset: 0xDE6BD, size: 0x8, addend: 0x0, symName: ___swift_memcpy16_8, symObjAddr: 0x1670, symBinAddr: 0x1000028E8, symSize: 0xC }
+  - { offset: 0xDE6D1, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11MenuContentVwta', symObjAddr: 0x167C, symBinAddr: 0x1000028F4, symSize: 0x30 }
+  - { offset: 0xDE6E5, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11MenuContentVwet', symObjAddr: 0x16AC, symBinAddr: 0x100002924, symSize: 0x48 }
+  - { offset: 0xDE6F9, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11MenuContentVwst', symObjAddr: 0x16F4, symBinAddr: 0x10000296C, symSize: 0x3C }
+  - { offset: 0xDE70D, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11MenuContentVMa', symObjAddr: 0x1730, symBinAddr: 0x1000029A8, symSize: 0x10 }
+  - { offset: 0xDE721, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11MenuContentV7SwiftUI4ViewAA4BodyAdEP_AGWT', symObjAddr: 0x1774, symBinAddr: 0x1000029EC, symSize: 0x10 }
+  - { offset: 0xDE735, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11MenuContentV4bodyQrvgyyScMYccfU_TA', symObjAddr: 0x17A8, symBinAddr: 0x100002A20, symSize: 0x94 }
+  - { offset: 0xDE7B2, size: 0x8, addend: 0x0, symName: '_$s7SwiftUI4TextV7StorageOWOe', symObjAddr: 0x183C, symBinAddr: 0x100002AB4, symSize: 0x18 }
+  - { offset: 0xDE7C6, size: 0x8, addend: 0x0, symName: '_$s7SwiftUI4TextV7StorageOWOy', symObjAddr: 0x1854, symBinAddr: 0x100002ACC, symSize: 0x18 }
+  - { offset: 0xDE7DB, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11ToggleStateC7enabledSbvg', symObjAddr: 0x1F0, symBinAddr: 0x100001468, symSize: 0x70 }
+  - { offset: 0xDE867, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11ToggleStateCACycfc', symObjAddr: 0x260, symBinAddr: 0x1000014D8, symSize: 0x398 }
+  - { offset: 0xDE94B, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11ToggleStateC7persist33_E72CD46C7427AC0E15F9CB73E6EBD747LLyyF', symObjAddr: 0x5F8, symBinAddr: 0x100001870, symSize: 0x1BC }
+  - { offset: 0xDE9A7, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11ToggleStateCfD', symObjAddr: 0x7B4, symBinAddr: 0x100001A2C, symSize: 0x58 }
+  - { offset: 0xDE9EA, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11ToggleStateC7Combine16ObservableObjectAadEP16objectWillChange0hjK9PublisherQzvgTW', symObjAddr: 0x80C, symBinAddr: 0x100001A84, symSize: 0x28 }
+  - { offset: 0xDEB8F, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11MenuContentV4bodyQrvg', symObjAddr: 0x834, symBinAddr: 0x100001AAC, symSize: 0x4D0 }
+  - { offset: 0xDEC39, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11MenuContentV4bodyQrvgyyScMYccfU0_', symObjAddr: 0xD04, symBinAddr: 0x100001F7C, symSize: 0x40 }
+  - { offset: 0xDEC79, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11MenuContentV7SwiftUI4ViewAadEP05_makeH04view6inputsAD01_H7OutputsVAD11_GraphValueVyxG_AD01_H6InputsVtFZTW', symObjAddr: 0xD44, symBinAddr: 0x100001FBC, symSize: 0x4 }
+  - { offset: 0xDEC8D, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11MenuContentV7SwiftUI4ViewAadEP05_makeH4List4view6inputsAD01_hJ7OutputsVAD11_GraphValueVyxG_AD01_hJ6InputsVtFZTW', symObjAddr: 0xD48, symBinAddr: 0x100001FC0, symSize: 0x4 }
+  - { offset: 0xDECA1, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11MenuContentV7SwiftUI4ViewAadEP14_viewListCount6inputsSiSgAD01_hjK6InputsV_tFZTW', symObjAddr: 0xD4C, symBinAddr: 0x100001FC4, symSize: 0x4 }
+  - { offset: 0xDECB5, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar11MenuContentV7SwiftUI4ViewAadEP4body4BodyQzvgTW', symObjAddr: 0xD50, symBinAddr: 0x100001FC8, symSize: 0x8 }
+  - { offset: 0xDECDB, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar19AiSuggestMenuBarAppV6_state33_E72CD46C7427AC0E15F9CB73E6EBD747LL7SwiftUI11StateObjectVyAA06ToggleU0CGvpfiAJycfu_AJycfu0_', symObjAddr: 0xD58, symBinAddr: 0x100001FD0, symSize: 0x38 }
+  - { offset: 0xDED10, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar19AiSuggestMenuBarAppV4bodyQrvg', symObjAddr: 0xD90, symBinAddr: 0x100002008, symSize: 0x1C0 }
+  - { offset: 0xDED71, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar19AiSuggestMenuBarAppV7SwiftUI0H0AadEP4body4BodyQzvgTW', symObjAddr: 0xF50, symBinAddr: 0x1000021C8, symSize: 0xC }
+  - { offset: 0xDEDAF, size: 0x8, addend: 0x0, symName: '_$s18ai_suggest_menubar19AiSuggestMenuBarAppV7SwiftUI0H0AadEPxycfCTW', symObjAddr: 0xF5C, symBinAddr: 0x1000021D4, symSize: 0x58 }
+  - { offset: 0xDEDEB, size: 0x8, addend: 0x0, symName: _ai_suggest_menubar_main, symObjAddr: 0xFB4, symBinAddr: 0x10000222C, symSize: 0x34 }
+...
