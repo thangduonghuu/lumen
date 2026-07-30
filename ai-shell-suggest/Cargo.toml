@@ -1,0 +1,26 @@
+[package]
+name = "ai-suggest"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "ai_suggest"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ai-suggest-daemon"
+path = "src/bin/daemon.rs"
+
+[[bin]]
+name = "ai-suggest-client"
+path = "src/bin/client.rs"
+
+[dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "process", "time", "fs", "sync"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+anyhow = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+async-trait = "0.1"
+dirs = "5"
