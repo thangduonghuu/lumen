@@ -67,6 +67,9 @@
 #   AI_SUGGEST_DEBOUNCE_MS    debounce window for automatic suggestions in
 #                             milliseconds (default: 250)
 #   AI_SUGGEST_DEBUG          set to 1 to log to $AI_SUGGEST_DEBUG_LOG
+#   AI_SUGGEST_KILL_DAEMON_ON_EXIT  1 = kill the shared ai-suggest-daemon
+#                             when this shell exits (default), 0 = leave it
+#                             running for other shells/sessions to reuse
 
 [[ -o interactive ]] || return
 [[ -n $ZSH_VERSION ]] || return
@@ -79,6 +82,7 @@
 : ${AI_SUGGEST_DEBUG:=0}
 : ${AI_SUGGEST_DEBUG_LOG:=/tmp/ai-suggest-debug.log}
 : ${AI_SUGGEST_STATE_FILE:=$HOME/.cache/ai-suggest/enabled}
+: ${AI_SUGGEST_KILL_DAEMON_ON_EXIT:=1}
 
 # Runtime on/off switch for AUTOMATIC suggestions, toggled from the
 # ai-suggest-menubar app (a separate menu-bar icon/toggle — see
@@ -659,7 +663,12 @@ _ai_suggest_history_match() {
 _ai_suggest_edit_wrapper() {
   zle .$WIDGET
   _ai_suggest_clear_display
-  _ai_suggest_auto_enabled || return
+  # Explicit `return 0`, not bare `return`: a zle widget function that ends
+  # with non-zero status makes zle beep, and _ai_suggest_auto_enabled
+  # returns non-zero precisely when suggestions are toggled off — bare
+  # `return` here would carry that failure status out and ring the
+  # terminal bell on every single keystroke while suggestions are disabled.
+  _ai_suggest_auto_enabled || return 0
 
   # Known-tool subcommand list (e.g. typing "git ") beats everything else:
   # it's exact, known data, not a guess, and needs no round-trip — so it
@@ -790,6 +799,18 @@ _ai_suggest_line_init() {
   _ai_suggest_clear_display
 }
 
+# Kills the shared ai-suggest-daemon when this shell exits, so it doesn't
+# keep running in the background once every terminal that ever asked for a
+# suggestion is closed. Safe even with other ai-suggest shells still open:
+# ai-suggest-client auto-spawns a fresh daemon on its next request (see
+# spawn_daemon() in client.rs) — worst case another session pays one extra
+# daemon-startup on its next keystroke/Ctrl-Space.
+_ai_suggest_zshexit() {
+  (( AI_SUGGEST_KILL_DAEMON_ON_EXIT )) || return
+  command pkill -f '/ai-suggest-daemon$' 2>/dev/null
+  return 0
+}
+
 # --- registration --------------------------------------------------------
 
 zle -N _ai_suggest_trigger
@@ -808,6 +829,9 @@ bindkey '^F' _ai_suggest_forward_char
 bindkey '^[[A' _ai_suggest_prev          # Up arrow
 bindkey '^[[B' _ai_suggest_next          # Down arrow
 bindkey '^G' _ai_suggest_dismiss
+
+autoload -Uz add-zsh-hook
+add-zsh-hook zshexit _ai_suggest_zshexit
 
 if (( AI_SUGGEST_AUTO )); then
   local -a _ai_suggest_watched_widgets

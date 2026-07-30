@@ -65,6 +65,13 @@ source /path/to/ai-shell-suggest/shell/zsh/ai-suggest.plugin.zsh
 The daemon does not need to be started manually — the first trigger press
 will auto-spawn it if `~/.cache/ai-suggest/daemon.sock` isn't reachable.
 
+By default, the daemon is killed when a shell that sourced this plugin
+exits (`zshexit` hook), so it doesn't linger in the background after you
+close your terminal. If another ai-suggest-enabled shell is still open, it
+just auto-spawns a fresh daemon on its next request. Set
+`AI_SUGGEST_KILL_DAEMON_ON_EXIT=0` before sourcing the plugin to keep the
+daemon running across shell sessions instead.
+
 ## Config
 
 `~/.config/ai-suggest/config.toml` is created with defaults on first run:
