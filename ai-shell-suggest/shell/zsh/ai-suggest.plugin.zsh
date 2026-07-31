@@ -3,20 +3,24 @@
 #
 # AI command suggestions, Fig/Kiro-CLI style: as you type, a debounced
 # background request asks the ai-suggest-daemon for suggestions based on
-# the current buffer and renders them as a bordered card below the prompt
-# (see _ai_suggest_render_box) — one row per candidate, the selected row
-# highlighted, a one-line description of it in the footer. Pick one from
-# the list with Up/Down, accept with Tab/Right-arrow/Enter, or dismiss with
-# Ctrl-G. Ctrl-Space (or $AI_SUGGEST_KEY) still asks immediately, bypassing
-# the debounce, for when you don't want to wait.
+# the current buffer, and this shell side sends them (plus where the cursor
+# currently is) over a Unix socket to the ai-suggest-menubar companion app,
+# which draws a real floating panel positioned against the terminal's
+# actual on-screen location (Accessibility API) — a bordered card, one row
+# per candidate, the selected row highlighted, a one-line description of it
+# in the footer. Pick one from the list with Up/Down, accept with
+# Tab/Right-arrow/Enter, or dismiss with Ctrl-G. Ctrl-Space (or
+# $AI_SUGGEST_KEY) still asks immediately, bypassing the debounce, for when
+# you don't want to wait.
 #
-# This card is drawn with plain ANSI text (Unicode box-drawing + 256-color
-# backgrounds) via zle -M, the standard ZLE "message area" widget mechanism
-# — it is NOT a native overlay window like Fig/Amazon Q for CLI use (those
-# draw outside the terminal grid entirely via OS accessibility APIs, which
-# is a different kind of project from a shell plugin), so corners are drawn
-# with ╭╮╰╯ rather than actually rounded/anti-aliased, and there's no drop
-# shadow. Functionally equivalent, visually an approximation.
+# This shell side never draws anything itself and has no idea whether the
+# companion app successfully manages to show anything — it only ever sends
+# "here's what to show and where the cursor is" (_ai_suggest_overlay_show)
+# fire-and-forget over the socket. See ai-suggest-menubar's
+# TerminalPositioner.swift for the actual rendering/positioning logic, and
+# the project plan doc for why this is a real OS panel rather than ANSI
+# text drawn inside the terminal grid (rounded corners, shadows, no
+# character-grid confinement).
 #
 # --- async design notes -------------------------------------------------
 # An earlier version of this plugin did as-you-type suggestions via a
@@ -70,6 +74,15 @@
 #   AI_SUGGEST_KILL_DAEMON_ON_EXIT  1 = kill the shared ai-suggest-daemon
 #                             when this shell exits (default), 0 = leave it
 #                             running for other shells/sessions to reuse
+#   AI_SUGGEST_OVERLAY        1 = show suggestions via the native floating
+#                             panel (ai-suggest-menubar companion app,
+#                             default). 0 = don't show suggestions at all —
+#                             there is no other rendering path; if the
+#                             companion app isn't running, permission
+#                             hasn't been granted, or the frontmost
+#                             terminal can't be positioned against, nothing
+#                             is shown for that keystroke (fails silently,
+#                             never blocks typing).
 
 [[ -o interactive ]] || return
 [[ -n $ZSH_VERSION ]] || return
@@ -83,6 +96,8 @@
 : ${AI_SUGGEST_DEBUG_LOG:=/tmp/ai-suggest-debug.log}
 : ${AI_SUGGEST_STATE_FILE:=$HOME/.cache/ai-suggest/enabled}
 : ${AI_SUGGEST_KILL_DAEMON_ON_EXIT:=1}
+: ${AI_SUGGEST_OVERLAY:=1}
+: ${AI_SUGGEST_OVERLAY_SOCK:=$HOME/.cache/ai-suggest/overlay.sock}
 
 # Runtime on/off switch for AUTOMATIC suggestions, toggled from the
 # ai-suggest-menubar app (a separate menu-bar icon/toggle — see
@@ -148,7 +163,7 @@ typeset -ga _AI_SUGGEST_HINTS=()
 # includes the tool name (needed on accept), but the row should just read
 # "status" since "git" is already visible in what you typed. Empty means
 # "no override, fall back to the full candidate text" (see
-# _ai_suggest_render_box) — that's the case for history/AI suggestions,
+# _ai_suggest_overlay_show) — that's the case for history/AI suggestions,
 # which aren't a "tool subcommand" and have no shorter label to prefer.
 typeset -ga _AI_SUGGEST_LABELS=()
 typeset -gi _AI_SUGGEST_INDEX=0
@@ -262,34 +277,182 @@ typeset -g _AI_SUGGEST_PENDING_FD=
 typeset -g _AI_SUGGEST_PENDING_BUFFER=
 typeset -gF _AI_SUGGEST_DEBOUNCE_SEC=$(( AI_SUGGEST_DEBOUNCE_MS / 1000.0 ))
 
+# On-screen row/column the cursor is at, so the box lines up under wherever
+# you're actually typing instead of always sitting at the terminal's left
+# margin (col), and so the native overlay (see _ai_suggest_overlay_show) can
+# be positioned against the real cursor (row). Refreshed once per new prompt
+# (see _ai_suggest_line_init) rather than every keystroke: the prompt's
+# start position doesn't change while editing a single line, only when a
+# new one is drawn, so re-querying per-keystroke would just be repeated
+# syscall overhead for the same answer.
+typeset -gi _AI_SUGGEST_PROMPT_ROW=1
+typeset -gi _AI_SUGGEST_PROMPT_COL=1
+
+# Asks the terminal where the cursor currently is via a DSR (Device Status
+# Report) query (\e[6n) and reads back its \e[<row>;<col>R reply on the same
+# stream zle reads keystrokes from. Safe to do a blocking read here: zsh's
+# event loop is single-threaded/cooperative, so zle's own read loop is not
+# concurrently competing for input while this widget function is running —
+# there's no race to lose. Leaves _AI_SUGGEST_PROMPT_ROW/COL at 1 (today's
+# top-left-margin behavior) if anything goes wrong: terminal doesn't support
+# DSR, output is piped/captured, or the reply doesn't arrive within the
+# timeout — this is a cosmetic nicety for the ANSI box and a required input
+# for the native overlay, but never something worth blocking or erroring
+# over either way.
+_ai_suggest_query_cursor_pos() {
+  _AI_SUGGEST_PROMPT_ROW=1
+  _AI_SUGGEST_PROMPT_COL=1
+  [[ -t 1 ]] || return
+  local reply char
+  print -n $'\e[6n' > /dev/tty 2>/dev/null || return
+  local -i n=0
+  while (( n < 32 )); do
+    read -t 0.2 -k 1 char < /dev/tty 2>/dev/null || return
+    reply+=$char
+    (( n++ ))
+    [[ $char == R ]] && break
+  done
+  [[ $reply == $'\e['*R ]] || return
+  reply=${reply#$'\e['}
+  reply=${reply%R}
+  local row=${reply%%;*}
+  local col=${reply#*;}
+  [[ $row == <-> ]] || return
+  [[ $col == <-> ]] || return
+  (( row >= 1 )) && _AI_SUGGEST_PROMPT_ROW=$row
+  (( col >= 1 )) && _AI_SUGGEST_PROMPT_COL=$col
+}
+
+# --- native overlay (Kiro CLI/Fig-style floating panel) ---------------------
+#
+# The overlay is a real NSPanel owned by the ai-suggest-menubar companion
+# app, positioned against the terminal's actual on-screen pixel location
+# via its own Accessibility-API lookup — drawn entirely outside the
+# terminal's character grid, so it can do real rounded corners and shadows
+# instead of ╭╮╰╯ box-drawing characters. This shell side only ever sends
+# "here's what to show and where the cursor is" over a Unix socket — it has
+# no idea whether the companion app successfully manages to position
+# anything, by design (a synchronous round-trip here would reintroduce
+# exactly the kind of blocking call this plugin has spent a lot of effort
+# avoiding elsewhere). There is no other rendering path: if the companion
+# app isn't running, Accessibility permission hasn't been granted, or the
+# frontmost terminal can't be positioned against (see
+# ai-suggest-menubar/Sources/ai-suggest-menubar/TerminalPositioner.swift),
+# nothing shows for that keystroke — never an error, never a block.
+_ai_suggest_overlay_supported() {
+  (( AI_SUGGEST_OVERLAY ))
+}
+
+# Minimal JSON string escaping — only what can actually appear in a
+# candidate/description/hint: backslash, double quote, and the control
+# characters sanitize_field() (client.rs) doesn't already strip for
+# AI-sourced text. Static-table entries are hand-written ASCII with none of
+# these, so this mostly matters for AI-sourced candidates once that path is
+# back on.
+_ai_suggest_json_escape() {
+  local s=$1
+  s=${s//\\/\\\\}
+  s=${s//\"/\\\"}
+  s=${s//$'\n'/\\n}
+  s=${s//$'\t'/\\t}
+  print -rn -- "$s"
+}
+
+# Builds a JSON array literal from "$@", each element escaped and quoted.
+_ai_suggest_json_str_array() {
+  local -a parts
+  local item
+  for item in "$@"; do
+    parts+=("\"$(_ai_suggest_json_escape "$item")\"")
+  done
+  print -rn -- "[${(j:,:)parts}]"
+}
+
+# Fire-and-forget send of a JSON payload to the overlay companion app.
+# zsocket (zsh/net/socket) connecting to a path with nothing listening —
+# socket missing entirely, stale file, or refused connection — fails
+# immediately (verified: sub-10ms, no retry/hang), so this is safe to call
+# unconditionally from a hot path with no timeout wrapper needed. Errors are
+# swallowed on purpose: the companion app not running is an expected,
+# common state (e.g. user hasn't launched it), not a failure worth surfacing
+# in the middle of typing.
+_ai_suggest_overlay_send() {
+  local payload=$1
+  zmodload zsh/net/socket 2>/dev/null || return
+  zsocket $AI_SUGGEST_OVERLAY_SOCK 2>/dev/null || return
+  print -u $REPLY -r -- "$payload" 2>/dev/null
+  exec {REPLY}>&- 2>/dev/null
+}
+
+# Sends the current _AI_SUGGEST_CANDIDATES/etc + cursor position so the
+# companion app can render (or reposition) the floating panel.
+_ai_suggest_overlay_show() {
+  local -a label_parts
+  local i lbl hint_text
+  for (( i = 1; i <= ${#_AI_SUGGEST_CANDIDATES}; i++ )); do
+    lbl=${_AI_SUGGEST_LABELS[$i]:-${_AI_SUGGEST_CANDIDATES[$i]%% }}
+    hint_text=${_AI_SUGGEST_HINTS[$i]:-}
+    [[ -n $hint_text ]] && lbl="${lbl% }${lbl:+ }${hint_text}"
+    label_parts+=("$lbl")
+  done
+
+  # _AI_SUGGEST_PROMPT_ROW/COL are only refreshed once per new prompt (a
+  # real DSR query, see _ai_suggest_query_cursor_pos) — re-querying the
+  # terminal on every keystroke would mean a round-trip escape-sequence
+  # read in the hot path, exactly the kind of latency risk this plugin
+  # otherwise avoids. Instead, the LIVE column is derived locally: zsh
+  # already knows $CURSOR (position within BUFFER) for free, so the
+  # on-screen column is just the prompt's start column plus how far into
+  # the buffer the cursor is — pure arithmetic, no extra terminal query —
+  # wrapped across rows if the buffer is long enough to overflow the
+  # terminal width. This is what makes the panel track the cursor
+  # horizontally as you type, matching Kiro CLI, instead of staying
+  # anchored where the prompt started.
+  local -i cols=${COLUMNS:-80}
+  local -i offset=$(( _AI_SUGGEST_PROMPT_COL - 1 + CURSOR ))
+  local -i live_row=$(( _AI_SUGGEST_PROMPT_ROW + offset / cols ))
+  local -i live_col=$(( offset % cols + 1 ))
+
+  local payload="{"
+  payload+="\"candidates\":$(_ai_suggest_json_str_array "${_AI_SUGGEST_CANDIDATES[@]}"),"
+  payload+="\"descriptions\":$(_ai_suggest_json_str_array "${_AI_SUGGEST_DESCRIPTIONS[@]}"),"
+  payload+="\"labels\":$(_ai_suggest_json_str_array "${label_parts[@]}"),"
+  payload+="\"selectedIndex\":$(( _AI_SUGGEST_INDEX - 1 )),"
+  payload+="\"cursorRow\":$live_row,"
+  payload+="\"cursorCol\":$live_col,"
+  payload+="\"columns\":${cols},"
+  payload+="\"lines\":${LINES:-30}"
+  payload+="}"
+  _ai_suggest_overlay_send "$payload"
+}
+
+_ai_suggest_overlay_hide() {
+  _ai_suggest_overlay_send '{"hide":true}'
+}
+
+_ai_suggest_present_candidates() {
+  _ai_suggest_overlay_supported && _ai_suggest_overlay_show
+}
+
 _ai_suggest_debug() {
   (( AI_SUGGEST_DEBUG )) || return
   print -r -- "[$(date '+%H:%M:%S')] $*" >> $AI_SUGGEST_DEBUG_LOG
 }
 
-# Replaces whatever portion of region_highlight covers the POSTDISPLAY
-# range (start >= $#BUFFER) with $@, leaving anything else (e.g. a syntax
-# highlighter's entries for the actual typed command, start < $#BUFFER)
-# untouched. This is the box's ONLY coloring mechanism — see the long
-# comment on _ai_suggest_render_box for why raw ANSI codes aren't used.
-_ai_suggest_set_region_highlight() {
-  local -i buf_len=${#BUFFER}
-  local -a kept=()
-  local entry
-  for entry in "${region_highlight[@]}"; do
-    (( ${entry%% *} < buf_len )) && kept+=("$entry")
-  done
-  region_highlight=("${kept[@]}" "$@")
-}
-
 _ai_suggest_clear_display() {
+  # Only worth telling the overlay to hide if something was actually shown —
+  # this runs on every keystroke (via _ai_suggest_suggest_now), including
+  # the common case of plain typing with nothing displayed, so skipping the
+  # socket round-trip when there's nothing to hide keeps that hot path free
+  # of unnecessary overhead.
+  if (( ${#_AI_SUGGEST_CANDIDATES} > 0 )); then
+    _ai_suggest_overlay_hide
+  fi
   _AI_SUGGEST_CANDIDATES=()
   _AI_SUGGEST_DESCRIPTIONS=()
   _AI_SUGGEST_HINTS=()
   _AI_SUGGEST_LABELS=()
   _AI_SUGGEST_INDEX=0
-  POSTDISPLAY=""
-  _ai_suggest_set_region_highlight
 }
 
 # Matches $BUFFER against a known "<tool> <partial-subcommand>" shape and,
@@ -336,194 +499,6 @@ _ai_suggest_static_match() {
     (( ${#_AI_SUGGEST_CANDIDATES} >= 9 )) && break
   done
   (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
-}
-
-# Renders _AI_SUGGEST_CANDIDATES as a bordered card below the prompt: one
-# row per candidate (badge + the part of the command past what's already
-# typed), the selected row highlighted, and a footer with that row's
-# description plus a keybinding hint. Width is sized to the widest row
-# needed (candidate or footer text), capped to the terminal width so it
-# never wraps.
-#
-# Colored via region_highlight (zle's named-highlight-spec mechanism —
-# "fg=NNN", "bg=NNN", the same thing zsh-syntax-highlighting uses), NOT
-# raw ANSI escape codes embedded in the string, even though the latter is
-# the obvious first approach (and was this function's original
-# implementation, built on zle -M). Verified empirically (byte-level, via
-# a real pty) that zle -M sanitizes its message: any raw ESC byte (0x1B) in
-# the string arrives at the terminal as the literal two characters `^[`
-# instead of being interpreted, in every configuration tested — plain
-# prompt and Powerlevel10k alike — while zle's own prompt/highlight escape
-# codes in the very same byte stream came through correctly. Embedding raw
-# ANSI directly in POSTDISPLAY doesn't fare any better (confirmed
-# separately — comes out interleaved/corrupted). region_highlight is the
-# one path that reliably survives: zle generates the actual escape bytes
-# itself from the spec at redraw time, so there's nothing for it to
-# mis-sanitize.
-#
-# Because of this, the function has two halves that must stay in sync: it
-# builds one PLAIN (no color codes) string for POSTDISPLAY, and in the same
-# pass records region_highlight entries as (start end spec) triples, where
-# start/end are absolute character offsets into BUFFER+POSTDISPLAY — i.e.
-# counted from $#BUFFER, since that's where POSTDISPLAY begins on screen.
-_ai_suggest_render_box() {
-  (( ${#_AI_SUGGEST_CANDIDATES} == 0 )) && { POSTDISPLAY=""; _ai_suggest_set_region_highlight; return }
-
-  local hint='Tab · ^G'
-  local -i buf_len=${#BUFFER}
-  local -i width=28
-  (( width < ${#hint} + 12 )) && width=$(( ${#hint} + 12 ))
-
-  local cand label hint_text
-  local -a labels
-  local -i idx=0
-  for cand in "${_AI_SUGGEST_CANDIDATES[@]}"; do
-    (( idx++ ))
-    # Prefer the explicit label (see _AI_SUGGEST_LABELS) when one was set —
-    # e.g. "status" rather than "git status", since "git" is already
-    # visible in what you typed. Falls back to the full candidate text
-    # (trailing space trimmed) for history/AI suggestions, which have no
-    # shorter label. Either way this is always the FULL word, never just
-    # what's left after the typed prefix (typing "git s" still shows
-    # "status", not "tatus") — a row should read the same regardless of
-    # how much of it you've already typed.
-    label=${_AI_SUGGEST_LABELS[$idx]:-${cand%% }}
-    # Static-table entries (see _ai_suggest_static_match) carry a decorative
-    # argument hint, e.g. "status" -> "status [pathspec...]". Purely
-    # cosmetic: accepting the row still inserts $cand as-is, not this text.
-    hint_text=${_AI_SUGGEST_HINTS[$idx]:-}
-    [[ -n $hint_text ]] && label="${label% }${label:+ }${hint_text}"
-    labels+=("$label")
-    (( ${#label} + 6 > width )) && width=$(( ${#label} + 6 ))
-  done
-
-  local -i term_cols=${COLUMNS:-80}
-  local -i max_width=$(( term_cols > 8 ? term_cols - 4 : 40 ))
-  (( width > max_width )) && width=$max_width
-
-  local empty=""
-  local border_line="${(l:width::─:)empty}"
-
-  local post=$'\n'
-  local -a rh=()
-  local -i pos=$(( buf_len + 1 ))  # +1: the leading \n above
-
-  local top="╭${border_line}╮"
-  rh+=("$pos $(( pos + ${#top} )) fg=238")
-  post+=$top
-  pos+=${#top}
-
-  local -i i=1 avail fill content_len sel row_start badge_start label_start label_end
-  local pad sel_desc=""
-  for label in "${labels[@]}"; do
-    # Badge text " $ " (see below) is 3 real characters, not 4: `\$` inside
-    # the double-quoted string is a literal-`$` escape, not a 4th char. The
-    # width/overhead constants here are 4 (badge) + 1 (space before label),
-    # not 5 — using 5 previously left both the row's right border one column
-    # short of the top/bottom border, AND (see badge_start math below) made
-    # every label's first character inherit the badge's highlight color
-    # instead of its own.
-    avail=$(( width - 4 ))
-    (( avail < 4 )) && avail=4
-    (( ${#label} > avail )) && label="${label:0:$((avail-1))}…"
-
-    content_len=$(( 4 + ${#label} ))
-    fill=$(( width - content_len ))
-    (( fill < 0 )) && fill=0
-    pad=${(l:fill:)empty}
-
-    post+=$'\n'
-    (( pos++ ))
-    row_start=$pos
-
-    post+="│"
-    rh+=("$pos $((pos+1)) fg=238")
-    (( pos++ ))
-
-    sel=0
-    (( i == _AI_SUGGEST_INDEX )) && sel=1
-
-    badge_start=$pos
-    post+=" \$ "
-    # 3 real characters (space, $, space) — badge_start+3, not +4.
-    if (( sel )); then
-      rh+=("$badge_start $((badge_start+3)) bg=24")
-      rh+=("$((badge_start+1)) $((badge_start+2)) bg=97,fg=255")
-    else
-      rh+=("$badge_start $((badge_start+3)) bg=97,fg=255")
-    fi
-    (( pos += 3 ))
-
-    label_start=$pos
-    post+=" ${label}${pad}"
-    label_end=$(( pos + 1 + ${#label} + ${#pad} ))
-    if (( sel )); then
-      rh+=("$label_start $label_end bg=24,fg=255,bold")
-      sel_desc=${_AI_SUGGEST_DESCRIPTIONS[$i]}
-    else
-      rh+=("$label_start $label_end fg=252")
-    fi
-    pos=$label_end
-
-    post+="│"
-    rh+=("$pos $((pos+1)) fg=238")
-    (( pos++ ))
-
-    (( i++ ))
-  done
-
-  post+=$'\n'
-  (( pos++ ))
-  local mid="├${border_line}┤"
-  rh+=("$pos $((pos+${#mid})) fg=238")
-  post+=$mid
-  pos+=${#mid}
-
-  post+=$'\n'
-  (( pos++ ))
-
-  [[ -z $sel_desc ]] && sel_desc="Tab để dùng gợi ý này"
-  avail=$(( width - ${#hint} - 3 ))
-  (( avail < 4 )) && avail=4
-  (( ${#sel_desc} > avail )) && sel_desc="${sel_desc:0:$((avail-1))}…"
-  content_len=$(( ${#sel_desc} + ${#hint} + 2 ))
-  fill=$(( width - content_len ))
-  (( fill < 1 )) && fill=1
-  pad=${(l:fill:)empty}
-
-  post+="│"
-  rh+=("$pos $((pos+1)) fg=238")
-  (( pos++ ))
-
-  post+=" "
-  (( pos++ ))
-
-  rh+=("$pos $((pos+${#sel_desc})) fg=244")
-  post+=$sel_desc
-  pos+=${#sel_desc}
-
-  post+=$pad
-  pos+=${#pad}
-
-  rh+=("$pos $((pos+${#hint})) fg=240")
-  post+=$hint
-  pos+=${#hint}
-
-  post+=" "
-  (( pos++ ))
-
-  post+="│"
-  rh+=("$pos $((pos+1)) fg=238")
-  (( pos++ ))
-
-  post+=$'\n'
-  (( pos++ ))
-  local bot="╰${border_line}╯"
-  rh+=("$pos $((pos+${#bot})) fg=238")
-  post+=$bot
-
-  POSTDISPLAY=$post
-  _ai_suggest_set_region_highlight "${rh[@]}"
 }
 
 # --- background request lifecycle (shared by manual + automatic paths) -----
@@ -579,19 +554,23 @@ _ai_suggest_fd_handler() {
 
   _ai_suggest_parse_lines "${lines[@]}"
   _AI_SUGGEST_INDEX=1
-  # Not _ai_suggest_render_box here: verified empirically (a handler that
-  # logs every step, POSTDISPLAY included) that POSTDISPLAY/region_highlight
-  # changes made from inside a zle -F callback do NOT reach the screen no
-  # matter which redisplay call follows (zle -R, zle -I + -R, zle redisplay,
-  # zle reset-prompt all tried — none worked here) — a real difference from
-  # a normal widget context, where the exact same box-drawing code (manual
-  # trigger, the instant history-match path) renders correctly. zle -M is
+  # Historical note from when suggestions were drawn as an ANSI box (now
+  # removed in favor of the native overlay, see _ai_suggest_overlay_show):
+  # POSTDISPLAY/region_highlight changes made from inside a zle -F callback
+  # were verified NOT to reach the screen no matter which redisplay call
+  # followed (zle -R, zle -I + -R, zle redisplay, zle reset-prompt all
+  # tried — none worked here), a real difference from a normal widget
+  # context where the same box-drawing code rendered correctly. zle -M was
   # the one thing proven to redraw reliably from this specific context, so
-  # this path degrades to a plain-text one-line notice instead of the box.
-  # State is fully populated either way, so Tab accepts the top suggestion
-  # immediately even though the box itself isn't shown yet; pressing
-  # Up/Down/Tab runs through a normal (non-async) widget invocation and
-  # upgrades to the real box right then.
+  # this path degraded to a plain-text one-line notice instead of the box.
+  # This constraint was specific to POSTDISPLAY/zle redisplay — the overlay
+  # is a plain socket write with no zle redisplay involved, so it likely
+  # doesn't apply anymore, but that's untested since this whole path is
+  # currently unreachable (AI suggestions off for this phase). Re-verify
+  # when re-enabling AI rather than assuming either way. State is fully
+  # populated either way, so Tab accepts the top suggestion immediately
+  # even before this notices; pressing Up/Down/Tab runs through a normal
+  # (non-async) widget invocation and upgrades to the full display then.
   _ai_suggest_notify_async
 }
 
@@ -701,7 +680,7 @@ _ai_suggest_suggest_now() {
   # not) and skips the AI call entirely for this buffer.
   if _ai_suggest_static_match; then
     _AI_SUGGEST_INDEX=1
-    _ai_suggest_render_box
+    _ai_suggest_present_candidates
   fi
 }
 
@@ -732,7 +711,7 @@ _ai_suggest_trigger() {
 
   if _ai_suggest_static_match; then
     _AI_SUGGEST_INDEX=1
-    _ai_suggest_render_box
+    _ai_suggest_present_candidates
     return
   fi
 
@@ -753,15 +732,6 @@ _ai_suggest_accept() {
     # resets _AI_SUGGEST_CANDIDATES too, so reading it after would accept
     # an empty string.
     local chosen=$_AI_SUGGEST_CANDIDATES[$_AI_SUGGEST_INDEX]
-    # Clear the ghost box's highlighting BEFORE growing BUFFER, not after:
-    # _ai_suggest_clear_display decides what region_highlight entries are
-    # stale by comparing their position against ${#BUFFER}. The accepted
-    # candidate is often much longer than what's currently typed (e.g.
-    # accepting a full suggested command), so if BUFFER were reassigned
-    # first, badge/label entries that used to sit safely past the end of
-    # the (short) buffer would suddenly fall *within* the new (long) one —
-    # misread as real-buffer highlighting and left painted onto the
-    # accepted text instead of being discarded.
     _ai_suggest_clear_display
     BUFFER=$chosen
     CURSOR=${#BUFFER}
@@ -785,7 +755,7 @@ _ai_suggest_forward_char() {
 _ai_suggest_next() {
   if (( ${#_AI_SUGGEST_CANDIDATES} > 1 )); then
     (( _AI_SUGGEST_INDEX = _AI_SUGGEST_INDEX % ${#_AI_SUGGEST_CANDIDATES} + 1 ))
-    _ai_suggest_render_box
+    _ai_suggest_present_candidates
   else
     zle .down-line-or-history
   fi
@@ -794,7 +764,7 @@ _ai_suggest_next() {
 _ai_suggest_prev() {
   if (( ${#_AI_SUGGEST_CANDIDATES} > 1 )); then
     (( _AI_SUGGEST_INDEX = (_AI_SUGGEST_INDEX - 2 + ${#_AI_SUGGEST_CANDIDATES}) % ${#_AI_SUGGEST_CANDIDATES} + 1 ))
-    _ai_suggest_render_box
+    _ai_suggest_present_candidates
   else
     zle .up-line-or-history
   fi
@@ -840,6 +810,7 @@ _ai_suggest_line_init() {
   _ai_suggest_cancel_pending
   _ai_suggest_clear_display
   _ai_suggest_call_orig_widget zle-line-init
+  _ai_suggest_query_cursor_pos
 }
 
 # Kills the shared ai-suggest-daemon when this shell exits, so it doesn't

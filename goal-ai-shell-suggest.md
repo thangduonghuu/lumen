@@ -126,6 +126,45 @@ sau chỉ cần gọi lại `_ai_suggest_schedule` trong `_ai_suggest_suggest_no
       (đã có context lịch sử gần đây qua `AI_SUGGEST_HISTORY_COUNT`) đảm
       nhiệm luôn phần đó
 
+### 4.3 Giai đoạn 1c (đã xong): UI overlay native thay cho box ANSI
+
+Trước đó gợi ý hiện dưới dạng box vẽ bằng ký tự ANSI ngay trong terminal
+(`_ai_suggest_render_box`) — không có bo góc thật, không có shadow, bị giới
+hạn trong lưới ký tự của terminal. Đã thay hoàn toàn bằng một cửa sổ
+`NSPanel` thật do app `ai-suggest-menubar` vẽ, đặt đè lên terminal ở đúng vị
+trí con trỏ (tra `Accessibility API` để lấy toạ độ/kích thước cửa sổ
+terminal, kết hợp `$COLUMNS`/`$LINES` để tính vị trí pixel), giống cách
+Kiro CLI/Fig hiển thị.
+
+- [x] `_ai_suggest_query_cursor_pos` (trước là `..._col`) lấy cả row lẫn
+      col qua DSR (`\e[6n`)
+- [x] Zsh gửi candidates + vị trí con trỏ qua Unix socket
+      (`~/.cache/ai-suggest/overlay.sock`, dùng `zsh/net/socket`/`zsocket`
+      có sẵn trong zsh, không cần binary phụ) — xem
+      `_ai_suggest_overlay_show`/`_hide` trong plugin
+- [x] `ai-suggest-menubar` nhận socket, dùng Accessibility API
+      (`TerminalPositioner.swift`) tính vị trí thực tế trên màn hình,
+      vẽ bằng `NSPanel` không chiếm focus bàn phím (`.nonactivatingPanel`)
+- [x] Panel theo con trỏ theo chiều ngang khi gõ thêm ký tự (tính cục bộ
+      từ `$CURSOR`, không query lại terminal mỗi phím — tránh thêm
+      latency)
+- [x] Đã xoá hẳn `_ai_suggest_render_box`/`_ai_suggest_set_region_highlight`
+      — overlay là đường hiển thị DUY NHẤT, không còn box ANSI làm
+      fallback. Nếu overlay không hoạt động (app chưa chạy, chưa cấp
+      quyền Accessibility, hoặc terminal không định vị được — vd VS Code)
+      thì không có gì hiện ra, không báo lỗi, không chặn gõ phím
+- [x] `ai-suggest-menubar` phải đóng gói thành `.app` bundle thật
+      (không phải binary trần) — quyền Accessibility rất không ổn định
+      với binary trần khi build lại (ad-hoc signature đổi mỗi lần
+      build). Dùng `ai-suggest-menubar/build.sh` để build+ký lại đúng cách
+
+Đã verify thực tế trên iTerm2 (không phải chỉ lý thuyết): vị trí cửa sổ lấy
+qua Accessibility khớp chính xác với AppleScript `bounds`, panel xuất hiện
+đúng góc dưới-trái terminal, theo cursor đúng theo phép tính tay khi gõ dài
+thêm. VS Code chưa test được positioning (không có cách lấy vị trí con trỏ
+chính xác từ canvas render của nó) — khi đó overlay đơn giản là không hiện
+gì, đúng như đã quyết định.
+
 ## 5. Giai đoạn 2 (mở rộng)
 - [ ] Hỗ trợ Bash, Fish
 - [ ] Cache gợi ý theo context để giảm gọi AI lặp lại
