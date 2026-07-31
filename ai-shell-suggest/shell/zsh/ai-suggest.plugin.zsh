@@ -277,7 +277,7 @@ _ai_suggest_static_match() {
   rest="${rest## }"
   # Already past the subcommand (it has its own argument being typed) —
   # this table doesn't cover per-subcommand arguments, so back off and let
-  # history/AI suggestions handle it instead.
+  # the AI suggestion path handle it instead.
   [[ "$rest" == *' '* ]] && return 1
 
   local entry name hint desc
@@ -635,17 +635,18 @@ _ai_suggest_schedule() {
   zle -F $fd _ai_suggest_fd_handler
 }
 
-# Looks for a suggestion for the CURRENT buffer and renders it: known-tool
-# subcommand table first (exact, no round-trip), otherwise schedules a
-# debounced AI request. Shared by every caller that just changed BUFFER and
-# wants suggestions re-evaluated for the new state — a keystroke
-# (_ai_suggest_edit_wrapper) or accepting a candidate (_ai_suggest_accept,
-# so picking "git add " immediately offers what typically follows it,
-# chaining word-by-word instead of going silent until the next keystroke).
+# Looks for a suggestion for the CURRENT buffer and renders it. Shared by
+# every caller that just changed BUFFER and wants suggestions re-evaluated
+# for the new state — a keystroke (_ai_suggest_edit_wrapper) or accepting a
+# candidate (_ai_suggest_accept, so picking "git add " immediately offers
+# what typically follows it, chaining word-by-word instead of going silent
+# until the next keystroke).
 #
-# Deliberately does NOT suggest raw past commands from shell history —
-# only the known-tool table (git/docker/kubectl/npm) or an AI-generated
-# answer ever appear as a candidate.
+# AI suggestions are intentionally OFF for this phase (see the project goal
+# doc) — only the known-tool table (git/docker/kubectl/npm) ever produces a
+# candidate here. _ai_suggest_schedule (the debounced AI path) is not
+# called; re-enabling it is the next phase's work, not a code change buried
+# in this function.
 _ai_suggest_suggest_now() {
   _ai_suggest_clear_display
   # Explicit `return 0`, not bare `return`: a zle widget function that ends
@@ -662,10 +663,7 @@ _ai_suggest_suggest_now() {
   if _ai_suggest_static_match; then
     _AI_SUGGEST_INDEX=1
     _ai_suggest_render_box
-    return
   fi
-
-  _ai_suggest_schedule
 }
 
 # Wraps every buffer-editing builtin widget: runs the real builtin (via
@@ -693,36 +691,13 @@ _ai_suggest_trigger() {
     return
   fi
 
-  if ! command -v "$AI_SUGGEST_CLIENT_BIN" >/dev/null 2>&1; then
-    zle -M "ai-suggest: không tìm thấy '$AI_SUGGEST_CLIENT_BIN' trong \$PATH"
-    _ai_suggest_debug "trigger: client_bin '$AI_SUGGEST_CLIENT_BIN' not found on PATH"
-    return 1
-  fi
-
-  zle -M "ai-suggest: đang hỏi AI..."
-  zle -R
-
-  local -a history_args
-  history_args=(${(f)"$(fc -ln -${AI_SUGGEST_HISTORY_COUNT} 2>/dev/null)"})
-
-  _ai_suggest_debug "trigger: buffer='$BUFFER' cwd=$PWD"
-
-  local -a lines
-  lines=("${(@f)$("$AI_SUGGEST_CLIENT_BIN" "$BUFFER" "$PWD" "${history_args[@]}" 2>>${AI_SUGGEST_DEBUG_LOG})}")
-  # command substitution can leave one trailing empty element if stdout ended
-  # with a newline; drop blank lines.
-  lines=(${lines:#})
-
-  _ai_suggest_debug "trigger: received ${#lines} line(s): ${(j:; :)lines}"
-
-  if (( ${#lines} == 0 )); then
-    zle -M "ai-suggest: không có gợi ý (kiểm tra daemon/ollama, hoặc AI_SUGGEST_DEBUG=1)"
-    return 1
-  fi
-
-  _ai_suggest_parse_lines "${lines[@]}"
-  _AI_SUGGEST_INDEX=1
-  _ai_suggest_render_box
+  # AI suggestions are off for this phase (see the project goal doc) — the
+  # known-tool table above is the only suggestion source right now, so a
+  # buffer it doesn't cover just gets an explicit "nothing here" message
+  # instead of silently trying (and, previously, silently failing/timing
+  # out on) an AI round-trip.
+  zle -M "ai-suggest: không có gợi ý tĩnh cho lệnh này (AI đang tắt ở giai đoạn này)"
+  return 1
 }
 
 # --- selection widgets --------------------------------------------------------

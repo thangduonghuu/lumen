@@ -83,12 +83,48 @@ Unix socket cho nhanh.
 
 ## 4. Phạm vi MVP (giai đoạn 1)
 
-- [ ] Rust daemon chạy nền, giao tiếp qua unix socket
-- [ ] Zsh widget bắt sự kiện gõ, gửi context (buffer hiện tại + cwd) tới daemon
-- [ ] Daemon gọi 1 provider AI (chọn cloud HOẶC local qua config) → trả gợi ý
-- [ ] Hiển thị popup đơn giản dưới dòng lệnh, điều hướng bằng phím mũi tên
-- [ ] Chọn gợi ý bằng Tab/Enter để chèn vào dòng lệnh
-- [ ] File config cơ bản: chọn provider, API key, model
+- [x] Rust daemon chạy nền, giao tiếp qua unix socket
+- [x] Zsh widget bắt sự kiện gõ, gửi context (buffer hiện tại + cwd) tới daemon
+- [x] Daemon gọi 1 provider AI (chọn cloud HOẶC local qua config) → trả gợi ý
+- [x] Hiển thị popup đơn giản dưới dòng lệnh, điều hướng bằng phím mũi tên
+- [x] Chọn gợi ý bằng Tab/Enter để chèn vào dòng lệnh
+- [x] File config cơ bản: chọn provider, API key, model
+
+### 4.1 Giai đoạn 1a (hiện tại): tắt AI, chỉ dùng gợi ý tĩnh
+
+Lý do tạm tắt: model local (Ollama, kể cả bản nhỏ `qwen3:8b` lẫn
+`qwen2.5-coder:14b`) trả lời quá chậm (~10–40s) so với debounce 250ms của
+tính năng gõ-tới-đâu-gợi-ý-tới-đó — cảm giác như tính năng bị đứng/không
+hoạt động dù thực chất request vẫn chạy ngầm. Quyết định: tạm gác AI lại,
+tập trung hoàn thiện phần gợi ý tĩnh (bảng subcommand cứng cho
+git/docker/kubectl/npm) cho mượt và đúng trước, AI tính sau.
+
+- [x] `_ai_suggest_schedule` (đường gọi AI tự động khi gõ) không còn được
+      gọi từ `_ai_suggest_suggest_now` — chỉ còn bảng tĩnh
+- [x] Ctrl-Space (`_ai_suggest_trigger`) không gọi AI nữa; buffer ngoài bảng
+      tĩnh chỉ hiện thông báo "không có gợi ý tĩnh cho lệnh này"
+- [x] Bỏ gợi ý từ lịch sử lệnh (`_ai_suggest_history_match`) — chỉ còn bảng
+      tĩnh làm nguồn gợi ý duy nhất trong giai đoạn này
+- [ ] Review/mở rộng bảng tĩnh: thêm tool khác nếu cần (vd `cargo`, `yarn`),
+      hoàn thiện các subcommand còn thiếu cho git/docker/kubectl/npm
+
+Code của đường AI (`_ai_suggest_schedule`, `_ai_suggest_fd_handler`,
+`_ai_suggest_notify_async`, daemon/client/provider Rust) vẫn giữ nguyên,
+KHÔNG xoá — chỉ đơn giản là không có gì gọi tới nữa. Bật lại AI ở giai đoạn
+sau chỉ cần gọi lại `_ai_suggest_schedule` trong `_ai_suggest_suggest_now`
+(và khôi phục nhánh AI trong `_ai_suggest_trigger`), không cần viết lại từ
+đầu.
+
+### 4.2 Giai đoạn 1b (tiếp theo): bật lại AI
+
+- [ ] Chọn model/provider đủ nhanh cho debounce 250ms (model local nhỏ hơn,
+      hoặc mặc định dùng cloud (Anthropic) cho đường tự động, local chỉ
+      dùng cho Ctrl-Space nơi người dùng chấp nhận chờ)
+- [ ] Gọi lại `_ai_suggest_schedule` trong `_ai_suggest_suggest_now`
+- [ ] Khôi phục nhánh gọi AI trong `_ai_suggest_trigger` (Ctrl-Space)
+- [ ] Đánh giá lại: có cần thêm lại gợi ý từ lịch sử lệnh không, hay để AI
+      (đã có context lịch sử gần đây qua `AI_SUGGEST_HISTORY_COUNT`) đảm
+      nhiệm luôn phần đó
 
 ## 5. Giai đoạn 2 (mở rộng)
 - [ ] Hỗ trợ Bash, Fish
