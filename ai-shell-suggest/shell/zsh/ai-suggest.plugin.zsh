@@ -101,6 +101,45 @@ _ai_suggest_auto_enabled() {
   [[ $content != "0" ]]
 }
 
+# Widget names we've overridden that already had a user-defined widget
+# bound to them before we got to them (e.g. Powerlevel10k's own
+# `zle-line-init`, zsh's `url-quote-magic` on `self-insert`) — maps the
+# original widget name to the alias we copied it under, so our wrappers can
+# chain into it. Populated by _ai_suggest_wrap_widget at registration time.
+typeset -gA _AI_SUGGEST_ORIG_WIDGET=()
+
+# Registers $2 as the implementation for zle widget $1, preserving any
+# pre-existing USER-DEFINED widget under that name first (`zle -A`, which
+# copies rather than moves — the original keeps working standalone too) so
+# other plugins that already hooked the same widget keep running instead of
+# being silently replaced. Builtin (non-user) widgets don't need
+# preserving — `zle .$WIDGET` already reaches those directly, no chaining
+# required.
+_ai_suggest_wrap_widget() {
+  local widget=$1 impl=$2
+  local current=${widgets[$widget]-}
+  # Only preserve a widget that belongs to SOMEONE ELSE. If this plugin
+  # gets sourced twice in the same shell (re-sourced manually while already
+  # loaded via .zshrc, common when testing), $current on the second pass is
+  # already one of our own wrappers from the first pass — aliasing that as
+  # "the original" would make our own wrapper call itself, recursing
+  # forever on the very next keystroke. Excluding our own `_ai_suggest_*`
+  # functions here means a re-source just re-registers cleanly instead.
+  if [[ $current == user:* && $current != user:_ai_suggest_* ]]; then
+    local orig="_ai_suggest_orig_${widget//[^a-zA-Z0-9_]/_}"
+    zle -A $widget $orig
+    _AI_SUGGEST_ORIG_WIDGET[$widget]=$orig
+  fi
+  zle -N $widget $impl
+}
+
+# Runs whatever _ai_suggest_wrap_widget preserved for $1, if anything —
+# shared by every wrapper below so "chain into the widget we replaced" is
+# one call instead of the same guarded lookup repeated in each of them.
+_ai_suggest_call_orig_widget() {
+  (( $+_AI_SUGGEST_ORIG_WIDGET[$1] )) && zle ${_AI_SUGGEST_ORIG_WIDGET[$1]}
+}
+
 typeset -ga _AI_SUGGEST_CANDIDATES=()
 typeset -ga _AI_SUGGEST_DESCRIPTIONS=()
 typeset -ga _AI_SUGGEST_HINTS=()
@@ -666,11 +705,17 @@ _ai_suggest_suggest_now() {
   fi
 }
 
-# Wraps every buffer-editing builtin widget: runs the real builtin (via
-# `zle .$WIDGET`, using zsh's own record of which widget we were invoked
-# as), then re-evaluates suggestions for the resulting buffer.
+# Wraps every buffer-editing widget: runs whatever was bound to $WIDGET
+# before we took it over (another plugin's customization, e.g. zsh's own
+# `url-quote-magic` on self-insert — see _ai_suggest_wrap_widget), falling
+# back to the plain builtin (`zle .$WIDGET`) when nothing else had claimed
+# it, then re-evaluates suggestions for the resulting buffer.
 _ai_suggest_edit_wrapper() {
-  zle .$WIDGET
+  if (( $+_AI_SUGGEST_ORIG_WIDGET[$WIDGET] )); then
+    _ai_suggest_call_orig_widget $WIDGET
+  else
+    zle .$WIDGET
+  fi
   _ai_suggest_suggest_now
 }
 
@@ -730,6 +775,8 @@ _ai_suggest_accept() {
 _ai_suggest_forward_char() {
   if (( ${#_AI_SUGGEST_CANDIDATES} > 0 )) && (( CURSOR == ${#BUFFER} )); then
     _ai_suggest_accept
+  elif (( $+_AI_SUGGEST_ORIG_WIDGET[forward-char] )); then
+    _ai_suggest_call_orig_widget forward-char
   else
     zle .forward-char
   fi
@@ -763,22 +810,36 @@ _ai_suggest_dismiss() {
 }
 
 _ai_suggest_accept_line() {
-  # A suggestion is showing: Enter accepts it into BUFFER (like Tab), same
-  # as picking it and typing Enter again to actually run it — it does NOT
-  # submit on this keystroke, so an accidental Enter never runs the wrong
-  # command.
-  if (( ${#_AI_SUGGEST_CANDIDATES} > 0 )); then
+  # A suggestion is showing AND accepting it would actually change BUFFER:
+  # Enter accepts it (like Tab) instead of running the line — same as
+  # picking it and pressing Enter again to actually run it, so an
+  # accidental Enter never runs the wrong command.
+  #
+  # The equality check (candidate trimmed of its one trailing space vs.
+  # BUFFER) matters because the static table's prefix match still matches
+  # a subcommand against itself once you've typed it in full — e.g.
+  # BUFFER="git push" still shows "push" as the (only) candidate. Without
+  # this check, Enter would "accept" a no-op (re-insert the exact same
+  # text) instead of running the command, so finishing a known subcommand
+  # and pressing Enter would silently need a second Enter to do anything.
+  if (( ${#_AI_SUGGEST_CANDIDATES} > 0 )) \
+     && [[ "${_AI_SUGGEST_CANDIDATES[$_AI_SUGGEST_INDEX]% }" != "$BUFFER" ]]; then
     _ai_suggest_accept
     return
   fi
   _ai_suggest_cancel_pending
   _ai_suggest_clear_display
-  zle .accept-line
+  if (( $+_AI_SUGGEST_ORIG_WIDGET[accept-line] )); then
+    _ai_suggest_call_orig_widget accept-line
+  else
+    zle .accept-line
+  fi
 }
 
 _ai_suggest_line_init() {
   _ai_suggest_cancel_pending
   _ai_suggest_clear_display
+  _ai_suggest_call_orig_widget zle-line-init
 }
 
 # Kills the shared ai-suggest-daemon when this shell exits, so it doesn't
@@ -800,9 +861,13 @@ zle -N _ai_suggest_accept
 zle -N _ai_suggest_next
 zle -N _ai_suggest_prev
 zle -N _ai_suggest_dismiss
-zle -N forward-char _ai_suggest_forward_char
-zle -N accept-line _ai_suggest_accept_line
-zle -N zle-line-init _ai_suggest_line_init
+# These three (unlike the ones above) are well-known widget names other
+# plugins/frameworks may already have bound — go through
+# _ai_suggest_wrap_widget so anything already there (Powerlevel10k's
+# zle-line-init, etc.) keeps running instead of being silently replaced.
+_ai_suggest_wrap_widget forward-char _ai_suggest_forward_char
+_ai_suggest_wrap_widget accept-line _ai_suggest_accept_line
+_ai_suggest_wrap_widget zle-line-init _ai_suggest_line_init
 
 bindkey "$AI_SUGGEST_KEY" _ai_suggest_trigger
 bindkey '^I' _ai_suggest_accept          # Tab
@@ -823,7 +888,7 @@ if (( AI_SUGGEST_AUTO )); then
   )
   local _w
   for _w in $_ai_suggest_watched_widgets; do
-    zle -N $_w _ai_suggest_edit_wrapper
+    _ai_suggest_wrap_widget $_w _ai_suggest_edit_wrapper
   done
   unset _w _ai_suggest_watched_widgets
 fi
