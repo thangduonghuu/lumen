@@ -194,12 +194,12 @@ final class OverlayBridge {
         }
         _ = candidateStrings // the raw insertable text isn't needed for display, only labels/descriptions are
 
-        let pushedAnchor = NSWorkspace.shared.frontmostApplication
-            .flatMap { pushedCursorPositions[$0.processIdentifier] }
+        let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let pushedAnchor = frontmostPID.flatMap { pushedCursorPositions[$0] }
         let cursor = TerminalPositioner.CursorInfo(row: cursorRow, col: cursorCol, columns: columns, lines: lines)
         guard let anchor = pushedAnchor ?? TerminalPositioner.anchor(for: cursor) else { return }
 
-        controller.show(candidates: candidates, selectedIndex: selectedIndex, at: anchor)
+        controller.show(candidates: candidates, selectedIndex: selectedIndex, at: anchor, anchoredPID: frontmostPID)
     }
 
     private func waitAndDump(matching namePart: String, deadline: Date) {

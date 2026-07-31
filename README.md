@@ -4,12 +4,11 @@
 
 <h1 align="center">Lumen</h1>
 
-<p align="center"><strong>AI command suggestions for Zsh — inline, on demand, no separate terminal required.</strong></p>
+<p align="center"><strong>Deterministic command suggestions for Zsh — inline, on demand, no AI round-trip required.</strong></p>
 
 <p align="center">
   <img alt="platform" src="https://img.shields.io/badge/platform-macOS-lightgrey">
   <img alt="shell" src="https://img.shields.io/badge/shell-zsh-89e051">
-  <img alt="rust" src="https://img.shields.io/badge/rust-stable-orange">
   <img alt="swift" src="https://img.shields.io/badge/swift-5.9%2B-f05138">
 </p>
 
@@ -17,7 +16,6 @@
   <a href="#features">Features</a> ·
   <a href="#architecture">Architecture</a> ·
   <a href="#installation">Installation</a> ·
-  <a href="#configuration">Configuration</a> ·
   <a href="#usage--keybindings">Usage</a> ·
   <a href="#menu-bar-toggle">Menu bar toggle</a> ·
   <a href="#known-limitations">Known limitations</a>
@@ -27,92 +25,84 @@
 
 ## Overview
 
-Lumen embeds AI-assisted command completion directly into an existing Zsh
-session — not a separate terminal emulator, and not an always-on background
-process. Nothing happens while you type; a debounced background request
-(or an immediate Ctrl-Space) asks a long-running Rust daemon for
-completions, which render inline below the prompt. An optional macOS menu
-bar app lets you pause or resume automatic suggestions without touching the
-terminal.
+Lumen embeds Fig/Kiro-CLI-style command completion directly into an
+existing Zsh session — not a separate terminal emulator, and not an
+always-on background process. As you type (or on Ctrl-Space), the Zsh
+plugin matches the current buffer against known, hand-picked data — a
+tool's subcommands, directories under `cd`, or your repo's own git
+branches — and renders the result as a real floating panel via a
+companion macOS menu bar app.
 
-This is a single repo with three pieces working together, documented below
-in one place: the daemon/client (Rust), the Zsh plugin (shell/zsh/), and
-the menu bar toggle (Swift).
+There's no AI provider, no daemon, and no network round-trip anywhere in
+this path: every suggestion resolves synchronously from local data (a
+static table, a directory glob, or `git for-each-ref`), so it's instant
+and never wrong about what a tool's own subcommands or your own
+branches/directories actually are.
+
+This is a repo with two pieces working together, documented below in one
+place: the Zsh plugin (shell/zsh/) and the menu bar overlay (Swift).
 
 ## Features
 
-- **Inline, non-intrusive suggestions** — candidates render as a small card
-  below the prompt; nothing appears unless you're actively typing or ask
-  for it.
-- **Two trigger modes** — a short debounce fires suggestions automatically
-  as you type, or Ctrl-Space asks immediately, bypassing the debounce.
-- **Local-first inference** — the default provider is
-  [Ollama](https://ollama.com) (`qwen2.5-coder`), so suggestions work fully
-  offline once the model is pulled.
-- **Cloud fallback** — an Anthropic (Claude) backend is available, and
-  automatically falls back to the local provider on network or API failure.
-- **Known-command fast path** — common tools (git, docker, kubectl, npm)
-  resolve their subcommands from a static table instead of an AI call, so
-  the obvious cases are instant and don't cost a model round-trip.
+- **Inline, non-intrusive suggestions** — candidates render as a small
+  floating card positioned against your terminal cursor; nothing appears
+  unless you're actively typing or ask for it.
+- **Two trigger modes** — automatic as-you-type suggestions, or Ctrl-Space
+  to ask immediately for the current buffer.
+- **Known-tool subcommands** — git, docker, kubectl, and npm resolve their
+  subcommands from a static table (e.g. typing `git ` lists `status`,
+  `add`, `commit`, ...).
+- **Directory completion after `cd`** — typing `cd Doc` suggests
+  `Documents/`; accepting drills into that directory so you can keep
+  Tab-ing deeper without the panel immediately popping the next level on
+  top of you.
+- **Git branch suggestions** — once you've typed `git checkout`, `switch`,
+  `merge`, `rebase`, or `branch`, the next word suggests your repo's local
+  branches (via `git for-each-ref`, read fresh every time).
 - **Menu bar control** — toggle automatic suggestions on/off from the menu
   bar; the state syncs to every open shell. Manual Ctrl-Space always works
   regardless of the toggle.
-- **No lingering background process** — the daemon is killed when the
-  shell that started it exits, and auto-spawns fresh on the next request
-  from any other open shell.
 
 ## Architecture
 
 ```
-Zsh (ZLE)  --keystroke (debounced) or Ctrl-Space-->  ai-suggest-client  --unix socket-->  ai-suggest-daemon
-   ^                                                                                           |
-   |                                                                                           v
-   +------------------------ POSTDISPLAY ghost text + zle -M list -----------------  AI provider (Ollama / Anthropic)
+Zsh (ZLE)  --keystroke or Ctrl-Space-->  deterministic matchers (git/docker/kubectl/npm tables, cd glob, git branches)
+                                                          |
+                                                          v
+                                          Unix socket (~/.cache/ai-suggest/overlay.sock)
+                                                          |
+                                                          v
+                                          ai-suggest-menubar (native floating panel)
 
 ai-suggest-menubar  --shared state file (~/.cache/ai-suggest/enabled)-->  Zsh plugin
 ```
 
-- **ai-suggest-daemon**: long-running background process, listens on
-  `~/.cache/ai-suggest/daemon.sock`. Collects context (cwd, git branch/dirty
-  count, detected project type, recent history) and asks the configured AI
-  provider for up to `max_suggestions` command completions. Each connection
-  is handled independently (no shared mutable state), so it's safe for the
-  plugin to fire concurrent/overlapping requests.
-- **ai-suggest-client**: thin, short-lived binary the Zsh plugin shells out
-  to. Auto-spawns the daemon if it isn't running yet.
-- **shell/zsh/ai-suggest.plugin.zsh**: ZLE integration. By default, every
-  buffer-editing keystroke schedules a debounced background request (see
-  `AI_SUGGEST_DEBOUNCE_MS`); the top suggestion renders as inline ghost
-  text once it arrives, with the rest reachable via Up/Down. Ctrl-Space
-  still asks immediately and synchronously, bypassing the debounce.
-- **ai-suggest-menubar**: SwiftUI menu bar app that toggles automatic
-  suggestions on/off via a shared state file (see
-  [Menu bar toggle](#menu-bar-toggle) below).
+- **shell/zsh/ai-suggest.plugin.zsh**: ZLE integration and the only place
+  suggestions are computed. Every buffer-editing keystroke re-evaluates the
+  matchers (`AI_SUGGEST_AUTO=1`, the default); Ctrl-Space asks immediately
+  regardless. Matches are sent fire-and-forget over a Unix socket to the
+  overlay app — this shell side never draws anything itself and has no
+  idea whether the panel actually renders.
+- **ai-suggest-menubar**: SwiftUI menu bar app. Owns the floating panel
+  (positioned against the terminal's actual on-screen location via the
+  Accessibility API — see `TerminalPositioner.swift`) and the automatic-
+  suggestions on/off toggle.
 
 ## Repository structure
 
 | Path | Description |
 | --- | --- |
-| [`ai-shell-suggest/`](ai-shell-suggest/) | Rust workspace: the daemon, client, and Zsh plugin. |
-| [`ai-suggest-menubar/`](ai-suggest-menubar/) | SwiftUI menu bar app for toggling automatic suggestions. |
+| [`ai-shell-suggest/shell/zsh/`](ai-shell-suggest/shell/zsh/) | The Zsh plugin — this is the active suggestion engine. |
+| [`ai-suggest-menubar/`](ai-suggest-menubar/) | SwiftUI menu bar app that draws the floating panel and toggles automatic suggestions. |
+| [`ai-shell-suggest/src/`](ai-shell-suggest/src/) | A Rust daemon/client for AI-generated suggestions (Ollama/Anthropic). Not wired into the live path — see [Parked: the Rust daemon](#parked-the-rust-daemon). |
 | [`assets/`](assets/) | Shared repo assets (logo). |
 
 ## Requirements
 
 - macOS with Zsh
-- [Rust](https://www.rust-lang.org/tools/install) (stable toolchain) to build the daemon/client
-- [Ollama](https://ollama.com) for local inference, and/or an `ANTHROPIC_API_KEY` for the cloud provider
-- Swift 5.9+ / Xcode command line tools, only if building the menu bar app
+- Swift 5.9+ / Xcode command line tools, to build the menu bar app
 
 ## Installation
-
-Build and install the daemon and client:
-
-```sh
-cd ai-shell-suggest
-cargo build --release
-cp target/release/ai-suggest-daemon target/release/ai-suggest-client /opt/homebrew/bin/
-```
 
 Add to `~/.zshrc`:
 
@@ -120,66 +110,20 @@ Add to `~/.zshrc`:
 source /path/to/ai-shell-suggest/shell/zsh/ai-suggest.plugin.zsh
 ```
 
-The daemon does not need to be started manually — the first trigger press
-will auto-spawn it if `~/.cache/ai-suggest/daemon.sock` isn't reachable.
-
-By default, the daemon is killed when a shell that sourced this plugin
-exits (`zshexit` hook), so it doesn't linger in the background after you
-close your terminal. If another ai-suggest-enabled shell is still open, it
-just auto-spawns a fresh daemon on its next request. Set
-`AI_SUGGEST_KILL_DAEMON_ON_EXIT=0` before sourcing the plugin to keep the
-daemon running across shell sessions instead.
-
-## Providers
-
-- **Local (default)**: [Ollama](https://ollama.com), model `qwen2.5-coder`
-  by default. Runs fully offline once the model is pulled:
-  ```sh
-  ollama pull qwen2.5-coder
-  ollama serve   # if not already running
-  ```
-- **Cloud**: Anthropic (Claude), OpenAI, or Gemini vendor selectable in
-  config. API keys are never stored on disk — set one of
-  `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` in your shell
-  environment. If `provider = "cloud"` fails (no network, bad key), the
-  daemon automatically falls back to the local provider when
-  `fallback_to_local_on_cloud_error = true`.
-
-  Note: only the Anthropic backend is currently implemented; OpenAI/Gemini
-  are recognized in config but not yet wired to a provider.
-
-## Configuration
-
-`~/.config/ai-suggest/config.toml` is created with defaults on first run:
-
-```toml
-provider = "local"                       # "local" or "cloud"
-fallback_to_local_on_cloud_error = true
-max_suggestions = 5
-debounce_ms = 250                        # unused by the on-demand plugin; kept for future async mode
-
-[local]
-host = "http://localhost:11434"
-model = "qwen2.5-coder"                  # must match a tag you've pulled,
-                                          # e.g. "qwen2.5-coder:14b"
-
-[cloud]
-vendor = "anthropic"                     # "anthropic" | "openai" | "gemini"
-model = "claude-sonnet-5"
-```
-
-Shell-side behavior is configured via environment variables set before
-sourcing the plugin — see [Usage / keybindings](#usage--keybindings) below.
+Then build and run the menu bar app so suggestions actually have somewhere
+to render — see [Menu bar toggle](#menu-bar-toggle) below. Without it
+running, the plugin still matches your buffer correctly, it just has no
+panel to draw the result in (fails silently, never blocks typing).
 
 ## Usage / keybindings
 
-Suggestions appear automatically: pause briefly after typing (default
-250ms, see `AI_SUGGEST_DEBOUNCE_MS`) and the top candidate shows up as
-inline ghost text.
+Suggestions appear automatically as you type (`AI_SUGGEST_AUTO=1`, the
+default) whenever the buffer matches a known shape: a tool with a static
+subcommand table, `cd <partial>`, or a git branch-taking subcommand.
 
 | Key | Action |
 |---|---|
-| Ctrl-Space (`$AI_SUGGEST_KEY`) | Ask AI immediately, bypassing the debounce |
+| Ctrl-Space (`$AI_SUGGEST_KEY`) | Ask immediately for the current buffer |
 | Up / Down | Cycle through candidates (falls back to normal history search when no suggestion is shown) |
 | Tab / Right arrow (at end of line) | Accept the shown suggestion |
 | Ctrl-G | Dismiss the current suggestion (keeps what you typed) |
@@ -188,18 +132,16 @@ Other environment variables (set before sourcing the plugin):
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `AI_SUGGEST_CLIENT_BIN` | `ai-suggest-client` (resolved via `$PATH`) | Path to the client binary |
-| `AI_SUGGEST_HISTORY_COUNT` | `5` | How many recent history lines to send as context |
 | `AI_SUGGEST_AUTO` | `1` | `0` disables automatic as-you-type suggestions, Ctrl-Space-only |
-| `AI_SUGGEST_DEBOUNCE_MS` | `250` | Debounce window for automatic suggestions |
-| `AI_SUGGEST_KILL_DAEMON_ON_EXIT` | `1` | `0` keeps the daemon running across shell sessions instead of killing it on shell exit |
-| `AI_SUGGEST_DEBUG` | `0` | `1` logs every request to `$AI_SUGGEST_DEBUG_LOG` (default `/tmp/ai-suggest-debug.log`) |
+| `AI_SUGGEST_KEY` | `^@` (Ctrl-Space) | Manual trigger keybinding |
+| `AI_SUGGEST_OVERLAY` | `1` | `0` disables the floating panel entirely (no other rendering path exists) |
 
 ## Menu bar toggle
 
-`ai-suggest-menubar` is a small SwiftUI app that toggles **automatic**
-(as-you-type) suggestions on or off without touching the terminal. The
-icon shows ✨ when on, ⏸ when paused.
+`ai-suggest-menubar` is a small SwiftUI app that owns the floating
+suggestion panel and toggles **automatic** (as-you-type) suggestions on or
+off without touching the terminal. The icon shows ✨ when on, ⏸ when
+paused.
 
 Build and run:
 
@@ -213,30 +155,34 @@ It runs as a menu-bar-only accessory (no Dock icon, no app-switcher entry)
 and does not auto-start on login — launch it manually, or set it up as a
 [LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html)
 if you want it running every session. Quit it from its menu (**Quit
-ai-suggest**) — this only stops the toggle app itself, not the
-`ai-suggest-daemon` background process, which the shell plugin manages
-independently.
+ai-suggest**).
 
 **How it syncs with the shell:** this app and the Zsh plugin are separate,
-unrelated processes with no shared memory — the only thing connecting them
-is a single state file, `~/.cache/ai-suggest/enabled`. Toggling the switch
-writes `1` or `0` to that file; the Zsh plugin reads it before firing an
-*automatic* suggestion. A missing file means enabled by default, so the
-shell plugin works normally even if this app has never been run. Manual
-suggestions (Ctrl-Space) are **not** gated by this toggle on purpose —
-pausing automatic suggestions never blocks an explicit ask.
+unrelated processes with no shared memory — the only things connecting
+them are a state file and a socket, both under `~/.cache/ai-suggest/`.
+Toggling the switch writes `1` or `0` to `enabled`; the Zsh plugin reads it
+before firing an *automatic* suggestion. A missing file means enabled by
+default, so the shell plugin works normally even if this app has never
+been run. Manual suggestions (Ctrl-Space) are **not** gated by this toggle
+on purpose — pausing automatic suggestions never blocks an explicit ask.
+
+## Parked: the Rust daemon
+
+An earlier version of this project (see `goal-ai-shell-suggest.md`) routed
+suggestions through a Rust daemon/client (`ai-shell-suggest/src/`) that
+called out to Ollama or Anthropic for AI-generated completions. That path
+is no longer wired into the Zsh plugin — the deterministic matchers above
+cover the common cases (tool subcommands, paths, branches) instantly and
+without ever needing to guess. The Rust source is still in the repo,
+unused, in case AI-backed suggestions are worth revisiting later; it isn't
+built or run by anything documented here.
 
 ## Known limitations
 
-- Suggestions render as inline ghost text (single line, cycled via
-  Up/Down), not a separate multi-row popup box — this is simpler and more
-  robust in plain ZLE than hand-drawing a floating dropdown, at the cost of
-  only showing one candidate at a time.
-- A keystroke that arrives while a request is already mid-flight (past the
-  debounce, waiting on the AI provider) doesn't force-kill that request —
-  its result is just discarded on arrival if it's gone stale. With a slow
-  local model this means a burst of typing without pauses can fire more
-  provider calls than strictly necessary; only their *display* is
-  debounced/deduplicated, not the network calls themselves.
-- OpenAI and Gemini cloud vendors are configured but not implemented yet.
-- Bash and Fish shells are not supported yet.
+- Suggestion sources are deterministic and hand-picked (git/docker/kubectl/
+  npm subcommands, `cd` targets, git branches) — there's no free-form or
+  AI-generated suggestion for commands outside those tables.
+- The floating panel requires `ai-suggest-menubar` to be running and
+  granted Accessibility permission; without it, matching still happens but
+  nothing renders.
+- Bash and Fish shells are not supported.

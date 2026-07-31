@@ -20,6 +20,43 @@ final class OverlayController {
     private var panel: NSPanel?
     private let state = OverlayState()
 
+    /// pid of the app the panel is currently anchored against (whatever was
+    /// frontmost when `show` was last called). Used to tell "user switched
+    /// away from the terminal" (hide) apart from "user switched between two
+    /// windows of that same terminal app, or nothing changed" (leave it).
+    private var anchoredPID: pid_t?
+    private var activationObserver: NSObjectProtocol?
+
+    init() {
+        // NSWorkspace.didActivateApplicationNotification fires for every
+        // app activation, including Cmd-Tab and clicking another app's
+        // window — exactly "the terminal lost focus" from the user's
+        // perspective, without needing anything from the zsh plugin (a
+        // focus switch produces no keystroke, so there'd be nothing to
+        // trigger a hide from the shell side).
+        activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            self?.handleActivation(notification)
+        }
+    }
+
+    deinit {
+        if let activationObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
+        }
+    }
+
+    private func handleActivation(_ notification: Notification) {
+        guard let anchoredPID else { return }
+        let activatedPID = (notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?
+            .processIdentifier
+        guard activatedPID != anchoredPID else { return }
+        hide()
+    }
+
     /// `anchor` describes the cursor's own character cell on screen (both
     /// edges — see TerminalPositioner.ScreenAnchor). This picks whichever
     /// side actually fits once the panel's real size is known: anchor the
@@ -31,7 +68,18 @@ final class OverlayController {
     /// the deciding factor is the panel's ACTUAL rendered height, which
     /// isn't known until the SwiftUI content below is measured, so this
     /// can't be decided any earlier (e.g. back in TerminalPositioner).
-    func show(candidates: [OverlayCandidate], selectedIndex: Int, at anchor: TerminalPositioner.ScreenAnchor) {
+    ///
+    /// `anchoredPID` is the pid of the app this anchor was computed
+    /// against (the frontmost app at the time), so a later switch away from
+    /// it can auto-hide the panel — see `handleActivation`. Pass nil if
+    /// unknown; the panel just won't auto-hide on app switch in that case.
+    func show(
+        candidates: [OverlayCandidate],
+        selectedIndex: Int,
+        at anchor: TerminalPositioner.ScreenAnchor,
+        anchoredPID: pid_t?
+    ) {
+        self.anchoredPID = anchoredPID
         state.candidates = candidates
         state.selectedIndex = selectedIndex
 
@@ -71,6 +119,7 @@ final class OverlayController {
 
     func hide() {
         panel?.orderOut(nil)
+        anchoredPID = nil
     }
 
     private func makePanel() -> NSPanel {
