@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="spark" x1="22" y1="18" x2="84" y2="92" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffe9a8"/>
+      <stop offset="45%" stop-color="#ffb545"/>
+      <stop offset="100%" stop-color="#ff6f61"/>
+    </linearGradient>
+    <linearGradient id="spark-sm" x1="75" y1="62" x2="101" y2="89" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffd77a"/>
+      <stop offset="100%" stop-color="#ff8a5b"/>
+    </linearGradient>
+    <filter id="bloom" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="4.2"/>
+    </filter>
+  </defs>
+
+  <!-- soft glow behind the mark -->
+  <path
+    d="M53 18 C56.5 40 62 51 84 55 C62 59 56.5 70 53 92
+       C49.5 70 44 59 22 55 C44 51 49.5 40 53 18 Z"
+    fill="#ffb545" opacity="0.55" filter="url(#bloom)"/>
+
+  <!-- primary spark -->
+  <path
+    d="M53 16
+       C56.5 39.5 62.5 51.5 86 55
+       C62.5 58.5 56.5 70.5 53 94
+       C49.5 70.5 43.5 58.5 20 55
+       C43.5 51.5 49.5 39.5 53 16 Z"
+    fill="url(#spark)"/>
+
+  <!-- glint highlight -->
+  <path
+    d="M46 30 C48 39 51.5 45 60 48 C53 49.5 48.5 53 46 60
+       C44.5 53 41.5 49.5 35 48 C41.5 45 44.5 39 46 30 Z"
+    fill="#fff8e8" opacity="0.55"/>
+
+  <!-- secondary spark -->
+  <path
+    d="M89 60
+       C90.5 70 93 73 103 75.5
+       C93 78 90.5 81 89 91
+       C87.5 81 85 78 75 75.5
+       C85 73 87.5 70 89 60 Z"
+    fill="url(#spark-sm)"/>
+</svg>

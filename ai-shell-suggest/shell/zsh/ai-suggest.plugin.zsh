@@ -221,7 +221,6 @@ typeset -ga _AI_SUGGEST_DOCKER_SUBCMDS=(
 typeset -g _AI_SUGGEST_PENDING_PID=
 typeset -g _AI_SUGGEST_PENDING_FD=
 typeset -g _AI_SUGGEST_PENDING_BUFFER=
-typeset -g _AI_SUGGEST_HISTORY_MATCH=
 typeset -gF _AI_SUGGEST_DEBOUNCE_SEC=$(( AI_SUGGEST_DEBOUNCE_MS / 1000.0 ))
 
 _ai_suggest_debug() {
@@ -636,40 +635,18 @@ _ai_suggest_schedule() {
   zle -F $fd _ai_suggest_fd_handler
 }
 
-# Instant (in-process, no subprocess) fallback: most-recent history entry
-# that starts with the current buffer, plain prefix comparison (BUFFER may
-# contain glob metacharacters that must not be pattern-matched — same
-# reasoning as _ai_suggest_render_box). This exists because the AI
-# roundtrip (network + local-model inference) can easily take seconds,
-# which is longer than most typing pauses; without this, the card would
-# almost never appear except when the user stops typing entirely for
-# several seconds. Bounded to the last 2000 history events so a huge
-# HISTSIZE can't make every keystroke pay for a full-history scan.
-_ai_suggest_history_match() {
-  _AI_SUGGEST_HISTORY_MATCH=
-  [[ -z $BUFFER ]] && return
-  local buf_len=${#BUFFER}
-  local -i i floor=$(( HISTCMD - 2000 ))
-  (( floor < 1 )) && floor=1
-  local entry
-  for (( i = HISTCMD; i >= floor; i-- )); do
-    entry=$history[$i]
-    [[ -z $entry || $entry == "$BUFFER" ]] && continue
-    if [[ "${entry:0:$buf_len}" == "$BUFFER" ]]; then
-      _AI_SUGGEST_HISTORY_MATCH=$entry
-      return
-    fi
-  done
-}
-
-# Wraps every buffer-editing builtin widget: runs the real builtin (via
-# `zle .$WIDGET`, using zsh's own record of which widget we were invoked
-# as), clears any now-stale ghost text, shows an instant history-based
-# suggestion if one matches (see _ai_suggest_history_match), then schedules
-# a debounced AI request that will override it if a better answer arrives
-# in time.
-_ai_suggest_edit_wrapper() {
-  zle .$WIDGET
+# Looks for a suggestion for the CURRENT buffer and renders it: known-tool
+# subcommand table first (exact, no round-trip), otherwise schedules a
+# debounced AI request. Shared by every caller that just changed BUFFER and
+# wants suggestions re-evaluated for the new state — a keystroke
+# (_ai_suggest_edit_wrapper) or accepting a candidate (_ai_suggest_accept,
+# so picking "git add " immediately offers what typically follows it,
+# chaining word-by-word instead of going silent until the next keystroke).
+#
+# Deliberately does NOT suggest raw past commands from shell history —
+# only the known-tool table (git/docker/kubectl/npm) or an AI-generated
+# answer ever appear as a candidate.
+_ai_suggest_suggest_now() {
   _ai_suggest_clear_display
   # Explicit `return 0`, not bare `return`: a zle widget function that ends
   # with non-zero status makes zle beep, and _ai_suggest_auto_enabled
@@ -688,15 +665,15 @@ _ai_suggest_edit_wrapper() {
     return
   fi
 
-  _ai_suggest_history_match
-  if [[ -n $_AI_SUGGEST_HISTORY_MATCH ]]; then
-    _AI_SUGGEST_CANDIDATES=($_AI_SUGGEST_HISTORY_MATCH)
-    _AI_SUGGEST_DESCRIPTIONS=('Từ lịch sử lệnh')
-    _AI_SUGGEST_HINTS=('')
-    _AI_SUGGEST_INDEX=1
-    _ai_suggest_render_box
-  fi
   _ai_suggest_schedule
+}
+
+# Wraps every buffer-editing builtin widget: runs the real builtin (via
+# `zle .$WIDGET`, using zsh's own record of which widget we were invoked
+# as), then re-evaluates suggestions for the resulting buffer.
+_ai_suggest_edit_wrapper() {
+  zle .$WIDGET
+  _ai_suggest_suggest_now
 }
 
 # --- the manual, immediate trigger ------------------------------------------
@@ -752,10 +729,24 @@ _ai_suggest_trigger() {
 
 _ai_suggest_accept() {
   if (( ${#_AI_SUGGEST_CANDIDATES} > 0 )); then
-    BUFFER=$_AI_SUGGEST_CANDIDATES[$_AI_SUGGEST_INDEX]
+    # Capture the chosen candidate before clearing: _ai_suggest_clear_display
+    # resets _AI_SUGGEST_CANDIDATES too, so reading it after would accept
+    # an empty string.
+    local chosen=$_AI_SUGGEST_CANDIDATES[$_AI_SUGGEST_INDEX]
+    # Clear the ghost box's highlighting BEFORE growing BUFFER, not after:
+    # _ai_suggest_clear_display decides what region_highlight entries are
+    # stale by comparing their position against ${#BUFFER}. The accepted
+    # candidate is often much longer than what's currently typed (e.g.
+    # accepting a full suggested command), so if BUFFER were reassigned
+    # first, badge/label entries that used to sit safely past the end of
+    # the (short) buffer would suddenly fall *within* the new (long) one —
+    # misread as real-buffer highlighting and left painted onto the
+    # accepted text instead of being discarded.
+    _ai_suggest_clear_display
+    BUFFER=$chosen
     CURSOR=${#BUFFER}
     _ai_suggest_cancel_pending
-    _ai_suggest_clear_display
+    _ai_suggest_suggest_now
   else
     zle .expand-or-complete
   fi
@@ -797,6 +788,14 @@ _ai_suggest_dismiss() {
 }
 
 _ai_suggest_accept_line() {
+  # A suggestion is showing: Enter accepts it into BUFFER (like Tab), same
+  # as picking it and typing Enter again to actually run it — it does NOT
+  # submit on this keystroke, so an accidental Enter never runs the wrong
+  # command.
+  if (( ${#_AI_SUGGEST_CANDIDATES} > 0 )); then
+    _ai_suggest_accept
+    return
+  fi
   _ai_suggest_cancel_pending
   _ai_suggest_clear_display
   zle .accept-line
