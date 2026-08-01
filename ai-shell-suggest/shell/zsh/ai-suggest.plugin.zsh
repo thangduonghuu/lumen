@@ -325,6 +325,23 @@ _ai_suggest_json_str_array() {
   print -rn -- "[${(j:,:)parts}]"
 }
 
+# Throttles overlay-socket sends to at most one per
+# _AI_SUGGEST_OVERLAY_MIN_INTERVAL — NOT a performance tweak. Root-caused
+# 2026-08-01: connecting+closing this Unix socket on every single keystroke
+# (a fast typing burst easily fires 15-20 sends within a few hundred ms)
+# corrupts the shell's own terminal I/O state badly enough that the NEXT
+# foreground command's real stdout/stderr never reaches the terminal at
+# all — reproduced down to a bare zsocket-connect-close loop with no AI/git
+# involved, so it's a genuine zsh/pty interaction bug triggered by send
+# *frequency*, not anything about this plugin's payload. Every real send
+# still fires well within what a human can perceive while typing (>=80ms
+# apart is faster than typical keystroke spacing), so this is invisible in
+# normal use — it only ever skips a send when keystrokes are arriving
+# faster than that.
+zmodload zsh/datetime 2>/dev/null
+typeset -gF _AI_SUGGEST_LAST_OVERLAY_SEND=0
+typeset -gF _AI_SUGGEST_OVERLAY_MIN_INTERVAL=0.08
+
 # Fire-and-forget send of a JSON payload to the overlay companion app.
 # zsocket (zsh/net/socket) connecting to a path with nothing listening —
 # socket missing entirely, stale file, or refused connection — fails
@@ -335,6 +352,8 @@ _ai_suggest_json_str_array() {
 # in the middle of typing.
 _ai_suggest_overlay_send() {
   local payload=$1
+  (( EPOCHREALTIME - _AI_SUGGEST_LAST_OVERLAY_SEND < _AI_SUGGEST_OVERLAY_MIN_INTERVAL )) && return
+  _AI_SUGGEST_LAST_OVERLAY_SEND=$EPOCHREALTIME
   zmodload zsh/net/socket 2>/dev/null || return
   zsocket $AI_SUGGEST_OVERLAY_SOCK 2>/dev/null || return
   print -u $REPLY -r -- "$payload" 2>/dev/null
