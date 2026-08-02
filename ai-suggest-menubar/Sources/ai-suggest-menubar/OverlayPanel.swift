@@ -94,6 +94,15 @@ final class OverlayController {
             panel.contentView = hosting
         }
 
+        // .fittingSize on a just-created NSHostingView, before it's been
+        // through a layout pass as part of the panel's view hierarchy, can
+        // report a stale/oversized value (observed: large enough that the
+        // "not enough room below" branch below fires on the very first
+        // suggestion of a session even near the top of a tall window,
+        // flipping the panel above the cursor instead of below it).
+        // Forcing a layout pass first makes fittingSize reflect the real
+        // SwiftUI-measured content size.
+        hosting.layoutSubtreeIfNeeded()
         let fitting = hosting.fittingSize
         hosting.frame = NSRect(origin: .zero, size: fitting)
         panel.setContentSize(fitting)
@@ -115,6 +124,8 @@ final class OverlayController {
             panel.setFrameOrigin(NSPoint(x: anchor.x, y: anchor.cellTopY + gap))
         }
         panel.orderFrontRegardless()
+        debugLog("ai-suggest-menubar: overlay panel: fitting=\(fitting) anchor=\(anchor) "
+            + "belowOrigin=\(belowOrigin) screenMinY=\(screenMinY) chose=\(belowOrigin.y >= screenMinY ? "below" : "flipped-above")")
     }
 
     func hide() {
