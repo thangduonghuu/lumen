@@ -1622,6 +1622,19 @@ _ai_suggest_dismiss() {
   fi
 }
 
+# Escape-specific dismiss: unlike Ctrl-G above, this does nothing at all
+# (no beep) when there's no suggestion to dismiss, rather than falling
+# through to send-break's own beep. send-break beeping when there's
+# nothing to abort is normal, long-standing zsh behavior for Ctrl-G at the
+# top-level prompt (harmless there since Ctrl-G is a deliberate, rare
+# keypress) — but Escape gets pressed on reflex far more often, "just in
+# case something is showing," and beeping every single one of those times
+# reads as broken rather than as the same expected zsh convention.
+_ai_suggest_dismiss_escape() {
+  (( ${#_AI_SUGGEST_CANDIDATES} > 0 )) && _ai_suggest_clear_display
+  true
+}
+
 _ai_suggest_accept_line() {
   # A suggestion is showing AND accepting it would actually change BUFFER:
   # Enter accepts it (like Tab) instead of running the line — same as
@@ -1661,6 +1674,7 @@ zle -N _ai_suggest_accept
 zle -N _ai_suggest_next
 zle -N _ai_suggest_prev
 zle -N _ai_suggest_dismiss
+zle -N _ai_suggest_dismiss_escape
 # These three (unlike the ones above) are well-known widget names other
 # plugins/frameworks may already have bound — go through
 # _ai_suggest_wrap_widget so anything already there (Powerlevel10k's
@@ -1678,11 +1692,37 @@ bindkey '^I' _ai_suggest_accept  # Tab
 # also create a separate widget literally named "_ai_suggest_forward_char".
 # Binding directly to that nonexistent name is exactly what previously
 # made Right-arrow/Ctrl-F fail with "No such widget `_ai_suggest_forward_char'".
-bindkey '^[[C' forward-char  # Right arrow (xterm)
+bindkey '^[[C' forward-char  # Right arrow, normal cursor-key mode (xterm)
+bindkey '^[OC' forward-char  # Right arrow, application cursor-key mode
 bindkey '^F' forward-char
-bindkey '^[[A' _ai_suggest_prev  # Up arrow
-bindkey '^[[B' _ai_suggest_next  # Down arrow
+# Arrow keys send one of two different escape sequences depending on
+# whether the terminal is in normal ("\e[X") or application/DECCKM
+# ("\eOX") cursor-key mode — which mode is active isn't under this
+# plugin's control (some terminal wrappers/multiplexers switch it, e.g.
+# observed with Kiro CLI's own pty layer). Binding only the "\e[X" form
+# left "\eOX" silently falling through to zsh's own default
+# up/down-line-or-beginning-search — suggestions would still render, but
+# the arrow keys wouldn't cycle them at all (just beep, same as normal
+# history search beeping with nothing left to search). Bind both forms to
+# be correct regardless of which mode the terminal happens to be in.
+bindkey '^[[A' _ai_suggest_prev  # Up arrow, normal cursor-key mode
+bindkey '^[OA' _ai_suggest_prev  # Up arrow, application cursor-key mode
+bindkey '^[[B' _ai_suggest_next  # Down arrow, normal cursor-key mode
+bindkey '^[OB' _ai_suggest_next  # Down arrow, application cursor-key mode
 bindkey '^G' _ai_suggest_dismiss
+# Plain Escape is "undefined-key" (a no-op/beep) by default in zsh's emacs
+# keymap — it's otherwise only ever a PREFIX for longer sequences like
+# arrow keys (\e[A, \e[B, ...), never bound to a standalone action of its
+# own, so this doesn't shadow anything. zle already disambiguates "Escape
+# alone" from "the start of a longer \e-prefixed sequence" via
+# $KEYTIMEOUT, the same mechanism that lets Alt-key combos coexist with a
+# bare Escape binding elsewhere (e.g. vi-mode setups) — a real arrow-key
+# press still resolves to its own longer binding, not this one.
+#
+# Bound to _ai_suggest_dismiss_escape (not the plain _ai_suggest_dismiss
+# Ctrl-G uses) so pressing Escape with nothing showing is a silent no-op
+# instead of send-break's beep — see that function's comment.
+bindkey '^[' _ai_suggest_dismiss_escape
 
 if (( AI_SUGGEST_AUTO )); then
   local -a _ai_suggest_watched_widgets
