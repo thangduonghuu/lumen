@@ -1,9 +1,43 @@
 import AppKit
 import SwiftUI
 
+/// Row icon kind, mirrored from the zsh plugin's _AI_SUGGEST_ICONS —
+/// "dir"/"branch" from the cd/git-branch matchers, or one of
+/// _ai_suggest_tool_icon_kind's per-tool identifiers for everything from a
+/// static/nested subcommand table (see _ai_suggest_overlay_show in
+/// ai-suggest.plugin.zsh). Falls back to `.command` for anything empty or
+/// unrecognized, so an older shell-side build without the "icons" field, or
+/// a tool this build doesn't have a specific glyph for yet, still renders
+/// (as the original plain "$" badge) instead of crashing the JSON parse.
+enum CandidateIcon: String {
+    case directory = "dir"
+    case branch
+    case git
+    case docker
+    case kubectl
+    case npm
+    case yarn
+    case pnpm
+    case aws
+    case gcloud
+    case az
+    case terraform
+    case helm
+    case gh
+    case glab
+    case kafka
+    case rabbitmq
+    case command = "cmd"
+
+    init(raw: String?) {
+        self = CandidateIcon(rawValue: raw ?? "") ?? .command
+    }
+}
+
 struct OverlayCandidate {
     let label: String
     let description: String
+    let icon: CandidateIcon
 }
 
 final class OverlayState: ObservableObject {
@@ -166,15 +200,7 @@ struct OverlayContentView: View {
             ForEach(Array(state.candidates.enumerated()), id: \.offset) { idx, candidate in
                 let selected = idx == state.selectedIndex
                 HStack(spacing: 8) {
-                    Text("$")
-                        .font(.system(.body, design: .monospaced).weight(.semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 1)
-                        .background(
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(Color(red: 0.53, green: 0.37, blue: 0.69))
-                        )
+                    iconBadge(for: candidate.icon)
                     Text(candidate.label)
                         .font(.system(.body, design: .monospaced))
                         .fontWeight(selected ? .bold : .regular)
@@ -206,4 +232,67 @@ struct OverlayContentView: View {
         )
         .fixedSize()
     }
+
+    /// One badge per row, uniform size/shape (fixed-width so labels stay
+    /// column-aligned down the list) so brand logos and the generic glyphs
+    /// sit consistently regardless of kind. Brand-specific cases (git,
+    /// docker, kubectl, ...) render the tool's actual logo — real SVG marks
+    /// bundled into the app (Sources/ai-suggest-menubar/Resources/*.svg,
+    /// sourced from the Simple Icons project, official brand color baked
+    /// into each file — see the shell script this was fetched with), not a
+    /// generic system glyph standing in for it. Directory/branch/fallback
+    /// rows have no associated company, so those three keep using SF
+    /// Symbols with a hand-picked accent color instead.
+    @ViewBuilder
+    private func iconBadge(for icon: CandidateIcon) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 5)
+                .fill(Color.primary.opacity(0.07))
+            switch icon {
+            case .directory:
+                Image(systemName: "folder.fill")
+                    .foregroundStyle(Color(red: 0.30, green: 0.55, blue: 0.90))
+            case .branch:
+                Image(systemName: "arrow.triangle.branch")
+                    .foregroundStyle(Color(red: 0.86, green: 0.55, blue: 0.20))
+            case .command:
+                Text("$")
+                    .font(.system(.caption, design: .monospaced).weight(.bold))
+                    .foregroundStyle(Color(red: 0.53, green: 0.37, blue: 0.69))
+            default:
+                if let logo = brandImage(for: icon) {
+                    Image(nsImage: logo)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .padding(3)
+                } else {
+                    // Missing bundled asset (shouldn't happen for a shipped
+                    // build) — fall back to a neutral placeholder rather
+                    // than an empty badge.
+                    Image(systemName: "square.dashed")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .font(.system(size: 11, weight: .semibold))
+        .frame(width: 20, height: 18)
+    }
+
+    /// Loads a bundled brand SVG by `CandidateIcon`'s raw value (which is
+    /// exactly the asset's filename minus extension — e.g. `.docker` reads
+    /// Resources/docker.svg) and caches the decoded NSImage: this view's
+    /// body re-runs on every keystroke while suggestions are showing, and
+    /// re-decoding the same handful of SVGs from disk that often would be
+    /// wasted work for images that never change.
+    private func brandImage(for icon: CandidateIcon) -> NSImage? {
+        let name = icon.rawValue
+        if let cached = Self.brandImageCache[name] { return cached }
+        guard let url = Bundle.module.url(forResource: name, withExtension: "svg", subdirectory: "Resources"),
+              let image = NSImage(contentsOf: url)
+        else { return nil }
+        Self.brandImageCache[name] = image
+        return image
+    }
+
+    private static var brandImageCache: [String: NSImage] = [:]
 }

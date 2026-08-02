@@ -189,8 +189,17 @@ final class OverlayBridge {
             let lines = message["lines"] as? Int
         else { return }
 
+        // Optional: older shell-plugin builds (before the icons field was
+        // added) simply won't send it, so a missing/short array falls back
+        // to CandidateIcon's own default (.command) per row rather than
+        // failing the whole guard above.
+        let icons = message["icons"] as? [String] ?? []
         let candidates = labels.indices.map { i in
-            OverlayCandidate(label: labels[i], description: i < descriptions.count ? descriptions[i] : "")
+            OverlayCandidate(
+                label: labels[i],
+                description: i < descriptions.count ? descriptions[i] : "",
+                icon: CandidateIcon(raw: i < icons.count ? icons[i] : nil)
+            )
         }
         _ = candidateStrings // the raw insertable text isn't needed for display, only labels/descriptions are
 

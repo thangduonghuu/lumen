@@ -132,6 +132,15 @@ typeset -ga _AI_SUGGEST_HINTS=()
 # _ai_suggest_overlay_show); every current matcher sets this explicitly, but
 # the fallback stays as a safety net for anything that doesn't.
 typeset -ga _AI_SUGGEST_LABELS=()
+# Per-row icon kind — "dir" (cd match) or "branch" (git branch match) from
+# their respective matchers, or one of _ai_suggest_tool_icon_kind's per-tool
+# identifiers ("git"/"docker"/"kubectl"/"aws"/"kafka"/...) for everything
+# from the static/nested subcommand tables — parallel to
+# _AI_SUGGEST_CANDIDATES, sent to the overlay companion app so it can draw a
+# distinct glyph+color per row (see CandidateIcon in OverlayPanel.swift)
+# instead of one generic badge for everything. "cmd" is the fallback for
+# any tool without its own glyph yet.
+typeset -ga _AI_SUGGEST_ICONS=()
 typeset -gi _AI_SUGGEST_INDEX=0
 
 # Static subcommand tables: `name<TAB>arg-hint<TAB>description`, ordered by
@@ -1064,6 +1073,7 @@ _ai_suggest_overlay_show() {
   payload+="\"candidates\":$(_ai_suggest_json_str_array "${_AI_SUGGEST_CANDIDATES[@]}"),"
   payload+="\"descriptions\":$(_ai_suggest_json_str_array "${_AI_SUGGEST_DESCRIPTIONS[@]}"),"
   payload+="\"labels\":$(_ai_suggest_json_str_array "${label_parts[@]}"),"
+  payload+="\"icons\":$(_ai_suggest_json_str_array "${_AI_SUGGEST_ICONS[@]}"),"
   payload+="\"selectedIndex\":$(( _AI_SUGGEST_INDEX - 1 )),"
   payload+="\"cursorRow\":$live_row,"
   payload+="\"cursorCol\":$live_col,"
@@ -1094,7 +1104,41 @@ _ai_suggest_clear_display() {
   _AI_SUGGEST_DESCRIPTIONS=()
   _AI_SUGGEST_HINTS=()
   _AI_SUGGEST_LABELS=()
+  _AI_SUGGEST_ICONS=()
   _AI_SUGGEST_INDEX=0
+}
+
+# Maps a tool name (as typed, so "k"/"tf" included) to the icon identifier
+# the overlay companion app knows how to draw a distinct glyph+color for
+# (see CandidateIcon in OverlayPanel.swift) — one entry per tool this
+# plugin has a static table for, grouped where several binaries are really
+# "the same kind of thing" (kafka's four scripts all get "kafka"; aws/
+# gcloud/az all get their own cloud-provider identity rather than sharing
+# one generic "cloud" bucket, since which cloud you're in is exactly the
+# thing worth telling apart at a glance). Falls back to "cmd" — the
+# original plain "$" badge — for any tool without a specific glyph, so
+# adding a new *_SUBCMDS table later doesn't require touching this list to
+# stay visually correct, just look a little more generic until it's added.
+_ai_suggest_tool_icon_kind() {
+  case "$1" in
+    git) print -n git ;;
+    docker) print -n docker ;;
+    kubectl|k) print -n kubectl ;;
+    npm) print -n npm ;;
+    yarn) print -n yarn ;;
+    pnpm) print -n pnpm ;;
+    aws) print -n aws ;;
+    gcloud) print -n gcloud ;;
+    az) print -n az ;;
+    terraform|tf) print -n terraform ;;
+    helm) print -n helm ;;
+    gh) print -n gh ;;
+    glab) print -n glab ;;
+    kafka-topics|kafka-topics.sh|kafka-console-producer|kafka-console-producer.sh|kafka-console-consumer|kafka-console-consumer.sh|kafka-consumer-groups|kafka-consumer-groups.sh)
+      print -n kafka ;;
+    rabbitmqctl) print -n rabbitmq ;;
+    *) print -n cmd ;;
+  esac
 }
 
 # Matches $BUFFER against a known "<tool> <partial-subcommand>" shape and,
@@ -1141,10 +1185,12 @@ _ai_suggest_static_match() {
 
   local entry name hint desc
   local -a parts
+  local icon_kind=$(_ai_suggest_tool_icon_kind "$tool")
   _AI_SUGGEST_CANDIDATES=()
   _AI_SUGGEST_DESCRIPTIONS=()
   _AI_SUGGEST_HINTS=()
   _AI_SUGGEST_LABELS=()
+  _AI_SUGGEST_ICONS=()
   for entry in "${table[@]}"; do
     parts=("${(@ps:\t:)entry}")
     name=$parts[1]
@@ -1153,6 +1199,7 @@ _ai_suggest_static_match() {
     _AI_SUGGEST_LABELS+=("$name")
     _AI_SUGGEST_HINTS+=("${parts[2]:-}")
     _AI_SUGGEST_DESCRIPTIONS+=("${parts[3]:-}")
+    _AI_SUGGEST_ICONS+=("$icon_kind")
     (( ${#_AI_SUGGEST_CANDIDATES} >= 9 )) && break
   done
   (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
@@ -1184,12 +1231,14 @@ _ai_suggest_cd_match() {
   _AI_SUGGEST_DESCRIPTIONS=()
   _AI_SUGGEST_HINTS=()
   _AI_SUGGEST_LABELS=()
+  _AI_SUGGEST_ICONS=()
   for dir in "${matches[@]}"; do
     label="${dir%/}/"
     _AI_SUGGEST_CANDIDATES+=("$tool ${dir%/}/")
     _AI_SUGGEST_LABELS+=("$label")
     _AI_SUGGEST_HINTS+=("")
     _AI_SUGGEST_DESCRIPTIONS+=("Change directory")
+    _AI_SUGGEST_ICONS+=("dir")
     (( ${#_AI_SUGGEST_CANDIDATES} >= 9 )) && break
   done
   (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
@@ -1232,12 +1281,14 @@ _ai_suggest_git_branch_match() {
   _AI_SUGGEST_DESCRIPTIONS=()
   _AI_SUGGEST_HINTS=()
   _AI_SUGGEST_LABELS=()
+  _AI_SUGGEST_ICONS=()
   for br in "${branches[@]}"; do
     [[ "$br" == "$partial"* ]] || continue
     _AI_SUGGEST_CANDIDATES+=("git $subcmd $br ")
     _AI_SUGGEST_LABELS+=("$br")
     _AI_SUGGEST_HINTS+=("")
     _AI_SUGGEST_DESCRIPTIONS+=("Local branch")
+    _AI_SUGGEST_ICONS+=("branch")
     (( ${#_AI_SUGGEST_CANDIDATES} >= 9 )) && break
   done
   (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
@@ -1298,6 +1349,9 @@ _ai_suggest_nested_match() {
   else
     table_var="_AI_SUGGEST_${key}_SUBCMDS"
   fi
+  # Flags and sub-subcommands both belong to the same tool, so they get the
+  # same glyph — see _ai_suggest_tool_icon_kind.
+  local icon_kind=$(_ai_suggest_tool_icon_kind "$tool_canon")
   (( ${+parameters[$table_var]} )) || return 1
   local -a table=("${(@P)table_var}")
   (( ${#table} > 0 )) || return 1
@@ -1308,6 +1362,7 @@ _ai_suggest_nested_match() {
   _AI_SUGGEST_DESCRIPTIONS=()
   _AI_SUGGEST_HINTS=()
   _AI_SUGGEST_LABELS=()
+  _AI_SUGGEST_ICONS=()
   for entry in "${table[@]}"; do
     parts=("${(@ps:\t:)entry}")
     name=$parts[1]
@@ -1316,6 +1371,7 @@ _ai_suggest_nested_match() {
     _AI_SUGGEST_LABELS+=("$name")
     _AI_SUGGEST_HINTS+=("${parts[2]:-}")
     _AI_SUGGEST_DESCRIPTIONS+=("${parts[3]:-}")
+    _AI_SUGGEST_ICONS+=("$icon_kind")
     (( ${#_AI_SUGGEST_CANDIDATES} >= 9 )) && break
   done
   (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))

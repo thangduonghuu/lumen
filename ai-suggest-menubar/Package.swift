@@ -5,6 +5,9 @@ let package = Package(
     name: "ai-suggest-menubar",
     platforms: [.macOS(.v13)],
     targets: [
-        .executableTarget(name: "ai-suggest-menubar")
+        .executableTarget(
+            name: "ai-suggest-menubar",
+            resources: [.copy("Resources")]
+        )
     ]
 )
