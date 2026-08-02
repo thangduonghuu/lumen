@@ -290,9 +290,17 @@ tables — see [Features](#features).
 
 ## The Lumen menu bar app
 
+<p align="center">
+  <img src="assets/app-icon.png" width="96" alt="Lumen.app icon">
+</p>
+
 `Lumen.app` is a small SwiftUI app that owns the floating suggestion panel
 and toggles **automatic** (as-you-type) suggestions on or off without
 touching the terminal. The menu bar icon shows ✨ when on, ⏸ when paused.
+The app icon itself (Finder, Dock-less but still visible in the
+Accessibility permission list, etc.) is built from the same spark mark as
+the project logo above, set against a dark backdrop with a small
+terminal-prompt chevron — see `Lumen/build.sh` for how it's generated.
 
 It runs as a menu-bar-only accessory (no Dock icon, no app-switcher entry)
 and does not auto-start on login by default — see [step 5 of
