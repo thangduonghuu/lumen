@@ -1689,3 +1689,18 @@ if (( AI_SUGGEST_AUTO )); then
   done
   unset _w _ai_suggest_watched_widgets
 fi
+
+# Makes sure the overlay panel doesn't linger on screen once this shell
+# session is gone — the normal `exit`/`accept-line` path already hides
+# before running the command (see _ai_suggest_accept_line), but that
+# doesn't cover Ctrl-D on an empty line or the parent terminal window
+# closing (which delivers SIGHUP; zsh's default handling for that still
+# runs zshexit, same as a graceful `exit`). Registered via add-zsh-hook
+# rather than defining zshexit() directly so this doesn't clobber a
+# zshexit function/hook some other plugin or the user's own .zshrc may
+# already have.
+_ai_suggest_on_shell_exit() {
+  (( ${#_AI_SUGGEST_CANDIDATES} > 0 )) && _ai_suggest_overlay_hide
+}
+autoload -Uz add-zsh-hook
+add-zsh-hook zshexit _ai_suggest_on_shell_exit
