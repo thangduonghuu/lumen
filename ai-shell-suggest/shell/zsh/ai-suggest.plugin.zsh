@@ -3,7 +3,9 @@
 #
 # Deterministic, no-AI command suggestions, Fig/Kiro-CLI style: as you type,
 # this plugin matches $BUFFER against known, hand-picked data — a tool's
-# subcommands (git/docker/kubectl/npm), directories under whatever path
+# subcommands (git/docker/kubectl/npm/yarn/pnpm, aws/gcloud/az/terraform/
+# helm/gh/glab, kafka-topics/kafka-console-producer/kafka-console-consumer/
+# kafka-consumer-groups/rabbitmqctl), directories under whatever path
 # follows `cd`, or local git branches once a subcommand that takes one has
 # been typed — and sends the result (plus where the cursor currently is)
 # over a Unix socket to the ai-suggest-menubar companion app, which draws a
@@ -130,6 +132,15 @@ typeset -ga _AI_SUGGEST_HINTS=()
 # _ai_suggest_overlay_show); every current matcher sets this explicitly, but
 # the fallback stays as a safety net for anything that doesn't.
 typeset -ga _AI_SUGGEST_LABELS=()
+# Per-row icon kind — "dir" (cd match) or "branch" (git branch match) from
+# their respective matchers, or one of _ai_suggest_tool_icon_kind's per-tool
+# identifiers ("git"/"docker"/"kubectl"/"aws"/"kafka"/...) for everything
+# from the static/nested subcommand tables — parallel to
+# _AI_SUGGEST_CANDIDATES, sent to the overlay companion app so it can draw a
+# distinct glyph+color per row (see CandidateIcon in OverlayPanel.swift)
+# instead of one generic badge for everything. "cmd" is the fallback for
+# any tool without its own glyph yet.
+typeset -ga _AI_SUGGEST_ICONS=()
 typeset -gi _AI_SUGGEST_INDEX=0
 
 # Static subcommand tables: `name<TAB>arg-hint<TAB>description`, ordered by
@@ -235,6 +246,243 @@ typeset -ga _AI_SUGGEST_DOCKER_SUBCMDS=(
   $'system\t[prune|df]\tManage Docker resources / disk usage'
   $'container\t[ls|run|exec|...]\tManage containers'
   $'image\t[ls|build|rm|...]\tManage images'
+)
+
+# DevOps/cloud tooling, same hand-picked-common-case philosophy as above.
+# aws/gcloud-style CLIs are two levels deep by nature (`aws <service>
+# <operation>`), so this top-level table lists services rather than
+# operations directly — see the AWS_<SERVICE>_SUBCMDS tables below (picked
+# up by _ai_suggest_nested_match) for the operations themselves.
+typeset -ga _AI_SUGGEST_AWS_SUBCMDS=(
+  $'s3\t\tManage S3 buckets and objects'
+  $'ec2\t\tManage EC2 instances and related resources'
+  $'lambda\t\tManage Lambda functions'
+  $'iam\t\tManage IAM users, roles, and policies'
+  $'logs\t\tManage CloudWatch Logs'
+  $'sts\t\tSecurity Token Service (assume-role, identity)'
+  $'cloudformation\t\tManage CloudFormation stacks'
+  $'ecr\t\tManage Elastic Container Registry'
+  $'ecs\t\tManage Elastic Container Service'
+  $'eks\t\tManage Elastic Kubernetes Service clusters'
+  $'ssm\t\tSystems Manager (params, sessions, run command)'
+  $'dynamodb\t\tManage DynamoDB tables and items'
+  $'rds\t\tManage RDS database instances'
+  $'secretsmanager\t\tManage Secrets Manager secrets'
+  $'cloudwatch\t\tManage CloudWatch metrics and alarms'
+  $'sns\t\tManage Simple Notification Service topics'
+  $'sqs\t\tManage Simple Queue Service queues'
+  $'route53\t\tManage Route 53 DNS'
+  $'configure\t[list|get|set|sso]\tConfigure AWS CLI credentials and settings'
+  $'sso\t[login|logout]\tAWS SSO login and configuration'
+)
+
+typeset -ga _AI_SUGGEST_TERRAFORM_SUBCMDS=(
+  $'init\t\tInitialize a working directory'
+  $'plan\t\tShow changes required by the current configuration'
+  $'apply\t\tApply changes to reach the desired state'
+  $'destroy\t\tDestroy previously-created infrastructure'
+  $'validate\t\tValidate the configuration files'
+  $'fmt\t\tReformat configuration files to canonical style'
+  $'show\t[plan-file]\tShow the current state or a saved plan'
+  $'output\t[name]\tShow output values from the state'
+  $'state\t[list|show|mv|rm]\tAdvanced state management'
+  $'import\t<address> <id>\tImport existing infrastructure into state'
+  $'workspace\t[list|new|select|delete]\tManage workspaces'
+  $'providers\t\tShow the providers required by this configuration'
+  $'graph\t\tGenerate a visual graph of the configuration'
+  $'taint\t<address>\tMark a resource as tainted'
+  $'untaint\t<address>\tRemove the tainted mark from a resource'
+  $'refresh\t\tUpdate state to match remote objects'
+  $'console\t\tInteractive console for evaluating expressions'
+  $'get\t\tDownload and install modules'
+  $'version\t\tShow the current Terraform version'
+  $'login\t\tObtain and save credentials for a host'
+  $'force-unlock\t<lock-id>\tRelease a stuck lock on the state'
+)
+
+typeset -ga _AI_SUGGEST_HELM_SUBCMDS=(
+  $'install\t<name> <chart>\tInstall a chart'
+  $'upgrade\t<name> <chart>\tUpgrade a release'
+  $'uninstall\t<name>\tUninstall a release'
+  $'list\t\tList releases'
+  $'status\t<name>\tShow the status of a release'
+  $'rollback\t<name> [revision]\tRoll back a release to a previous revision'
+  $'repo\t[add|update|list]\tManage chart repositories'
+  $'search\t[repo|hub] <keyword>\tSearch for charts'
+  $'template\t<name> <chart>\tRender chart templates locally'
+  $'get\t[values|manifest|notes] <name>\tGet extended information about a release'
+  $'history\t<name>\tShow release history'
+  $'pull\t<chart>\tDownload a chart'
+  $'create\t<name>\tCreate a new chart'
+  $'lint\t<chart>\tExamine a chart for possible issues'
+  $'show\t[chart|values|readme] <chart>\tShow information about a chart'
+  $'dependency\t[list|update|build]\tManage chart dependencies'
+)
+
+typeset -ga _AI_SUGGEST_GH_SUBCMDS=(
+  $'pr\t[create|list|view|checkout|merge]\tManage pull requests'
+  $'issue\t[create|list|view|close]\tManage issues'
+  $'repo\t[clone|create|view|fork]\tManage repositories'
+  $'run\t[list|view|watch|rerun]\tManage GitHub Actions workflow runs'
+  $'workflow\t[list|view|run]\tManage GitHub Actions workflows'
+  $'release\t[create|list|view|upload]\tManage releases'
+  $'gist\t[create|list|view]\tManage gists'
+  $'auth\t[login|logout|status]\tAuthenticate with GitHub'
+  $'browse\t\tOpen the repository in the browser'
+  $'api\t<endpoint>\tMake an authenticated GitHub API request'
+  $'status\t\tShow status of relevant issues/PRs'
+  $'search\t[repos|issues|prs]\tSearch GitHub'
+)
+
+typeset -ga _AI_SUGGEST_YARN_SUBCMDS=(
+  $'add\t<package>\tAdd a dependency'
+  $'remove\t<package>\tRemove a dependency'
+  $'install\t\tInstall all dependencies'
+  $'run\t<script>\tRun a script defined in package.json'
+  $'dev\t\tRun the "dev" script'
+  $'build\t\tRun the "build" script'
+  $'start\t\tRun the "start" script'
+  $'test\t\tRun the "test" script'
+  $'upgrade\t[package]\tUpgrade packages'
+  $'list\t\tList installed packages'
+  $'why\t<package>\tShow why a package is installed'
+  $'outdated\t\tCheck for outdated packages'
+  $'cache\t[clean|list]\tManage the yarn cache'
+  $'init\t\tCreate a new package.json'
+  $'workspaces\t[list|run]\tManage yarn workspaces'
+  $'dlx\t<package>\tRun a package binary without installing it'
+)
+
+typeset -ga _AI_SUGGEST_PNPM_SUBCMDS=(
+  $'add\t<package>\tAdd a dependency'
+  $'remove\t<package>\tRemove a dependency'
+  $'install\t\tInstall all dependencies'
+  $'run\t<script>\tRun a script defined in package.json'
+  $'dev\t\tRun the "dev" script'
+  $'build\t\tRun the "build" script'
+  $'start\t\tRun the "start" script'
+  $'test\t\tRun the "test" script'
+  $'update\t[package]\tUpdate packages'
+  $'list\t\tList installed packages'
+  $'why\t<package>\tShow why a package is installed'
+  $'outdated\t\tCheck for outdated packages'
+  $'exec\t<cmd>\tExecute a shell command in scope of the project'
+  $'dlx\t<package>\tRun a package binary without installing it'
+  $'init\t\tCreate a new package.json'
+)
+
+# GitLab's counterpart to gh — same shape, but "mr" (merge request) where
+# GitHub says "pr".
+typeset -ga _AI_SUGGEST_GLAB_SUBCMDS=(
+  $'mr\t[create|list|view|merge|checkout]\tManage merge requests'
+  $'issue\t[create|list|view|close]\tManage issues'
+  $'repo\t[clone|create|view|fork]\tManage repositories'
+  $'ci\t[status|view|trace|retry]\tManage GitLab CI/CD pipelines'
+  $'pipeline\t[list|view|run]\tManage pipelines'
+  $'release\t[create|list|view]\tManage releases'
+  $'auth\t[login|logout|status]\tAuthenticate with GitLab'
+  $'label\t[list|create]\tManage labels'
+  $'variable\t[list|set|delete]\tManage CI/CD variables'
+  $'api\t<endpoint>\tMake an authenticated GitLab API request'
+)
+
+# gcloud, like aws, is a two-level "<tool> <group> <command>" CLI — this
+# table lists resource groups; see _AI_SUGGEST_GCLOUD_COMPUTE_SUBCMDS/
+# _GCLOUD_CONTAINER_SUBCMDS below (picked up by _ai_suggest_nested_match)
+# for the commands themselves.
+typeset -ga _AI_SUGGEST_GCLOUD_SUBCMDS=(
+  $'compute\t\tManage Compute Engine resources'
+  $'container\t\tManage GKE clusters (Kubernetes Engine)'
+  $'run\t\tManage Cloud Run services'
+  $'functions\t\tManage Cloud Functions'
+  $'storage\t\tManage Cloud Storage buckets and objects'
+  $'iam\t\tManage IAM policies and service accounts'
+  $'projects\t\tManage GCP projects'
+  $'auth\t[login|list|revoke]\tManage authentication and credentials'
+  $'config\t[list|set|get-value]\tManage gcloud CLI configuration'
+  $'sql\t\tManage Cloud SQL instances'
+  $'app\t\tManage App Engine deployments'
+  $'builds\t\tManage Cloud Build jobs'
+  $'logging\t\tManage Cloud Logging'
+  $'pubsub\t\tManage Pub/Sub topics and subscriptions'
+  $'secrets\t\tManage Secret Manager secrets'
+)
+
+typeset -ga _AI_SUGGEST_AZ_SUBCMDS=(
+  $'vm\t\tManage virtual machines'
+  $'aks\t\tManage Azure Kubernetes Service clusters'
+  $'group\t[list|create|delete]\tManage resource groups'
+  $'storage\t\tManage storage accounts, blobs, and files'
+  $'webapp\t\tManage App Service web apps'
+  $'functionapp\t\tManage Azure Functions'
+  $'acr\t\tManage Azure Container Registry'
+  $'login\t\tLog in to Azure'
+  $'account\t[list|set|show]\tManage subscriptions'
+  $'keyvault\t\tManage Key Vault secrets and keys'
+  $'network\t\tManage virtual networks'
+  $'sql\t\tManage Azure SQL databases'
+  $'monitor\t\tManage Azure Monitor logs and metrics'
+)
+
+# Apache Kafka's admin/producer/consumer scripts are separate binaries
+# rather than one "kafka" tool with subcommands, and each takes flags
+# rather than a subcommand as its first argument — but the static-match
+# machinery only cares that "first word after the tool name" is a
+# prefix-matchable string, and a flag like "--list" fits that just as well
+# as a subcommand name does.
+typeset -ga _AI_SUGGEST_KAFKA_TOPICS_SUBCMDS=(
+  $'--list\t\tList all topics'
+  $'--create\t--topic <name>\tCreate a topic'
+  $'--delete\t--topic <name>\tDelete a topic'
+  $'--describe\t--topic <name>\tDescribe a topic'
+  $'--alter\t--topic <name>\tAlter a topic'"'"'s configuration'
+  $'--bootstrap-server\t<host:port>\tKafka broker to connect to'
+  $'--partitions\t<n>\tNumber of partitions (with --create/--alter)'
+  $'--replication-factor\t<n>\tReplication factor (with --create)'
+)
+
+typeset -ga _AI_SUGGEST_KAFKA_CONSOLE_PRODUCER_SUBCMDS=(
+  $'--topic\t<name>\tTopic to produce to'
+  $'--bootstrap-server\t<host:port>\tKafka broker to connect to'
+  $'--property\t<key=value>\tSet a producer property (e.g. parse.key=true)'
+)
+
+typeset -ga _AI_SUGGEST_KAFKA_CONSOLE_CONSUMER_SUBCMDS=(
+  $'--topic\t<name>\tTopic to consume from'
+  $'--bootstrap-server\t<host:port>\tKafka broker to connect to'
+  $'--from-beginning\t\tConsume from the start of the topic'
+  $'--group\t<group-id>\tConsumer group to join'
+  $'--partition\t<n>\tConsume only from a specific partition'
+)
+
+typeset -ga _AI_SUGGEST_KAFKA_CONSUMER_GROUPS_SUBCMDS=(
+  $'--list\t\tList all consumer groups'
+  $'--describe\t--group <id>\tDescribe a consumer group'
+  $'--bootstrap-server\t<host:port>\tKafka broker to connect to'
+  $'--reset-offsets\t--group <id> --topic <name>\tReset consumer group offsets'
+  $'--delete\t--group <id>\tDelete a consumer group'
+)
+
+typeset -ga _AI_SUGGEST_RABBITMQCTL_SUBCMDS=(
+  $'status\t\tShow broker status'
+  $'cluster_status\t\tShow cluster status'
+  $'list_queues\t[vhost]\tList queues'
+  $'list_exchanges\t[vhost]\tList exchanges'
+  $'list_bindings\t[vhost]\tList bindings'
+  $'list_connections\t\tList connections'
+  $'list_channels\t\tList channels'
+  $'list_vhosts\t\tList virtual hosts'
+  $'list_users\t\tList users'
+  $'add_user\t<user> <password>\tCreate a user'
+  $'delete_user\t<user>\tDelete a user'
+  $'set_permissions\t<user>\tSet user permissions on a vhost'
+  $'list_permissions\t[vhost]\tList permissions on a vhost'
+  $'add_vhost\t<vhost>\tCreate a virtual host'
+  $'delete_vhost\t<vhost>\tDelete a virtual host'
+  $'set_user_tags\t<user> <tag>\tSet tags for a user (e.g. administrator)'
+  $'stop_app\t\tStop the RabbitMQ application (keep the node running)'
+  $'start_app\t\tStart the RabbitMQ application'
+  $'purge_queue\t<queue>\tPurge messages from a queue'
 )
 
 # --- nested (sub-subcommand and flag) tables --------------------------------
@@ -453,6 +701,233 @@ typeset -ga _AI_SUGGEST_KUBECTL_EXEC_FLAGS=(
   $'-n\t<namespace>\tNamespace of the target pod'
 )
 
+# Last-resort fallback when typing "-" at a position with no hand-picked
+# *_FLAGS table of its own (most subcommands don't have one — only the ones
+# above do) — so "something" always shows up instead of nothing. These are
+# widely-adopted CLI conventions (getopt-style long/short pairs most tools
+# that support the concept at all spell the same way), not universal
+# guarantees — a given subcommand may not implement a given one. That's an
+# acceptable tradeoff for a fallback of last resort: an offered flag that
+# a particular tool happens not to support is a no-op/an error the user
+# immediately sees and ignores, which costs far less than this table
+# staying empty and suggesting nothing at all.
+typeset -ga _AI_SUGGEST_GENERIC_FLAGS=(
+  $'-h\t\tShow help for this command'
+  $'--help\t\tShow help for this command'
+  $'--version\t\tShow version information'
+  $'-v\t\tEnable verbose output'
+  $'--verbose\t\tEnable verbose output'
+  $'-q\t\tSuppress non-essential output'
+  $'--quiet\t\tSuppress non-essential output'
+  $'--debug\t\tShow debug-level output'
+  $'-y\t\tAutomatically answer yes to prompts'
+  $'--yes\t\tAutomatically answer yes to prompts'
+  $'-f\t\tForce the operation, skipping normal safety checks'
+  $'--force\t\tForce the operation, skipping normal safety checks'
+  $'-n\t\tDry run — show what would happen without making changes'
+  $'--dry-run\t\tShow what would happen without making changes'
+  $'-o\t<file>\tWrite output to a file'
+  $'--output\t<file>\tWrite output to a file'
+  $'--no-color\t\tDisable colored output'
+  $'--json\t\tOutput in JSON format'
+  $'--config\t<file>\tUse a specific configuration file'
+)
+
+typeset -ga _AI_SUGGEST_AWS_S3_SUBCMDS=(
+  $'ls\t[s3://bucket[/prefix]]\tList buckets or objects'
+  $'cp\t<src> <dst>\tCopy files to/from S3'
+  $'sync\t<src> <dst>\tSync a directory tree with S3'
+  $'mv\t<src> <dst>\tMove files to/from S3'
+  $'rm\t<s3-path>\tRemove an object'
+  $'mb\t<s3://bucket>\tCreate a bucket'
+  $'rb\t<s3://bucket>\tRemove a bucket'
+  $'presign\t<s3-path>\tGenerate a presigned URL'
+)
+
+typeset -ga _AI_SUGGEST_AWS_EC2_SUBCMDS=(
+  $'describe-instances\t\tDescribe EC2 instances'
+  $'start-instances\t--instance-ids <id>\tStart an instance'
+  $'stop-instances\t--instance-ids <id>\tStop an instance'
+  $'terminate-instances\t--instance-ids <id>\tTerminate an instance'
+  $'describe-security-groups\t\tDescribe security groups'
+  $'describe-vpcs\t\tDescribe VPCs'
+  $'describe-subnets\t\tDescribe subnets'
+  $'describe-images\t\tDescribe AMIs'
+  $'run-instances\t--image-id <ami>\tLaunch new instances'
+  $'create-tags\t--resources <id> --tags <tags>\tTag a resource'
+)
+
+typeset -ga _AI_SUGGEST_AWS_LAMBDA_SUBCMDS=(
+  $'list-functions\t\tList Lambda functions'
+  $'invoke\t--function-name <name> <outfile>\tInvoke a function'
+  $'update-function-code\t--function-name <name>\tUpdate function code'
+  $'get-function\t--function-name <name>\tGet function configuration'
+  $'create-function\t--function-name <name>\tCreate a function'
+  $'delete-function\t--function-name <name>\tDelete a function'
+  $'list-layers\t\tList Lambda layers'
+)
+
+typeset -ga _AI_SUGGEST_AWS_IAM_SUBCMDS=(
+  $'list-users\t\tList IAM users'
+  $'list-roles\t\tList IAM roles'
+  $'get-user\t[--user-name <name>]\tGet the current or named IAM user'
+  $'create-role\t--role-name <name>\tCreate a role'
+  $'attach-role-policy\t--role-name <name> --policy-arn <arn>\tAttach a policy to a role'
+  $'list-attached-role-policies\t--role-name <name>\tList policies attached to a role'
+  $'create-access-key\t--user-name <name>\tCreate an access key'
+)
+
+typeset -ga _AI_SUGGEST_AWS_LOGS_SUBCMDS=(
+  $'tail\t<log-group>\tTail a log group in real time'
+  $'describe-log-groups\t\tList log groups'
+  $'describe-log-streams\t--log-group-name <name>\tList log streams'
+  $'get-log-events\t--log-group-name <name> --log-stream-name <stream>\tGet log events'
+  $'filter-log-events\t--log-group-name <name>\tFilter log events by pattern'
+)
+
+typeset -ga _AI_SUGGEST_AWS_STS_SUBCMDS=(
+  $'get-caller-identity\t\tShow the current IAM identity'
+  $'assume-role\t--role-arn <arn> --role-session-name <name>\tAssume an IAM role'
+)
+
+typeset -ga _AI_SUGGEST_AWS_CLOUDFORMATION_SUBCMDS=(
+  $'deploy\t--template-file <file> --stack-name <name>\tDeploy a stack'
+  $'describe-stacks\t\tDescribe stacks'
+  $'create-stack\t--stack-name <name> --template-body <file>\tCreate a stack'
+  $'update-stack\t--stack-name <name>\tUpdate a stack'
+  $'delete-stack\t--stack-name <name>\tDelete a stack'
+  $'list-stacks\t\tList stacks'
+  $'validate-template\t--template-body <file>\tValidate a template'
+)
+
+typeset -ga _AI_SUGGEST_AWS_ECR_SUBCMDS=(
+  $'get-login-password\t\tGet a password to authenticate to ECR'
+  $'describe-repositories\t\tDescribe ECR repositories'
+  $'create-repository\t--repository-name <name>\tCreate a repository'
+  $'list-images\t--repository-name <name>\tList images in a repository'
+)
+
+typeset -ga _AI_SUGGEST_AWS_ECS_SUBCMDS=(
+  $'list-clusters\t\tList ECS clusters'
+  $'list-services\t--cluster <cluster>\tList services in a cluster'
+  $'list-tasks\t--cluster <cluster>\tList tasks in a cluster'
+  $'describe-services\t--cluster <cluster> --services <svc>\tDescribe services'
+  $'update-service\t--cluster <cluster> --service <svc>\tUpdate a service'
+  $'run-task\t--cluster <cluster> --task-definition <td>\tRun a one-off task'
+)
+
+typeset -ga _AI_SUGGEST_AWS_EKS_SUBCMDS=(
+  $'list-clusters\t\tList EKS clusters'
+  $'describe-cluster\t--name <name>\tDescribe a cluster'
+  $'update-kubeconfig\t--name <name>\tUpdate local kubeconfig for a cluster'
+  $'create-cluster\t--name <name>\tCreate a cluster'
+)
+
+typeset -ga _AI_SUGGEST_AWS_SSM_SUBCMDS=(
+  $'start-session\t--target <instance-id>\tStart an interactive session on an instance'
+  $'get-parameter\t--name <name>\tGet a parameter value'
+  $'put-parameter\t--name <name> --value <value>\tCreate or update a parameter'
+  $'describe-parameters\t\tList parameters'
+  $'send-command\t--document-name <doc> --targets <targets>\tRun a command on managed instances'
+)
+
+typeset -ga _AI_SUGGEST_TERRAFORM_STATE_SUBCMDS=(
+  $'list\t[address]\tList resources in the state'
+  $'show\t<address>\tShow attributes of a resource in the state'
+  $'mv\t<src> <dst>\tMove an item in the state'
+  $'rm\t<address>\tRemove an item from the state'
+  $'pull\t\tFetch the state and output it to stdout'
+  $'push\t<file>\tUpload a local state file to the remote state'
+  $'replace-provider\t<from> <to>\tReplace a provider in the state'
+)
+
+typeset -ga _AI_SUGGEST_TERRAFORM_WORKSPACE_SUBCMDS=(
+  $'list\t\tList workspaces'
+  $'new\t<name>\tCreate a new workspace'
+  $'select\t<name>\tSelect a workspace'
+  $'delete\t<name>\tDelete a workspace'
+  $'show\t\tShow the current workspace name'
+)
+
+typeset -ga _AI_SUGGEST_HELM_REPO_SUBCMDS=(
+  $'add\t<name> <url>\tAdd a chart repository'
+  $'update\t\tUpdate information of available charts'
+  $'list\t\tList chart repositories'
+  $'remove\t<name>\tRemove a chart repository'
+)
+
+typeset -ga _AI_SUGGEST_GH_PR_SUBCMDS=(
+  $'create\t\tCreate a pull request'
+  $'list\t\tList pull requests'
+  $'view\t[number]\tView a pull request'
+  $'checkout\t<number>\tCheck out a pull request locally'
+  $'merge\t[number]\tMerge a pull request'
+  $'diff\t[number]\tView a pull request diff'
+  $'review\t[number]\tReview a pull request'
+  $'close\t[number]\tClose a pull request'
+  $'status\t\tShow status of relevant pull requests'
+)
+
+typeset -ga _AI_SUGGEST_GH_ISSUE_SUBCMDS=(
+  $'create\t\tCreate an issue'
+  $'list\t\tList issues'
+  $'view\t<number>\tView an issue'
+  $'close\t<number>\tClose an issue'
+  $'reopen\t<number>\tReopen an issue'
+  $'comment\t<number>\tAdd a comment to an issue'
+)
+
+typeset -ga _AI_SUGGEST_GH_REPO_SUBCMDS=(
+  $'clone\t<repo>\tClone a repository'
+  $'create\t[name]\tCreate a new repository'
+  $'view\t[repo]\tView a repository'
+  $'fork\t[repo]\tFork a repository'
+  $'list\t[owner]\tList repositories'
+)
+
+typeset -ga _AI_SUGGEST_GH_RUN_SUBCMDS=(
+  $'list\t\tList recent workflow runs'
+  $'view\t[run-id]\tView a workflow run'
+  $'watch\t[run-id]\tWatch a run until it completes'
+  $'rerun\t<run-id>\tRerun a workflow run'
+  $'cancel\t<run-id>\tCancel a workflow run'
+)
+
+typeset -ga _AI_SUGGEST_GLAB_MR_SUBCMDS=(
+  $'create\t\tCreate a merge request'
+  $'list\t\tList merge requests'
+  $'view\t[id]\tView a merge request'
+  $'checkout\t<id>\tCheck out a merge request locally'
+  $'merge\t[id]\tMerge a merge request'
+  $'diff\t[id]\tView a merge request diff'
+  $'approve\t[id]\tApprove a merge request'
+  $'close\t[id]\tClose a merge request'
+  $'update\t[id]\tUpdate a merge request'
+)
+
+typeset -ga _AI_SUGGEST_GLAB_CI_SUBCMDS=(
+  $'status\t\tShow CI/CD pipeline status for the current branch'
+  $'view\t[id]\tView a pipeline'
+  $'trace\t[job-id]\tTrace/follow a CI/CD job log'
+  $'retry\t[job-id]\tRetry a CI/CD job'
+  $'run\t\tCreate/run a new pipeline'
+)
+
+typeset -ga _AI_SUGGEST_GCLOUD_COMPUTE_SUBCMDS=(
+  $'instances\t[list|create|delete|describe]\tManage VM instances'
+  $'ssh\t<instance>\tSSH into a VM instance'
+  $'scp\t<src> <dst>\tCopy files to/from a VM instance'
+  $'networks\t[list|create|delete]\tManage VPC networks'
+  $'firewall-rules\t[list|create|delete]\tManage firewall rules'
+  $'disks\t[list|create|delete]\tManage persistent disks'
+)
+
+typeset -ga _AI_SUGGEST_GCLOUD_CONTAINER_SUBCMDS=(
+  $'clusters\t[list|create|delete|get-credentials]\tManage GKE clusters'
+  $'images\t[list|delete]\tManage container images'
+  $'node-pools\t[list|create|delete]\tManage GKE node pools'
+)
+
 # On-screen row/column the cursor is at, so the box lines up under wherever
 # you're actually typing instead of always sitting at the terminal's left
 # margin (col), and so the native overlay (see _ai_suggest_overlay_show) can
@@ -551,8 +1026,21 @@ _ai_suggest_json_str_array() {
 # foreground command's real stdout/stderr never reaches the terminal at
 # all — reproduced down to a bare zsocket-connect-close loop with no AI/git
 # involved, so it's a genuine zsh/pty interaction bug triggered by send
-# *frequency*, not anything about this plugin's payload. Every real send
-# still fires well within what a human can perceive while typing (>=80ms
+# *frequency*, not anything about this plugin's payload. The throttle only
+# lowers how *often* this fires, though, and a single typed command (e.g.
+# typing "git push" itself, each character matching the static table and
+# triggering a send) is still enough to trip it and corrupt the interactive
+# shell before that very command is even submitted — reproduced 2026-08-02:
+# `git push` on a branch with no upstream printed nothing (not even the
+# `128 err` status segment's `fatal:` line), consistent with `_ai_suggest_
+# overlay_send`'s own zsocket call (not the command that ran after it)
+# having wedged the shell's tty state first. `_ai_suggest_overlay_send`
+# below now runs the whole zsocket lifecycle in a forked, disowned subshell
+# (`&!`) instead of the interactive shell's own process — `fork()` gives
+# the child its own copy of the fd table, so whatever zsocket does to it
+# stays confined to that throwaway child instead of the shell every
+# subsequent command actually runs in. Every real send still fires well
+# within what a human can perceive while typing (>=80ms
 # apart is faster than typical keystroke spacing), so this is invisible in
 # normal use — it only ever skips a send when keystrokes are arriving
 # faster than that.
@@ -572,10 +1060,16 @@ _ai_suggest_overlay_send() {
   local payload=$1
   (( EPOCHREALTIME - _AI_SUGGEST_LAST_OVERLAY_SEND < _AI_SUGGEST_OVERLAY_MIN_INTERVAL )) && return
   _AI_SUGGEST_LAST_OVERLAY_SEND=$EPOCHREALTIME
-  zmodload zsh/net/socket 2>/dev/null || return
-  zsocket $AI_SUGGEST_OVERLAY_SOCK 2>/dev/null || return
-  print -u $REPLY -r -- "$payload" 2>/dev/null
-  exec {REPLY}>&- 2>/dev/null
+  # Forked off (`&!`: background + disown, no job-control notification) so
+  # zsocket's connect/write/close cycle runs against a *copy* of the fd
+  # table made by fork(), not the interactive shell's own — see this
+  # function's section doc comment above for why that isolation matters.
+  (
+    zmodload zsh/net/socket 2>/dev/null || exit
+    zsocket $AI_SUGGEST_OVERLAY_SOCK 2>/dev/null || exit
+    print -u $REPLY -r -- "$payload" 2>/dev/null
+    exec {REPLY}>&- 2>/dev/null
+  ) &!
 }
 
 # Sends the current _AI_SUGGEST_CANDIDATES/etc + cursor position so the
@@ -611,6 +1105,7 @@ _ai_suggest_overlay_show() {
   payload+="\"candidates\":$(_ai_suggest_json_str_array "${_AI_SUGGEST_CANDIDATES[@]}"),"
   payload+="\"descriptions\":$(_ai_suggest_json_str_array "${_AI_SUGGEST_DESCRIPTIONS[@]}"),"
   payload+="\"labels\":$(_ai_suggest_json_str_array "${label_parts[@]}"),"
+  payload+="\"icons\":$(_ai_suggest_json_str_array "${_AI_SUGGEST_ICONS[@]}"),"
   payload+="\"selectedIndex\":$(( _AI_SUGGEST_INDEX - 1 )),"
   payload+="\"cursorRow\":$live_row,"
   payload+="\"cursorCol\":$live_col,"
@@ -628,20 +1123,70 @@ _ai_suggest_present_candidates() {
   _ai_suggest_overlay_supported && _ai_suggest_overlay_show
 }
 
-_ai_suggest_clear_display() {
-  # Only worth telling the overlay to hide if something was actually shown —
-  # this runs on every keystroke (via _ai_suggest_suggest_now), including
-  # the common case of plain typing with nothing displayed, so skipping the
-  # socket round-trip when there's nothing to hide keeps that hot path free
-  # of unnecessary overhead.
-  if (( ${#_AI_SUGGEST_CANDIDATES} > 0 )); then
-    _ai_suggest_overlay_hide
-  fi
+# Resets the candidate arrays WITHOUT telling the overlay to hide — see
+# _ai_suggest_clear_display's comment for why the two are kept apart.
+_ai_suggest_reset_candidates() {
   _AI_SUGGEST_CANDIDATES=()
   _AI_SUGGEST_DESCRIPTIONS=()
   _AI_SUGGEST_HINTS=()
   _AI_SUGGEST_LABELS=()
+  _AI_SUGGEST_ICONS=()
   _AI_SUGGEST_INDEX=0
+}
+
+# Actually tells the overlay to hide (if something was showing) and resets
+# local state. Only call this when nothing is going to replace what's
+# showing within the same keystroke/action — e.g. Ctrl-G dismiss, a fresh
+# prompt line, or "the buffer no longer matches anything." Callers that
+# immediately re-suggest afterward (a keystroke, accepting a candidate)
+# must NOT go through here first: _ai_suggest_overlay_send throttles sends
+# under _AI_SUGGEST_OVERLAY_MIN_INTERVAL apart, and a hide here followed
+# microseconds later by a show would mean the hide always goes through but
+# the show is *always* dropped by that same guard — not just occasionally,
+# every single time, since the two calls land far closer together than any
+# human keystroke ever could. That was the actual cause of suggestions
+# visibly disappearing while continuing to type: every keystroke hid the
+# previous suggestion successfully, then silently failed to show the new
+# one. See _ai_suggest_suggest_now/_ai_suggest_trigger/_ai_suggest_accept,
+# which use _ai_suggest_reset_candidates instead and only call
+# _ai_suggest_overlay_hide directly, on its own, when they've already
+# determined nothing else will be shown this round.
+_ai_suggest_clear_display() {
+  (( ${#_AI_SUGGEST_CANDIDATES} > 0 )) && _ai_suggest_overlay_hide
+  _ai_suggest_reset_candidates
+}
+
+# Maps a tool name (as typed, so "k"/"tf" included) to the icon identifier
+# the overlay companion app knows how to draw a distinct glyph+color for
+# (see CandidateIcon in OverlayPanel.swift) — one entry per tool this
+# plugin has a static table for, grouped where several binaries are really
+# "the same kind of thing" (kafka's four scripts all get "kafka"; aws/
+# gcloud/az all get their own cloud-provider identity rather than sharing
+# one generic "cloud" bucket, since which cloud you're in is exactly the
+# thing worth telling apart at a glance). Falls back to "cmd" — the
+# original plain "$" badge — for any tool without a specific glyph, so
+# adding a new *_SUBCMDS table later doesn't require touching this list to
+# stay visually correct, just look a little more generic until it's added.
+_ai_suggest_tool_icon_kind() {
+  case "$1" in
+    git) print -n git ;;
+    docker) print -n docker ;;
+    kubectl|k) print -n kubectl ;;
+    npm) print -n npm ;;
+    yarn) print -n yarn ;;
+    pnpm) print -n pnpm ;;
+    aws) print -n aws ;;
+    gcloud) print -n gcloud ;;
+    az) print -n az ;;
+    terraform|tf) print -n terraform ;;
+    helm) print -n helm ;;
+    gh) print -n gh ;;
+    glab) print -n glab ;;
+    kafka-topics|kafka-topics.sh|kafka-console-producer|kafka-console-producer.sh|kafka-console-consumer|kafka-console-consumer.sh|kafka-consumer-groups|kafka-consumer-groups.sh)
+      print -n kafka ;;
+    rabbitmqctl) print -n rabbitmq ;;
+    *) print -n cmd ;;
+  esac
 }
 
 # Matches $BUFFER against a known "<tool> <partial-subcommand>" shape and,
@@ -662,6 +1207,20 @@ _ai_suggest_static_match() {
     kubectl|k) table=("${_AI_SUGGEST_KUBECTL_SUBCMDS[@]}") ;;
     npm) table=("${_AI_SUGGEST_NPM_SUBCMDS[@]}") ;;
     docker) table=("${_AI_SUGGEST_DOCKER_SUBCMDS[@]}") ;;
+    aws) table=("${_AI_SUGGEST_AWS_SUBCMDS[@]}") ;;
+    terraform|tf) table=("${_AI_SUGGEST_TERRAFORM_SUBCMDS[@]}") ;;
+    helm) table=("${_AI_SUGGEST_HELM_SUBCMDS[@]}") ;;
+    gh) table=("${_AI_SUGGEST_GH_SUBCMDS[@]}") ;;
+    glab) table=("${_AI_SUGGEST_GLAB_SUBCMDS[@]}") ;;
+    yarn) table=("${_AI_SUGGEST_YARN_SUBCMDS[@]}") ;;
+    pnpm) table=("${_AI_SUGGEST_PNPM_SUBCMDS[@]}") ;;
+    gcloud) table=("${_AI_SUGGEST_GCLOUD_SUBCMDS[@]}") ;;
+    az) table=("${_AI_SUGGEST_AZ_SUBCMDS[@]}") ;;
+    kafka-topics.sh|kafka-topics) table=("${_AI_SUGGEST_KAFKA_TOPICS_SUBCMDS[@]}") ;;
+    kafka-console-producer.sh|kafka-console-producer) table=("${_AI_SUGGEST_KAFKA_CONSOLE_PRODUCER_SUBCMDS[@]}") ;;
+    kafka-console-consumer.sh|kafka-console-consumer) table=("${_AI_SUGGEST_KAFKA_CONSOLE_CONSUMER_SUBCMDS[@]}") ;;
+    kafka-consumer-groups.sh|kafka-consumer-groups) table=("${_AI_SUGGEST_KAFKA_CONSUMER_GROUPS_SUBCMDS[@]}") ;;
+    rabbitmqctl) table=("${_AI_SUGGEST_RABBITMQCTL_SUBCMDS[@]}") ;;
     *) return 1 ;;
   esac
 
@@ -672,12 +1231,32 @@ _ai_suggest_static_match() {
   # _ai_suggest_git_branch_match for the git-branch-argument case).
   [[ "$rest" == *' '* ]] && return 1
 
+  # Typing "-" before ever picking a subcommand (e.g. "docker -", "git -")
+  # — none of these top-level tables' entries are named "-something", so
+  # swap in the generic -h/--help/--version-and-friends fallback instead of
+  # leaving the subcommand table in place, where it would just filter down
+  # to zero matches. Exception: kafka-topics/kafka-console-*/kafka-
+  # consumer-groups's own top-level tables ARE already flag-shaped (their
+  # first arg is a flag like --list, not a subcommand) — leave those alone
+  # so their real, tool-specific entries keep matching instead of being
+  # replaced by the generic ones.
+  case "$tool" in
+    kafka-topics.sh|kafka-topics|kafka-console-producer.sh|kafka-console-producer| \
+    kafka-console-consumer.sh|kafka-console-consumer|kafka-consumer-groups.sh|kafka-consumer-groups)
+      ;;
+    *)
+      [[ "$rest" == -* ]] && table=("${_AI_SUGGEST_GENERIC_FLAGS[@]}")
+      ;;
+  esac
+
   local entry name hint desc
   local -a parts
+  local icon_kind=$(_ai_suggest_tool_icon_kind "$tool")
   _AI_SUGGEST_CANDIDATES=()
   _AI_SUGGEST_DESCRIPTIONS=()
   _AI_SUGGEST_HINTS=()
   _AI_SUGGEST_LABELS=()
+  _AI_SUGGEST_ICONS=()
   for entry in "${table[@]}"; do
     parts=("${(@ps:\t:)entry}")
     name=$parts[1]
@@ -686,6 +1265,7 @@ _ai_suggest_static_match() {
     _AI_SUGGEST_LABELS+=("$name")
     _AI_SUGGEST_HINTS+=("${parts[2]:-}")
     _AI_SUGGEST_DESCRIPTIONS+=("${parts[3]:-}")
+    _AI_SUGGEST_ICONS+=("$icon_kind")
     (( ${#_AI_SUGGEST_CANDIDATES} >= 9 )) && break
   done
   (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
@@ -709,7 +1289,15 @@ _ai_suggest_cd_match() {
   [[ "$rest" == *' '* ]] && return 1
 
   local -a matches
-  matches=( ${rest}*(/N) )
+  # (#i) makes the glob case-insensitive for the rest of the pattern (every
+  # path segment, not just the first) — without it, plain-glob matching is
+  # case-sensitive, so typing "cd p" would only ever find lowercase-p
+  # directories like "projects" and silently skip "Pictures"/"Personal".
+  # local_options confines EXTENDED_GLOB to this function call instead of
+  # leaking the option into the interactive shell that's about to run
+  # whatever's on BUFFER.
+  setopt local_options extended_glob
+  matches=( (#i)${rest}*(/N) )
   (( ${#matches} == 0 )) && return 1
 
   local dir label
@@ -717,12 +1305,14 @@ _ai_suggest_cd_match() {
   _AI_SUGGEST_DESCRIPTIONS=()
   _AI_SUGGEST_HINTS=()
   _AI_SUGGEST_LABELS=()
+  _AI_SUGGEST_ICONS=()
   for dir in "${matches[@]}"; do
     label="${dir%/}/"
     _AI_SUGGEST_CANDIDATES+=("$tool ${dir%/}/")
     _AI_SUGGEST_LABELS+=("$label")
     _AI_SUGGEST_HINTS+=("")
     _AI_SUGGEST_DESCRIPTIONS+=("Change directory")
+    _AI_SUGGEST_ICONS+=("dir")
     (( ${#_AI_SUGGEST_CANDIDATES} >= 9 )) && break
   done
   (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
@@ -765,12 +1355,14 @@ _ai_suggest_git_branch_match() {
   _AI_SUGGEST_DESCRIPTIONS=()
   _AI_SUGGEST_HINTS=()
   _AI_SUGGEST_LABELS=()
+  _AI_SUGGEST_ICONS=()
   for br in "${branches[@]}"; do
     [[ "$br" == "$partial"* ]] || continue
     _AI_SUGGEST_CANDIDATES+=("git $subcmd $br ")
     _AI_SUGGEST_LABELS+=("$br")
     _AI_SUGGEST_HINTS+=("")
     _AI_SUGGEST_DESCRIPTIONS+=("Local branch")
+    _AI_SUGGEST_ICONS+=("branch")
     (( ${#_AI_SUGGEST_CANDIDATES} >= 9 )) && break
   done
   (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
@@ -796,7 +1388,7 @@ _ai_suggest_nested_match() {
   [[ "$BUFFER" == "$tool "* ]] || return 1
 
   case "$tool" in
-    git|kubectl|k|npm|docker) ;;
+    git|kubectl|k|npm|docker|aws|terraform|tf|helm|gh|glab|gcloud) ;;
     *) return 1 ;;
   esac
 
@@ -817,6 +1409,7 @@ _ai_suggest_nested_match() {
 
   local tool_canon=$tool
   [[ "$tool" == "k" ]] && tool_canon="kubectl"
+  [[ "$tool" == "tf" ]] && tool_canon="terraform"
 
   local -a path=("${(@)words[2,-1]}")
   local seg key="${(U)tool_canon}"
@@ -824,12 +1417,34 @@ _ai_suggest_nested_match() {
     key+="_${(U)seg//[^a-zA-Z0-9]/_}"
   done
 
+  # Tries each candidate table name in priority order and commits to the
+  # first one that actually exists — never falls through past a table that
+  # exists but happens to filter down to zero matches later (that's a real
+  # "no match", not "try the next fallback"), only past ones with no data
+  # at this path at all.
   local table_var
   if [[ "$partial" == -* ]]; then
     table_var="_AI_SUGGEST_${key}_FLAGS"
+    (( ${+parameters[$table_var]} )) || table_var="_AI_SUGGEST_GENERIC_FLAGS"
   else
     table_var="_AI_SUGGEST_${key}_SUBCMDS"
+    # A "leaf" command with only a *_FLAGS table and no sub-subcommands of
+    # its own (docker ps/images/run/exec/logs, git log/branch/checkout/
+    # diff, kubectl get/exec, ...) has nothing under *_SUBCMDS at all —
+    # without this fallback, finishing that word and hitting space (partial
+    # == "") would show nothing until the user remembered to type "-"
+    # themselves first, unlike every sibling command that has real
+    # sub-subcommands (e.g. "docker image " suggests immediately). Falling
+    # back to the flags table here means "docker images " now offers
+    # -a/-q/--filter right away, same as "docker images -" already did.
+    if (( ! ${+parameters[$table_var]} )); then
+      table_var="_AI_SUGGEST_${key}_FLAGS"
+      (( ${+parameters[$table_var]} )) || table_var="_AI_SUGGEST_GENERIC_FLAGS"
+    fi
   fi
+  # Flags and sub-subcommands both belong to the same tool, so they get the
+  # same glyph — see _ai_suggest_tool_icon_kind.
+  local icon_kind=$(_ai_suggest_tool_icon_kind "$tool_canon")
   (( ${+parameters[$table_var]} )) || return 1
   local -a table=("${(@P)table_var}")
   (( ${#table} > 0 )) || return 1
@@ -840,6 +1455,7 @@ _ai_suggest_nested_match() {
   _AI_SUGGEST_DESCRIPTIONS=()
   _AI_SUGGEST_HINTS=()
   _AI_SUGGEST_LABELS=()
+  _AI_SUGGEST_ICONS=()
   for entry in "${table[@]}"; do
     parts=("${(@ps:\t:)entry}")
     name=$parts[1]
@@ -848,6 +1464,7 @@ _ai_suggest_nested_match() {
     _AI_SUGGEST_LABELS+=("$name")
     _AI_SUGGEST_HINTS+=("${parts[2]:-}")
     _AI_SUGGEST_DESCRIPTIONS+=("${parts[3]:-}")
+    _AI_SUGGEST_ICONS+=("$icon_kind")
     (( ${#_AI_SUGGEST_CANDIDATES} >= 9 )) && break
   done
   (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
@@ -872,13 +1489,23 @@ _ai_suggest_static_or_dynamic_match() {
 # what typically follows it, chaining word-by-word instead of going silent
 # until the next keystroke).
 _ai_suggest_suggest_now() {
-  _ai_suggest_clear_display
+  # Whether the overlay currently has something on screen that this call
+  # needs to account for — reset the local arrays now (not through
+  # _ai_suggest_clear_display: see its comment for why sending hide here,
+  # right before this same call likely sends a fresh show, would get that
+  # show silently dropped by the overlay's send throttle).
+  local -i had_candidates=$(( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
+  _ai_suggest_reset_candidates
+
   # Explicit `return 0`, not bare `return`: a zle widget function that ends
   # with non-zero status makes zle beep, and _ai_suggest_auto_enabled
   # returns non-zero precisely when suggestions are toggled off — bare
   # `return` here would carry that failure status out and ring the
   # terminal bell on every single keystroke while suggestions are disabled.
-  _ai_suggest_auto_enabled || return 0
+  if ! _ai_suggest_auto_enabled; then
+    (( had_candidates )) && _ai_suggest_overlay_hide
+    return 0
+  fi
 
   # Known, exact data (cd targets, git branches, tool subcommands) beats
   # everything else — no guess, no round-trip — so it both answers
@@ -886,6 +1513,11 @@ _ai_suggest_suggest_now() {
   if _ai_suggest_static_or_dynamic_match; then
     _AI_SUGGEST_INDEX=1
     _ai_suggest_present_candidates
+  elif (( had_candidates )); then
+    # Buffer no longer matches anything (e.g. backspaced past a known
+    # prefix) — nothing will replace what was showing, so this is the one
+    # case within this call where actually hiding is correct.
+    _ai_suggest_overlay_hide
   fi
 }
 
@@ -906,9 +1538,11 @@ _ai_suggest_edit_wrapper() {
 # --- the manual, immediate trigger ------------------------------------------
 
 _ai_suggest_trigger() {
-  _ai_suggest_clear_display
+  local -i had_candidates=$(( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
+  _ai_suggest_reset_candidates
 
   if [[ -z $BUFFER ]]; then
+    (( had_candidates )) && _ai_suggest_overlay_hide
     zle -M "ai-suggest: dòng lệnh đang trống"
     return
   fi
@@ -919,6 +1553,7 @@ _ai_suggest_trigger() {
     return
   fi
 
+  (( had_candidates )) && _ai_suggest_overlay_hide
   zle -M "ai-suggest: không có gợi ý cho lệnh này"
   return 1
 }
@@ -927,18 +1562,25 @@ _ai_suggest_trigger() {
 
 _ai_suggest_accept() {
   if (( ${#_AI_SUGGEST_CANDIDATES} > 0 )); then
-    # Capture the chosen candidate before clearing: _ai_suggest_clear_display
-    # resets _AI_SUGGEST_CANDIDATES too, so reading it after would accept
-    # an empty string.
+    # Capture the chosen candidate before resetting the arrays.
     local chosen=$_AI_SUGGEST_CANDIDATES[$_AI_SUGGEST_INDEX]
-    _ai_suggest_clear_display
+    _ai_suggest_reset_candidates
     BUFFER=$chosen
     CURSOR=${#BUFFER}
     # `cd` suggestions are a flat directory listing, not a chain to walk
     # word-by-word the way "git add" -> "git add <file>" is — accepting one
     # should just complete the path and stop, not immediately pop up the
-    # next directory level's list on top of it.
-    [[ "$chosen" == cd\ * ]] || _ai_suggest_suggest_now
+    # next directory level's list on top of it, so this is the one branch
+    # that actually hides rather than chaining into _ai_suggest_suggest_now
+    # (which sends its own show/hide as appropriate — see its comment for
+    # why calling _ai_suggest_clear_display here first, instead of the
+    # non-sending _ai_suggest_reset_candidates above, would silently drop
+    # whichever of the two sends came second).
+    if [[ "$chosen" == cd\ * ]]; then
+      _ai_suggest_overlay_hide
+    else
+      _ai_suggest_suggest_now
+    fi
   else
     zle .expand-or-complete
   fi
@@ -1047,3 +1689,18 @@ if (( AI_SUGGEST_AUTO )); then
   done
   unset _w _ai_suggest_watched_widgets
 fi
+
+# Makes sure the overlay panel doesn't linger on screen once this shell
+# session is gone — the normal `exit`/`accept-line` path already hides
+# before running the command (see _ai_suggest_accept_line), but that
+# doesn't cover Ctrl-D on an empty line or the parent terminal window
+# closing (which delivers SIGHUP; zsh's default handling for that still
+# runs zshexit, same as a graceful `exit`). Registered via add-zsh-hook
+# rather than defining zshexit() directly so this doesn't clobber a
+# zshexit function/hook some other plugin or the user's own .zshrc may
+# already have.
+_ai_suggest_on_shell_exit() {
+  (( ${#_AI_SUGGEST_CANDIDATES} > 0 )) && _ai_suggest_overlay_hide
+}
+autoload -Uz add-zsh-hook
+add-zsh-hook zshexit _ai_suggest_on_shell_exit
