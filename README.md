@@ -13,6 +13,7 @@
 </p>
 
 <p align="center">
+  <a href="#screenshots">Screenshots</a> ·
   <a href="#features">Features</a> ·
   <a href="#architecture">Architecture</a> ·
   <a href="#installation">Installation</a> ·
@@ -24,6 +25,18 @@
 </p>
 
 ---
+
+## Screenshots
+
+The floating panel positioned against a real terminal cursor, each row
+showing the actual brand icon of the tool it belongs to (see [Known-tool
+subcommand coverage](#known-tool-subcommand-coverage)):
+
+<p align="center">
+  <img src="assets/screenshot-git.png" width="420" alt="Lumen suggesting git subcommands">
+  &nbsp;&nbsp;
+  <img src="assets/screenshot-kubectl.png" width="420" alt="Lumen suggesting kubectl subcommands">
+</p>
 
 ## Overview
 
@@ -117,7 +130,7 @@ Lumen.app  --shared state file (~/.cache/ai-suggest/enabled)-->  Zsh plugin
 | [`ai-shell-suggest/shell/zsh/`](ai-shell-suggest/shell/zsh/) | The Zsh plugin — this is the active suggestion engine. |
 | [`Lumen/`](Lumen/) | SwiftUI menu bar app that draws the floating panel and toggles automatic suggestions. Builds to `Lumen.app`. |
 | [`ai-shell-suggest/src/`](ai-shell-suggest/src/) | A Rust daemon/client for AI-generated suggestions (Ollama/Anthropic). Not wired into the live path — see [Parked: the Rust daemon](#parked-the-rust-daemon). |
-| [`assets/`](assets/) | Shared repo assets (logo, used as the basis for `Lumen.app`'s icon too). |
+| [`assets/`](assets/) | Shared repo assets — logo (also the basis for `Lumen.app`'s icon) and the [screenshots](#screenshots) above. |
 
 ## Requirements
 
