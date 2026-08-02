@@ -233,6 +233,224 @@ typeset -ga _AI_SUGGEST_DOCKER_SUBCMDS=(
   $'inspect\t<container|image>\tReturn low-level info on an object'
   $'tag\t<image> <tag>\tTag an image into a repository'
   $'system\t[prune|df]\tManage Docker resources / disk usage'
+  $'container\t[ls|run|exec|...]\tManage containers'
+  $'image\t[ls|build|rm|...]\tManage images'
+)
+
+# --- nested (sub-subcommand and flag) tables --------------------------------
+#
+# Counterpart to the top-level *_SUBCMDS tables above, but one level deeper:
+# the sub-subcommands of a subcommand that is itself a management command
+# (`docker image` -> ls/build/rm/...) or the flags of a specific, possibly
+# nested, subcommand (`docker ps` -> -a/-q/..., `docker image ls` -> -a/-q/...).
+# Looked up by naming convention from the words actually typed rather than a
+# hand-maintained dispatch table — see _ai_suggest_nested_match, which builds
+# the variable name "_AI_SUGGEST_<TOOL>_<SUBCMD...>_SUBCMDS" (or "_FLAGS" if
+# the word being completed starts with "-") from the command path so far and
+# looks it up indirectly. Same hand-picked-common-case philosophy as the
+# top-level tables: not exhaustive, just the subcommands/flags someone
+# actually reaches for.
+
+typeset -ga _AI_SUGGEST_DOCKER_IMAGE_SUBCMDS=(
+  $'ls\t[-a]\tList images'
+  $'build\t-t <tag> .\tBuild an image from a Dockerfile'
+  $'pull\t<image>\tPull an image from a registry'
+  $'push\t<image>\tPush an image to a registry'
+  $'rm\t<image>\tRemove an image'
+  $'tag\t<image> <tag>\tTag an image into a repository'
+  $'inspect\t<image>\tReturn low-level info on an image'
+  $'history\t<image>\tShow the history of an image'
+  $'prune\t[-a]\tRemove unused images'
+  $'save\t-o <file> <image>\tSave an image to a tar archive'
+  $'load\t-i <file>\tLoad an image from a tar archive'
+)
+
+typeset -ga _AI_SUGGEST_DOCKER_CONTAINER_SUBCMDS=(
+  $'ls\t[-a]\tList containers'
+  $'run\t<image>\tRun a command in a new container'
+  $'exec\t-it <container> <cmd>\tRun a command in a running container'
+  $'logs\t<container>\tFetch the logs of a container'
+  $'stop\t<container>\tStop a running container'
+  $'start\t<container>\tStart a stopped container'
+  $'restart\t<container>\tRestart a container'
+  $'rm\t<container>\tRemove a container'
+  $'inspect\t<container>\tReturn low-level info on a container'
+  $'cp\t<src> <dst>\tCopy files to/from a container'
+  $'stats\t[container]\tDisplay live resource usage statistics'
+  $'prune\t\tRemove all stopped containers'
+)
+
+typeset -ga _AI_SUGGEST_DOCKER_NETWORK_SUBCMDS=(
+  $'ls\t\tList networks'
+  $'create\t<name>\tCreate a network'
+  $'rm\t<network>\tRemove a network'
+  $'inspect\t<network>\tReturn low-level info on a network'
+  $'connect\t<network> <container>\tConnect a container to a network'
+  $'disconnect\t<network> <container>\tDisconnect a container from a network'
+  $'prune\t\tRemove unused networks'
+)
+
+typeset -ga _AI_SUGGEST_DOCKER_VOLUME_SUBCMDS=(
+  $'ls\t\tList volumes'
+  $'create\t<name>\tCreate a volume'
+  $'rm\t<volume>\tRemove a volume'
+  $'inspect\t<volume>\tReturn low-level info on a volume'
+  $'prune\t\tRemove unused volumes'
+)
+
+typeset -ga _AI_SUGGEST_DOCKER_SYSTEM_SUBCMDS=(
+  $'df\t\tShow docker disk usage'
+  $'prune\t[-a]\tRemove unused data'
+  $'info\t\tDisplay system-wide information'
+  $'events\t\tGet real time events from the server'
+)
+
+typeset -ga _AI_SUGGEST_DOCKER_COMPOSE_SUBCMDS=(
+  $'up\t[-d]\tCreate and start containers'
+  $'down\t\tStop and remove containers, networks'
+  $'build\t\tBuild or rebuild services'
+  $'ps\t\tList containers'
+  $'logs\t[service]\tView output from containers'
+  $'exec\t<service> <cmd>\tExecute a command in a running container'
+  $'restart\t[service]\tRestart services'
+  $'stop\t[service]\tStop services'
+  $'start\t[service]\tStart services'
+  $'pull\t[service]\tPull service images'
+  $'config\t\tValidate and view the compose file'
+)
+
+typeset -ga _AI_SUGGEST_DOCKER_PS_FLAGS=(
+  $'-a\t\tShow all containers (default shows just running)'
+  $'-q\t\tOnly display container IDs'
+  $'--filter\t<expr>\tFilter output based on conditions'
+  $'--format\t<template>\tFormat output using a Go template'
+)
+
+typeset -ga _AI_SUGGEST_DOCKER_IMAGES_FLAGS=(
+  $'-a\t\tShow all images (default hides intermediate images)'
+  $'-q\t\tOnly display image IDs'
+  $'--filter\t<expr>\tFilter output based on conditions'
+)
+
+typeset -ga _AI_SUGGEST_DOCKER_IMAGE_LS_FLAGS=("${_AI_SUGGEST_DOCKER_IMAGES_FLAGS[@]}")
+
+typeset -ga _AI_SUGGEST_DOCKER_RUN_FLAGS=(
+  $'-d\t\tRun container in the background'
+  $'-it\t\tInteractive session with a tty attached'
+  $'--rm\t\tAutomatically remove the container on exit'
+  $'-p\t<host>:<container>\tPublish a container port to the host'
+  $'-v\t<host>:<container>\tBind mount a volume'
+  $'--name\t<name>\tAssign a name to the container'
+  $'-e\t<key>=<value>\tSet an environment variable'
+)
+
+typeset -ga _AI_SUGGEST_DOCKER_EXEC_FLAGS=(
+  $'-it\t\tInteractive session with a tty attached'
+  $'-d\t\tRun the command in the background'
+  $'-u\t<user>\tRun as a specific user'
+  $'-w\t<dir>\tWorking directory inside the container'
+)
+
+typeset -ga _AI_SUGGEST_DOCKER_LOGS_FLAGS=(
+  $'-f\t\tFollow log output'
+  $'--tail\t<n>\tShow only the last n lines'
+  $'-t\t\tShow timestamps'
+)
+
+typeset -ga _AI_SUGGEST_GIT_STASH_SUBCMDS=(
+  $'push\t[-m <message>]\tStash changes'
+  $'pop\t\tApply and remove the most recent stash'
+  $'apply\t[stash]\tApply a stash without removing it'
+  $'list\t\tList stashes'
+  $'show\t[stash]\tShow the changes in a stash'
+  $'drop\t[stash]\tRemove a stash'
+  $'clear\t\tRemove all stashes'
+)
+
+typeset -ga _AI_SUGGEST_GIT_REMOTE_SUBCMDS=(
+  $'-v\t\tShow remote URLs'
+  $'add\t<name> <url>\tAdd a remote'
+  $'remove\t<name>\tRemove a remote'
+  $'rename\t<old> <new>\tRename a remote'
+  $'set-url\t<name> <url>\tChange a remote'"'"'s URL'
+  $'show\t<name>\tShow information about a remote'
+  $'prune\t<name>\tRemove stale remote-tracking branches'
+)
+
+typeset -ga _AI_SUGGEST_GIT_REMOTE_FLAGS=(
+  $'-v\t\tShow remote URLs'
+)
+
+typeset -ga _AI_SUGGEST_GIT_LOG_FLAGS=(
+  $'--oneline\t\tOne line per commit'
+  $'--graph\t\tDraw a text-based commit graph'
+  $'-p\t\tShow the full diff for each commit'
+  $'--stat\t\tShow a diffstat for each commit'
+  $'-n\t<count>\tLimit the number of commits'
+)
+
+typeset -ga _AI_SUGGEST_GIT_BRANCH_FLAGS=(
+  $'-a\t\tList both local and remote branches'
+  $'-d\t<branch>\tDelete a branch'
+  $'-D\t<branch>\tForce-delete a branch'
+  $'-m\t<old> <new>\tRename a branch'
+  $'-v\t\tShow last commit on each branch'
+)
+
+typeset -ga _AI_SUGGEST_GIT_CHECKOUT_FLAGS=(
+  $'-b\t<branch>\tCreate and switch to a new branch'
+  $'--track\t<remote-branch>\tCreate a tracking branch'
+  $'-f\t\tForce checkout, discarding local changes'
+)
+
+typeset -ga _AI_SUGGEST_GIT_DIFF_FLAGS=(
+  $'--stat\t\tShow a diffstat instead of the full diff'
+  $'--cached\t\tShow staged changes'
+  $'-p\t\tGenerate output in patch format (default)'
+)
+
+typeset -ga _AI_SUGGEST_NPM_CACHE_SUBCMDS=(
+  $'clean\t\tClean the npm cache'
+  $'verify\t\tVerify the npm cache'
+  $'add\t<package>\tAdd a package to the cache'
+  $'ls\t\tList the contents of the cache'
+)
+
+typeset -ga _AI_SUGGEST_NPM_INSTALL_FLAGS=(
+  $'--save-dev\t\tSave to devDependencies'
+  $'--save-exact\t\tPin the exact installed version'
+  $'-g\t\tInstall globally'
+  $'--legacy-peer-deps\t\tIgnore peer dependency conflicts'
+)
+
+typeset -ga _AI_SUGGEST_KUBECTL_CONFIG_SUBCMDS=(
+  $'get-contexts\t\tList the available contexts'
+  $'use-context\t<name>\tSet the current context'
+  $'current-context\t\tDisplay the current context'
+  $'set-context\t<name>\tSet a context entry'
+  $'view\t\tDisplay the merged kubeconfig'
+  $'delete-context\t<name>\tDelete a context'
+)
+
+typeset -ga _AI_SUGGEST_KUBECTL_ROLLOUT_SUBCMDS=(
+  $'status\t<resource>\tShow the status of a rollout'
+  $'undo\t<resource>\tRoll back to a previous revision'
+  $'restart\t<resource>\tRestart a resource'
+  $'history\t<resource>\tShow rollout history'
+  $'pause\t<resource>\tMark a rollout as paused'
+  $'resume\t<resource>\tResume a paused rollout'
+)
+
+typeset -ga _AI_SUGGEST_KUBECTL_GET_FLAGS=(
+  $'-o\t<format>\tOutput format (json|yaml|wide|...)'
+  $'-n\t<namespace>\tNamespace to query'
+  $'--all-namespaces\t\tList across all namespaces'
+  $'-w\t\tWatch for changes'
+)
+
+typeset -ga _AI_SUGGEST_KUBECTL_EXEC_FLAGS=(
+  $'-it\t\tInteractive session with a tty attached'
+  $'-n\t<namespace>\tNamespace of the target pod'
 )
 
 # On-screen row/column the cursor is at, so the box lines up under wherever
@@ -558,6 +776,83 @@ _ai_suggest_git_branch_match() {
   (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
 }
 
+# Matches "<tool> <subcmd> [<subcmd2> ...] <partial>" against a nested
+# static table one (or more) levels deeper than _ai_suggest_static_match: the
+# sub-subcommands of a subcommand that is itself a management command (e.g.
+# "docker image" -> ls/build/rm/..., "git stash" -> push/pop/list/...), or
+# the flags of a specific — possibly nested — subcommand once the word being
+# typed starts with "-" (e.g. "docker ps -" -> -a/-q/..., "docker image ls
+# -" -> -a/-q/...). No hand-maintained dispatch table for this: the variable
+# name is derived from the command path actually typed so far — tool plus
+# each subcommand word, non-alnum characters turned into "_" and upper-cased,
+# joined by "_", with a "_SUBCMDS" or "_FLAGS" suffix (see the "nested
+# (sub-subcommand and flag) tables" block above the git tables) — and looked
+# up indirectly via zsh's ${(P)} parameter flag. A path with nothing defined
+# for it (docker's `run` doesn't have its own sub-subcommands, most
+# subcommands don't have a hand-picked flag table) just means no table
+# exists at that name, so this backs off same as any other non-match.
+_ai_suggest_nested_match() {
+  local tool="${BUFFER%% *}"
+  [[ "$BUFFER" == "$tool "* ]] || return 1
+
+  case "$tool" in
+    git|kubectl|k|npm|docker) ;;
+    *) return 1 ;;
+  esac
+
+  local -a words
+  words=(${(z)BUFFER})
+  (( ${#words} >= 2 )) || return 1
+
+  local partial=""
+  if [[ "$BUFFER" != *' ' ]]; then
+    partial=${words[-1]}
+    words=("${(@)words[1,-2]}")
+  fi
+  # Need the tool plus at least one already-typed (complete) subcommand word
+  # beyond it — a bare "<tool> <partial>" with nothing finished past the
+  # tool yet is level 1, already handled by _ai_suggest_static_match.
+  (( ${#words} >= 2 )) || return 1
+  [[ "$partial" == *' '* ]] && return 1
+
+  local tool_canon=$tool
+  [[ "$tool" == "k" ]] && tool_canon="kubectl"
+
+  local -a path=("${(@)words[2,-1]}")
+  local seg key="${(U)tool_canon}"
+  for seg in "${path[@]}"; do
+    key+="_${(U)seg//[^a-zA-Z0-9]/_}"
+  done
+
+  local table_var
+  if [[ "$partial" == -* ]]; then
+    table_var="_AI_SUGGEST_${key}_FLAGS"
+  else
+    table_var="_AI_SUGGEST_${key}_SUBCMDS"
+  fi
+  (( ${+parameters[$table_var]} )) || return 1
+  local -a table=("${(@P)table_var}")
+  (( ${#table} > 0 )) || return 1
+
+  local entry name
+  local -a parts
+  _AI_SUGGEST_CANDIDATES=()
+  _AI_SUGGEST_DESCRIPTIONS=()
+  _AI_SUGGEST_HINTS=()
+  _AI_SUGGEST_LABELS=()
+  for entry in "${table[@]}"; do
+    parts=("${(@ps:\t:)entry}")
+    name=$parts[1]
+    [[ "$name" == "$partial"* ]] || continue
+    _AI_SUGGEST_CANDIDATES+=("$tool ${(j: :)path} $name ")
+    _AI_SUGGEST_LABELS+=("$name")
+    _AI_SUGGEST_HINTS+=("${parts[2]:-}")
+    _AI_SUGGEST_DESCRIPTIONS+=("${parts[3]:-}")
+    (( ${#_AI_SUGGEST_CANDIDATES} >= 9 )) && break
+  done
+  (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
+}
+
 # Tries every no-AI-round-trip match source in order, cheapest/most-specific
 # first, and stops at the first one that produces candidates. Shared entry
 # point for both the automatic (_ai_suggest_suggest_now) and manual
@@ -566,6 +861,7 @@ _ai_suggest_git_branch_match() {
 _ai_suggest_static_or_dynamic_match() {
   _ai_suggest_cd_match && return 0
   _ai_suggest_git_branch_match && return 0
+  _ai_suggest_nested_match && return 0
   _ai_suggest_static_match
 }
 

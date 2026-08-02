@@ -189,11 +189,27 @@ enum TerminalPositioner {
         // frame-based computation below for ones that don't.
         if let focusedEl = focusedElement(pid: app.processIdentifier),
            let rect = caretRect(for: focusedEl) {
-            let result = ScreenAnchor(
-                x: rect.minX,
-                cellTopY: mainScreenHeight - rect.minY,
-                cellBottomY: mainScreenHeight - rect.maxY
-            )
+            // TermHub is the one app observed to hand back AXBoundsForRange
+            // already in AppKit's bottom-up screen space instead of AX's
+            // usual top-down space (every other app tested — Terminal.app,
+            // iTerm2, Code — matches the top-down convention). Flipping it
+            // again as done for those mirrors the point across the screen's
+            // vertical center, landing the panel near the opposite edge
+            // from the real cursor. Root-caused 2026-08-01 by comparing
+            // reported rect.minY/maxY (962/978 on a 982pt-tall screen, i.e.
+            // just under the tab bar) against the cursor's actual
+            // known-near-top position — the un-flipped reading matches, the
+            // flipped one doesn't.
+            let result: ScreenAnchor
+            if app.bundleIdentifier == "com.termhub.app" {
+                result = ScreenAnchor(x: rect.minX, cellTopY: rect.maxY, cellBottomY: rect.minY)
+            } else {
+                result = ScreenAnchor(
+                    x: rect.minX,
+                    cellTopY: mainScreenHeight - rect.minY,
+                    cellBottomY: mainScreenHeight - rect.maxY
+                )
+            }
             if isOnSomeScreen(result) {
                 debugLog("ai-suggest-menubar: overlay position: using caret bounds for "
                     + "\(app.localizedName ?? "?") rect=\(rect) -> \(result)")

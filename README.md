@@ -17,6 +17,7 @@
   <a href="#architecture">Architecture</a> ·
   <a href="#installation">Installation</a> ·
   <a href="#usage--keybindings">Usage</a> ·
+  <a href="#known-tool-subcommand-coverage">Tool coverage</a> ·
   <a href="#menu-bar-toggle">Menu bar toggle</a> ·
   <a href="#known-limitations">Known limitations</a>
 </p>
@@ -52,6 +53,13 @@ place: the Zsh plugin (shell/zsh/) and the menu bar overlay (Swift).
 - **Known-tool subcommands** — git, docker, kubectl, and npm resolve their
   subcommands from a static table (e.g. typing `git ` lists `status`,
   `add`, `commit`, ...).
+- **Nested subcommands and flags** — for tools whose subcommand is itself a
+  management command, the next word resolves too (e.g. `docker image `
+  lists `ls`, `build`, `rm`, ...; `git stash ` lists `push`, `pop`, `list`,
+  ...), and once you start a flag (`-`), the flags for that specific
+  (possibly nested) subcommand show up (e.g. `docker ps -` lists `-a`,
+  `-q`, `--filter`, ...). See [Known-tool subcommand
+  coverage](#known-tool-subcommand-coverage) for the full list.
 - **Directory completion after `cd`** — typing `cd Doc` suggests
   `Documents/`; accepting drills into that directory so you can keep
   Tab-ing deeper without the panel immediately popping the next level on
@@ -135,6 +143,26 @@ Other environment variables (set before sourcing the plugin):
 | `AI_SUGGEST_AUTO` | `1` | `0` disables automatic as-you-type suggestions, Ctrl-Space-only |
 | `AI_SUGGEST_KEY` | `^@` (Ctrl-Space) | Manual trigger keybinding |
 | `AI_SUGGEST_OVERLAY` | `1` | `0` disables the floating panel entirely (no other rendering path exists) |
+
+## Known-tool subcommand coverage
+
+All of this comes from static, hand-picked tables in
+`shell/zsh/ai-suggest.plugin.zsh` — not exhaustive (e.g. git has 40+
+porcelain commands), just the common-case fast path for each tool. Table
+lookup is by naming convention from the words you've actually typed, so
+adding coverage for a new subcommand/flag is a matter of adding a table,
+not touching the matching logic.
+
+| Tool | Top-level subcommands | Nested subcommands (`tool sub `) | Flags (`tool [sub] -`) |
+|---|---|---|---|
+| **git** | `status`, `add`, `commit`, `push`, `pull`, `fetch`, `branch`, `checkout`, `switch`, `merge`, `rebase`, `log`, `diff`, `stash`, `reset`, `tag`, `clone`, `init`, `remote`, `cherry-pick`, `revert`, `blame`, `show`, `rm`, `mv`, `clean`, `restore` | `stash` → `push`/`pop`/`apply`/`list`/`show`/`drop`/`clear`; `remote` → `add`/`remove`/`rename`/`set-url`/`show`/`prune`/`-v` | `log`, `branch`, `checkout`, `diff`, `remote` |
+| **docker** | `ps`, `images`, `run`, `build`, `exec`, `logs`, `stop`, `start`, `rm`, `rmi`, `pull`, `push`, `compose`, `network`, `volume`, `inspect`, `tag`, `system`, `container`, `image` | `image` → `ls`/`build`/`pull`/`push`/`rm`/`tag`/`inspect`/`history`/`prune`/`save`/`load`; `container` → `ls`/`run`/`exec`/`logs`/`stop`/`start`/`restart`/`rm`/`inspect`/`cp`/`stats`/`prune`; `network` → `ls`/`create`/`rm`/`inspect`/`connect`/`disconnect`/`prune`; `volume` → `ls`/`create`/`rm`/`inspect`/`prune`; `system` → `df`/`prune`/`info`/`events`; `compose` → `up`/`down`/`build`/`ps`/`logs`/`exec`/`restart`/`stop`/`start`/`pull`/`config` | `ps`, `images`, `image ls`, `run`, `exec`, `logs` |
+| **kubectl** (also `k`) | `get`, `describe`, `logs`, `apply`, `exec`, `delete`, `create`, `edit`, `rollout`, `scale`, `port-forward`, `config`, `top`, `cp`, `label`, `run`, `expose` | `config` → `get-contexts`/`use-context`/`current-context`/`set-context`/`view`/`delete-context`; `rollout` → `status`/`undo`/`restart`/`history`/`pause`/`resume` | `get`, `exec` |
+| **npm** | `run`, `install`, `start`, `test`, `uninstall`, `update`, `init`, `publish`, `list`, `outdated`, `audit`, `ci`, `link`, `cache`, `version`, `exec` | `cache` → `clean`/`verify`/`add`/`ls` | `install` |
+
+Directory completion after `cd` and local git branch completion (for
+`checkout`/`switch`/`merge`/`rebase`/`branch`) work independently of these
+tables — see [Features](#features).
 
 ## Menu bar toggle
 
