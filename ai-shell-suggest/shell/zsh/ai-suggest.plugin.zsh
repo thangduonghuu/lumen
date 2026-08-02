@@ -701,6 +701,38 @@ typeset -ga _AI_SUGGEST_KUBECTL_EXEC_FLAGS=(
   $'-n\t<namespace>\tNamespace of the target pod'
 )
 
+# Last-resort fallback when typing "-" at a position with no hand-picked
+# *_FLAGS table of its own (most subcommands don't have one — only the ones
+# above do) — so "something" always shows up instead of nothing. These are
+# widely-adopted CLI conventions (getopt-style long/short pairs most tools
+# that support the concept at all spell the same way), not universal
+# guarantees — a given subcommand may not implement a given one. That's an
+# acceptable tradeoff for a fallback of last resort: an offered flag that
+# a particular tool happens not to support is a no-op/an error the user
+# immediately sees and ignores, which costs far less than this table
+# staying empty and suggesting nothing at all.
+typeset -ga _AI_SUGGEST_GENERIC_FLAGS=(
+  $'-h\t\tShow help for this command'
+  $'--help\t\tShow help for this command'
+  $'--version\t\tShow version information'
+  $'-v\t\tEnable verbose output'
+  $'--verbose\t\tEnable verbose output'
+  $'-q\t\tSuppress non-essential output'
+  $'--quiet\t\tSuppress non-essential output'
+  $'--debug\t\tShow debug-level output'
+  $'-y\t\tAutomatically answer yes to prompts'
+  $'--yes\t\tAutomatically answer yes to prompts'
+  $'-f\t\tForce the operation, skipping normal safety checks'
+  $'--force\t\tForce the operation, skipping normal safety checks'
+  $'-n\t\tDry run — show what would happen without making changes'
+  $'--dry-run\t\tShow what would happen without making changes'
+  $'-o\t<file>\tWrite output to a file'
+  $'--output\t<file>\tWrite output to a file'
+  $'--no-color\t\tDisable colored output'
+  $'--json\t\tOutput in JSON format'
+  $'--config\t<file>\tUse a specific configuration file'
+)
+
 typeset -ga _AI_SUGGEST_AWS_S3_SUBCMDS=(
   $'ls\t[s3://bucket[/prefix]]\tList buckets or objects'
   $'cp\t<src> <dst>\tCopy files to/from S3'
@@ -1091,21 +1123,37 @@ _ai_suggest_present_candidates() {
   _ai_suggest_overlay_supported && _ai_suggest_overlay_show
 }
 
-_ai_suggest_clear_display() {
-  # Only worth telling the overlay to hide if something was actually shown —
-  # this runs on every keystroke (via _ai_suggest_suggest_now), including
-  # the common case of plain typing with nothing displayed, so skipping the
-  # socket round-trip when there's nothing to hide keeps that hot path free
-  # of unnecessary overhead.
-  if (( ${#_AI_SUGGEST_CANDIDATES} > 0 )); then
-    _ai_suggest_overlay_hide
-  fi
+# Resets the candidate arrays WITHOUT telling the overlay to hide — see
+# _ai_suggest_clear_display's comment for why the two are kept apart.
+_ai_suggest_reset_candidates() {
   _AI_SUGGEST_CANDIDATES=()
   _AI_SUGGEST_DESCRIPTIONS=()
   _AI_SUGGEST_HINTS=()
   _AI_SUGGEST_LABELS=()
   _AI_SUGGEST_ICONS=()
   _AI_SUGGEST_INDEX=0
+}
+
+# Actually tells the overlay to hide (if something was showing) and resets
+# local state. Only call this when nothing is going to replace what's
+# showing within the same keystroke/action — e.g. Ctrl-G dismiss, a fresh
+# prompt line, or "the buffer no longer matches anything." Callers that
+# immediately re-suggest afterward (a keystroke, accepting a candidate)
+# must NOT go through here first: _ai_suggest_overlay_send throttles sends
+# under _AI_SUGGEST_OVERLAY_MIN_INTERVAL apart, and a hide here followed
+# microseconds later by a show would mean the hide always goes through but
+# the show is *always* dropped by that same guard — not just occasionally,
+# every single time, since the two calls land far closer together than any
+# human keystroke ever could. That was the actual cause of suggestions
+# visibly disappearing while continuing to type: every keystroke hid the
+# previous suggestion successfully, then silently failed to show the new
+# one. See _ai_suggest_suggest_now/_ai_suggest_trigger/_ai_suggest_accept,
+# which use _ai_suggest_reset_candidates instead and only call
+# _ai_suggest_overlay_hide directly, on its own, when they've already
+# determined nothing else will be shown this round.
+_ai_suggest_clear_display() {
+  (( ${#_AI_SUGGEST_CANDIDATES} > 0 )) && _ai_suggest_overlay_hide
+  _ai_suggest_reset_candidates
 }
 
 # Maps a tool name (as typed, so "k"/"tf" included) to the icon identifier
@@ -1183,6 +1231,24 @@ _ai_suggest_static_match() {
   # _ai_suggest_git_branch_match for the git-branch-argument case).
   [[ "$rest" == *' '* ]] && return 1
 
+  # Typing "-" before ever picking a subcommand (e.g. "docker -", "git -")
+  # — none of these top-level tables' entries are named "-something", so
+  # swap in the generic -h/--help/--version-and-friends fallback instead of
+  # leaving the subcommand table in place, where it would just filter down
+  # to zero matches. Exception: kafka-topics/kafka-console-*/kafka-
+  # consumer-groups's own top-level tables ARE already flag-shaped (their
+  # first arg is a flag like --list, not a subcommand) — leave those alone
+  # so their real, tool-specific entries keep matching instead of being
+  # replaced by the generic ones.
+  case "$tool" in
+    kafka-topics.sh|kafka-topics|kafka-console-producer.sh|kafka-console-producer| \
+    kafka-console-consumer.sh|kafka-console-consumer|kafka-consumer-groups.sh|kafka-consumer-groups)
+      ;;
+    *)
+      [[ "$rest" == -* ]] && table=("${_AI_SUGGEST_GENERIC_FLAGS[@]}")
+      ;;
+  esac
+
   local entry name hint desc
   local -a parts
   local icon_kind=$(_ai_suggest_tool_icon_kind "$tool")
@@ -1223,7 +1289,15 @@ _ai_suggest_cd_match() {
   [[ "$rest" == *' '* ]] && return 1
 
   local -a matches
-  matches=( ${rest}*(/N) )
+  # (#i) makes the glob case-insensitive for the rest of the pattern (every
+  # path segment, not just the first) — without it, plain-glob matching is
+  # case-sensitive, so typing "cd p" would only ever find lowercase-p
+  # directories like "projects" and silently skip "Pictures"/"Personal".
+  # local_options confines EXTENDED_GLOB to this function call instead of
+  # leaking the option into the interactive shell that's about to run
+  # whatever's on BUFFER.
+  setopt local_options extended_glob
+  matches=( (#i)${rest}*(/N) )
   (( ${#matches} == 0 )) && return 1
 
   local dir label
@@ -1343,11 +1417,30 @@ _ai_suggest_nested_match() {
     key+="_${(U)seg//[^a-zA-Z0-9]/_}"
   done
 
+  # Tries each candidate table name in priority order and commits to the
+  # first one that actually exists — never falls through past a table that
+  # exists but happens to filter down to zero matches later (that's a real
+  # "no match", not "try the next fallback"), only past ones with no data
+  # at this path at all.
   local table_var
   if [[ "$partial" == -* ]]; then
     table_var="_AI_SUGGEST_${key}_FLAGS"
+    (( ${+parameters[$table_var]} )) || table_var="_AI_SUGGEST_GENERIC_FLAGS"
   else
     table_var="_AI_SUGGEST_${key}_SUBCMDS"
+    # A "leaf" command with only a *_FLAGS table and no sub-subcommands of
+    # its own (docker ps/images/run/exec/logs, git log/branch/checkout/
+    # diff, kubectl get/exec, ...) has nothing under *_SUBCMDS at all —
+    # without this fallback, finishing that word and hitting space (partial
+    # == "") would show nothing until the user remembered to type "-"
+    # themselves first, unlike every sibling command that has real
+    # sub-subcommands (e.g. "docker image " suggests immediately). Falling
+    # back to the flags table here means "docker images " now offers
+    # -a/-q/--filter right away, same as "docker images -" already did.
+    if (( ! ${+parameters[$table_var]} )); then
+      table_var="_AI_SUGGEST_${key}_FLAGS"
+      (( ${+parameters[$table_var]} )) || table_var="_AI_SUGGEST_GENERIC_FLAGS"
+    fi
   fi
   # Flags and sub-subcommands both belong to the same tool, so they get the
   # same glyph — see _ai_suggest_tool_icon_kind.
@@ -1396,13 +1489,23 @@ _ai_suggest_static_or_dynamic_match() {
 # what typically follows it, chaining word-by-word instead of going silent
 # until the next keystroke).
 _ai_suggest_suggest_now() {
-  _ai_suggest_clear_display
+  # Whether the overlay currently has something on screen that this call
+  # needs to account for — reset the local arrays now (not through
+  # _ai_suggest_clear_display: see its comment for why sending hide here,
+  # right before this same call likely sends a fresh show, would get that
+  # show silently dropped by the overlay's send throttle).
+  local -i had_candidates=$(( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
+  _ai_suggest_reset_candidates
+
   # Explicit `return 0`, not bare `return`: a zle widget function that ends
   # with non-zero status makes zle beep, and _ai_suggest_auto_enabled
   # returns non-zero precisely when suggestions are toggled off — bare
   # `return` here would carry that failure status out and ring the
   # terminal bell on every single keystroke while suggestions are disabled.
-  _ai_suggest_auto_enabled || return 0
+  if ! _ai_suggest_auto_enabled; then
+    (( had_candidates )) && _ai_suggest_overlay_hide
+    return 0
+  fi
 
   # Known, exact data (cd targets, git branches, tool subcommands) beats
   # everything else — no guess, no round-trip — so it both answers
@@ -1410,6 +1513,11 @@ _ai_suggest_suggest_now() {
   if _ai_suggest_static_or_dynamic_match; then
     _AI_SUGGEST_INDEX=1
     _ai_suggest_present_candidates
+  elif (( had_candidates )); then
+    # Buffer no longer matches anything (e.g. backspaced past a known
+    # prefix) — nothing will replace what was showing, so this is the one
+    # case within this call where actually hiding is correct.
+    _ai_suggest_overlay_hide
   fi
 }
 
@@ -1430,9 +1538,11 @@ _ai_suggest_edit_wrapper() {
 # --- the manual, immediate trigger ------------------------------------------
 
 _ai_suggest_trigger() {
-  _ai_suggest_clear_display
+  local -i had_candidates=$(( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
+  _ai_suggest_reset_candidates
 
   if [[ -z $BUFFER ]]; then
+    (( had_candidates )) && _ai_suggest_overlay_hide
     zle -M "ai-suggest: dòng lệnh đang trống"
     return
   fi
@@ -1443,6 +1553,7 @@ _ai_suggest_trigger() {
     return
   fi
 
+  (( had_candidates )) && _ai_suggest_overlay_hide
   zle -M "ai-suggest: không có gợi ý cho lệnh này"
   return 1
 }
@@ -1451,18 +1562,25 @@ _ai_suggest_trigger() {
 
 _ai_suggest_accept() {
   if (( ${#_AI_SUGGEST_CANDIDATES} > 0 )); then
-    # Capture the chosen candidate before clearing: _ai_suggest_clear_display
-    # resets _AI_SUGGEST_CANDIDATES too, so reading it after would accept
-    # an empty string.
+    # Capture the chosen candidate before resetting the arrays.
     local chosen=$_AI_SUGGEST_CANDIDATES[$_AI_SUGGEST_INDEX]
-    _ai_suggest_clear_display
+    _ai_suggest_reset_candidates
     BUFFER=$chosen
     CURSOR=${#BUFFER}
     # `cd` suggestions are a flat directory listing, not a chain to walk
     # word-by-word the way "git add" -> "git add <file>" is — accepting one
     # should just complete the path and stop, not immediately pop up the
-    # next directory level's list on top of it.
-    [[ "$chosen" == cd\ * ]] || _ai_suggest_suggest_now
+    # next directory level's list on top of it, so this is the one branch
+    # that actually hides rather than chaining into _ai_suggest_suggest_now
+    # (which sends its own show/hide as appropriate — see its comment for
+    # why calling _ai_suggest_clear_display here first, instead of the
+    # non-sending _ai_suggest_reset_candidates above, would silently drop
+    # whichever of the two sends came second).
+    if [[ "$chosen" == cd\ * ]]; then
+      _ai_suggest_overlay_hide
+    else
+      _ai_suggest_suggest_now
+    fi
   else
     zle .expand-or-complete
   fi
