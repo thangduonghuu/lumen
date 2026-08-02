@@ -1,0 +1,37 @@
+{
+  "": {
+    "dependencies": "/Users/thangduong/Documents/project/Lumen/Lumen/.build/arm64-apple-macosx/release/Lumen.build/Lumen.d",
+    "object": "/Users/thangduong/Documents/project/Lumen/Lumen/.build/arm64-apple-macosx/release/Lumen.build/Lumen.o",
+    "swift-dependencies": "/Users/thangduong/Documents/project/Lumen/Lumen/.build/arm64-apple-macosx/release/Lumen.build/primary.swiftdeps"
+  },
+  "/Users/thangduong/Documents/project/Lumen/Lumen/Sources/Lumen/App.swift": {
+    "object": "/Users/thangduong/Documents/project/Lumen/Lumen/.build/arm64-apple-macosx/release/Lumen.build/App.swift.o",
+    "swiftmodule": "/Users/thangduong/Documents/project/Lumen/Lumen/.build/arm64-apple-macosx/release/Lumen.build/App~partial.swiftmodule",
+    "swift-dependencies": "/Users/thangduong/Documents/project/Lumen/Lumen/.build/arm64-apple-macosx/release/Lumen.build/App.swiftdeps",
+    "diagnostics": "/Users/thangduong/Documents/project/Lumen/Lumen/.build/arm64-apple-macosx/release/Lumen.build/App.dia"
+  },
+  "/Users/thangduong/Documents/project/Lumen/Lumen/Sources/Lumen/OverlayPanel.swift": {
+    "object": "/Users/thangduong/Documents/project/Lumen/Lumen/.build/arm64-apple-macosx/release/Lumen.build/OverlayPanel.swift.o",
+    "swiftmodule": "/Users/thangduong/Documents/project/Lumen/Lumen/.build/arm64-apple-macosx/release/Lumen.build/OverlayPanel~partial.swiftmodule",
+    "swift-dependencies": "/Users/thangduong/Documents/project/Lumen/Lumen/.build/arm64-apple-macosx/release/Lumen.build/OverlayPanel.swiftdeps",
+    "diagnostics": "/Users/thangduong/Documents/project/Lumen/Lumen/.build/arm64-apple-macosx/release/Lumen.build/OverlayPanel.dia"
+  },
+  "/Users/thangduong/Documents/project/Lumen/Lumen/Sources/Lumen/OverlayServer.swift": {
+    "object": "/Users/thangduong/Documents/project/Lumen/Lumen/.build/arm64-apple-macosx/release/Lumen.build/OverlayServer.swift.o",
+    "swiftmodule": "/Users/thangduong/Documents/project/Lumen/Lumen/.build/arm64-apple-macosx/release/Lumen.build/OverlayServer~partial.swiftmodule",
+    "swift-dependencies": "/Users/thangduong/Documents/project/Lumen/Lumen/.build/arm64-apple-macosx/release/Lumen.build/OverlayServer.swiftdeps",
+    "diagnostics": "/Users/thangduong/Documents/project/Lumen/Lumen/.build/arm64-apple-macosx/release/Lumen.build/OverlayServer.dia"
+  },
+  "/Users/thangduong/Documents/project/Lumen/Lumen/Sources/Lumen/TerminalPositioner.swift": {
+    "object": "/Users/thangduong/Documents/project/Lumen/Lumen/.build/arm64-apple-macosx/release/Lumen.build/TerminalPositioner.swift.o",
+    "swiftmodule": "/Users/thangduong/Documents/project/Lumen/Lumen/.build/arm64-apple-macosx/release/Lumen.build/TerminalPositioner~partial.swiftmodule",
+    "swift-dependencies": "/Users/thangduong/Documents/project/Lumen/Lumen/.build/arm64-apple-macosx/release/Lumen.build/TerminalPositioner.swiftdeps",
+    "diagnostics": "/Users/thangduong/Documents/project/Lumen/Lumen/.build/arm64-apple-macosx/release/Lumen.build/TerminalPositioner.dia"
+  },
+  "/Users/thangduong/Documents/project/Lumen/Lumen/.build/arm64-apple-macosx/release/Lumen.build/DerivedSources/resource_bundle_accessor.swift": {
+    "object": "/Users/thangduong/Documents/project/Lumen/Lumen/.build/arm64-apple-macosx/release/Lumen.build/resource_bundle_accessor.swift.o",
+    "swiftmodule": "/Users/thangduong/Documents/project/Lumen/Lumen/.build/arm64-apple-macosx/release/Lumen.build/resource_bundle_accessor~partial.swiftmodule",
+    "swift-dependencies": "/Users/thangduong/Documents/project/Lumen/Lumen/.build/arm64-apple-macosx/release/Lumen.build/resource_bundle_accessor.swiftdeps",
+    "diagnostics": "/Users/thangduong/Documents/project/Lumen/Lumen/.build/arm64-apple-macosx/release/Lumen.build/resource_bundle_accessor.dia"
+  }
+}
