@@ -3,7 +3,9 @@
 #
 # Deterministic, no-AI command suggestions, Fig/Kiro-CLI style: as you type,
 # this plugin matches $BUFFER against known, hand-picked data — a tool's
-# subcommands (git/docker/kubectl/npm), directories under whatever path
+# subcommands (git/docker/kubectl/npm/yarn/pnpm, aws/gcloud/az/terraform/
+# helm/gh/glab, kafka-topics/kafka-console-producer/kafka-console-consumer/
+# kafka-consumer-groups/rabbitmqctl), directories under whatever path
 # follows `cd`, or local git branches once a subcommand that takes one has
 # been typed — and sends the result (plus where the cursor currently is)
 # over a Unix socket to the ai-suggest-menubar companion app, which draws a
@@ -237,6 +239,243 @@ typeset -ga _AI_SUGGEST_DOCKER_SUBCMDS=(
   $'image\t[ls|build|rm|...]\tManage images'
 )
 
+# DevOps/cloud tooling, same hand-picked-common-case philosophy as above.
+# aws/gcloud-style CLIs are two levels deep by nature (`aws <service>
+# <operation>`), so this top-level table lists services rather than
+# operations directly — see the AWS_<SERVICE>_SUBCMDS tables below (picked
+# up by _ai_suggest_nested_match) for the operations themselves.
+typeset -ga _AI_SUGGEST_AWS_SUBCMDS=(
+  $'s3\t\tManage S3 buckets and objects'
+  $'ec2\t\tManage EC2 instances and related resources'
+  $'lambda\t\tManage Lambda functions'
+  $'iam\t\tManage IAM users, roles, and policies'
+  $'logs\t\tManage CloudWatch Logs'
+  $'sts\t\tSecurity Token Service (assume-role, identity)'
+  $'cloudformation\t\tManage CloudFormation stacks'
+  $'ecr\t\tManage Elastic Container Registry'
+  $'ecs\t\tManage Elastic Container Service'
+  $'eks\t\tManage Elastic Kubernetes Service clusters'
+  $'ssm\t\tSystems Manager (params, sessions, run command)'
+  $'dynamodb\t\tManage DynamoDB tables and items'
+  $'rds\t\tManage RDS database instances'
+  $'secretsmanager\t\tManage Secrets Manager secrets'
+  $'cloudwatch\t\tManage CloudWatch metrics and alarms'
+  $'sns\t\tManage Simple Notification Service topics'
+  $'sqs\t\tManage Simple Queue Service queues'
+  $'route53\t\tManage Route 53 DNS'
+  $'configure\t[list|get|set|sso]\tConfigure AWS CLI credentials and settings'
+  $'sso\t[login|logout]\tAWS SSO login and configuration'
+)
+
+typeset -ga _AI_SUGGEST_TERRAFORM_SUBCMDS=(
+  $'init\t\tInitialize a working directory'
+  $'plan\t\tShow changes required by the current configuration'
+  $'apply\t\tApply changes to reach the desired state'
+  $'destroy\t\tDestroy previously-created infrastructure'
+  $'validate\t\tValidate the configuration files'
+  $'fmt\t\tReformat configuration files to canonical style'
+  $'show\t[plan-file]\tShow the current state or a saved plan'
+  $'output\t[name]\tShow output values from the state'
+  $'state\t[list|show|mv|rm]\tAdvanced state management'
+  $'import\t<address> <id>\tImport existing infrastructure into state'
+  $'workspace\t[list|new|select|delete]\tManage workspaces'
+  $'providers\t\tShow the providers required by this configuration'
+  $'graph\t\tGenerate a visual graph of the configuration'
+  $'taint\t<address>\tMark a resource as tainted'
+  $'untaint\t<address>\tRemove the tainted mark from a resource'
+  $'refresh\t\tUpdate state to match remote objects'
+  $'console\t\tInteractive console for evaluating expressions'
+  $'get\t\tDownload and install modules'
+  $'version\t\tShow the current Terraform version'
+  $'login\t\tObtain and save credentials for a host'
+  $'force-unlock\t<lock-id>\tRelease a stuck lock on the state'
+)
+
+typeset -ga _AI_SUGGEST_HELM_SUBCMDS=(
+  $'install\t<name> <chart>\tInstall a chart'
+  $'upgrade\t<name> <chart>\tUpgrade a release'
+  $'uninstall\t<name>\tUninstall a release'
+  $'list\t\tList releases'
+  $'status\t<name>\tShow the status of a release'
+  $'rollback\t<name> [revision]\tRoll back a release to a previous revision'
+  $'repo\t[add|update|list]\tManage chart repositories'
+  $'search\t[repo|hub] <keyword>\tSearch for charts'
+  $'template\t<name> <chart>\tRender chart templates locally'
+  $'get\t[values|manifest|notes] <name>\tGet extended information about a release'
+  $'history\t<name>\tShow release history'
+  $'pull\t<chart>\tDownload a chart'
+  $'create\t<name>\tCreate a new chart'
+  $'lint\t<chart>\tExamine a chart for possible issues'
+  $'show\t[chart|values|readme] <chart>\tShow information about a chart'
+  $'dependency\t[list|update|build]\tManage chart dependencies'
+)
+
+typeset -ga _AI_SUGGEST_GH_SUBCMDS=(
+  $'pr\t[create|list|view|checkout|merge]\tManage pull requests'
+  $'issue\t[create|list|view|close]\tManage issues'
+  $'repo\t[clone|create|view|fork]\tManage repositories'
+  $'run\t[list|view|watch|rerun]\tManage GitHub Actions workflow runs'
+  $'workflow\t[list|view|run]\tManage GitHub Actions workflows'
+  $'release\t[create|list|view|upload]\tManage releases'
+  $'gist\t[create|list|view]\tManage gists'
+  $'auth\t[login|logout|status]\tAuthenticate with GitHub'
+  $'browse\t\tOpen the repository in the browser'
+  $'api\t<endpoint>\tMake an authenticated GitHub API request'
+  $'status\t\tShow status of relevant issues/PRs'
+  $'search\t[repos|issues|prs]\tSearch GitHub'
+)
+
+typeset -ga _AI_SUGGEST_YARN_SUBCMDS=(
+  $'add\t<package>\tAdd a dependency'
+  $'remove\t<package>\tRemove a dependency'
+  $'install\t\tInstall all dependencies'
+  $'run\t<script>\tRun a script defined in package.json'
+  $'dev\t\tRun the "dev" script'
+  $'build\t\tRun the "build" script'
+  $'start\t\tRun the "start" script'
+  $'test\t\tRun the "test" script'
+  $'upgrade\t[package]\tUpgrade packages'
+  $'list\t\tList installed packages'
+  $'why\t<package>\tShow why a package is installed'
+  $'outdated\t\tCheck for outdated packages'
+  $'cache\t[clean|list]\tManage the yarn cache'
+  $'init\t\tCreate a new package.json'
+  $'workspaces\t[list|run]\tManage yarn workspaces'
+  $'dlx\t<package>\tRun a package binary without installing it'
+)
+
+typeset -ga _AI_SUGGEST_PNPM_SUBCMDS=(
+  $'add\t<package>\tAdd a dependency'
+  $'remove\t<package>\tRemove a dependency'
+  $'install\t\tInstall all dependencies'
+  $'run\t<script>\tRun a script defined in package.json'
+  $'dev\t\tRun the "dev" script'
+  $'build\t\tRun the "build" script'
+  $'start\t\tRun the "start" script'
+  $'test\t\tRun the "test" script'
+  $'update\t[package]\tUpdate packages'
+  $'list\t\tList installed packages'
+  $'why\t<package>\tShow why a package is installed'
+  $'outdated\t\tCheck for outdated packages'
+  $'exec\t<cmd>\tExecute a shell command in scope of the project'
+  $'dlx\t<package>\tRun a package binary without installing it'
+  $'init\t\tCreate a new package.json'
+)
+
+# GitLab's counterpart to gh — same shape, but "mr" (merge request) where
+# GitHub says "pr".
+typeset -ga _AI_SUGGEST_GLAB_SUBCMDS=(
+  $'mr\t[create|list|view|merge|checkout]\tManage merge requests'
+  $'issue\t[create|list|view|close]\tManage issues'
+  $'repo\t[clone|create|view|fork]\tManage repositories'
+  $'ci\t[status|view|trace|retry]\tManage GitLab CI/CD pipelines'
+  $'pipeline\t[list|view|run]\tManage pipelines'
+  $'release\t[create|list|view]\tManage releases'
+  $'auth\t[login|logout|status]\tAuthenticate with GitLab'
+  $'label\t[list|create]\tManage labels'
+  $'variable\t[list|set|delete]\tManage CI/CD variables'
+  $'api\t<endpoint>\tMake an authenticated GitLab API request'
+)
+
+# gcloud, like aws, is a two-level "<tool> <group> <command>" CLI — this
+# table lists resource groups; see _AI_SUGGEST_GCLOUD_COMPUTE_SUBCMDS/
+# _GCLOUD_CONTAINER_SUBCMDS below (picked up by _ai_suggest_nested_match)
+# for the commands themselves.
+typeset -ga _AI_SUGGEST_GCLOUD_SUBCMDS=(
+  $'compute\t\tManage Compute Engine resources'
+  $'container\t\tManage GKE clusters (Kubernetes Engine)'
+  $'run\t\tManage Cloud Run services'
+  $'functions\t\tManage Cloud Functions'
+  $'storage\t\tManage Cloud Storage buckets and objects'
+  $'iam\t\tManage IAM policies and service accounts'
+  $'projects\t\tManage GCP projects'
+  $'auth\t[login|list|revoke]\tManage authentication and credentials'
+  $'config\t[list|set|get-value]\tManage gcloud CLI configuration'
+  $'sql\t\tManage Cloud SQL instances'
+  $'app\t\tManage App Engine deployments'
+  $'builds\t\tManage Cloud Build jobs'
+  $'logging\t\tManage Cloud Logging'
+  $'pubsub\t\tManage Pub/Sub topics and subscriptions'
+  $'secrets\t\tManage Secret Manager secrets'
+)
+
+typeset -ga _AI_SUGGEST_AZ_SUBCMDS=(
+  $'vm\t\tManage virtual machines'
+  $'aks\t\tManage Azure Kubernetes Service clusters'
+  $'group\t[list|create|delete]\tManage resource groups'
+  $'storage\t\tManage storage accounts, blobs, and files'
+  $'webapp\t\tManage App Service web apps'
+  $'functionapp\t\tManage Azure Functions'
+  $'acr\t\tManage Azure Container Registry'
+  $'login\t\tLog in to Azure'
+  $'account\t[list|set|show]\tManage subscriptions'
+  $'keyvault\t\tManage Key Vault secrets and keys'
+  $'network\t\tManage virtual networks'
+  $'sql\t\tManage Azure SQL databases'
+  $'monitor\t\tManage Azure Monitor logs and metrics'
+)
+
+# Apache Kafka's admin/producer/consumer scripts are separate binaries
+# rather than one "kafka" tool with subcommands, and each takes flags
+# rather than a subcommand as its first argument — but the static-match
+# machinery only cares that "first word after the tool name" is a
+# prefix-matchable string, and a flag like "--list" fits that just as well
+# as a subcommand name does.
+typeset -ga _AI_SUGGEST_KAFKA_TOPICS_SUBCMDS=(
+  $'--list\t\tList all topics'
+  $'--create\t--topic <name>\tCreate a topic'
+  $'--delete\t--topic <name>\tDelete a topic'
+  $'--describe\t--topic <name>\tDescribe a topic'
+  $'--alter\t--topic <name>\tAlter a topic'"'"'s configuration'
+  $'--bootstrap-server\t<host:port>\tKafka broker to connect to'
+  $'--partitions\t<n>\tNumber of partitions (with --create/--alter)'
+  $'--replication-factor\t<n>\tReplication factor (with --create)'
+)
+
+typeset -ga _AI_SUGGEST_KAFKA_CONSOLE_PRODUCER_SUBCMDS=(
+  $'--topic\t<name>\tTopic to produce to'
+  $'--bootstrap-server\t<host:port>\tKafka broker to connect to'
+  $'--property\t<key=value>\tSet a producer property (e.g. parse.key=true)'
+)
+
+typeset -ga _AI_SUGGEST_KAFKA_CONSOLE_CONSUMER_SUBCMDS=(
+  $'--topic\t<name>\tTopic to consume from'
+  $'--bootstrap-server\t<host:port>\tKafka broker to connect to'
+  $'--from-beginning\t\tConsume from the start of the topic'
+  $'--group\t<group-id>\tConsumer group to join'
+  $'--partition\t<n>\tConsume only from a specific partition'
+)
+
+typeset -ga _AI_SUGGEST_KAFKA_CONSUMER_GROUPS_SUBCMDS=(
+  $'--list\t\tList all consumer groups'
+  $'--describe\t--group <id>\tDescribe a consumer group'
+  $'--bootstrap-server\t<host:port>\tKafka broker to connect to'
+  $'--reset-offsets\t--group <id> --topic <name>\tReset consumer group offsets'
+  $'--delete\t--group <id>\tDelete a consumer group'
+)
+
+typeset -ga _AI_SUGGEST_RABBITMQCTL_SUBCMDS=(
+  $'status\t\tShow broker status'
+  $'cluster_status\t\tShow cluster status'
+  $'list_queues\t[vhost]\tList queues'
+  $'list_exchanges\t[vhost]\tList exchanges'
+  $'list_bindings\t[vhost]\tList bindings'
+  $'list_connections\t\tList connections'
+  $'list_channels\t\tList channels'
+  $'list_vhosts\t\tList virtual hosts'
+  $'list_users\t\tList users'
+  $'add_user\t<user> <password>\tCreate a user'
+  $'delete_user\t<user>\tDelete a user'
+  $'set_permissions\t<user>\tSet user permissions on a vhost'
+  $'list_permissions\t[vhost]\tList permissions on a vhost'
+  $'add_vhost\t<vhost>\tCreate a virtual host'
+  $'delete_vhost\t<vhost>\tDelete a virtual host'
+  $'set_user_tags\t<user> <tag>\tSet tags for a user (e.g. administrator)'
+  $'stop_app\t\tStop the RabbitMQ application (keep the node running)'
+  $'start_app\t\tStart the RabbitMQ application'
+  $'purge_queue\t<queue>\tPurge messages from a queue'
+)
+
 # --- nested (sub-subcommand and flag) tables --------------------------------
 #
 # Counterpart to the top-level *_SUBCMDS tables above, but one level deeper:
@@ -453,6 +692,201 @@ typeset -ga _AI_SUGGEST_KUBECTL_EXEC_FLAGS=(
   $'-n\t<namespace>\tNamespace of the target pod'
 )
 
+typeset -ga _AI_SUGGEST_AWS_S3_SUBCMDS=(
+  $'ls\t[s3://bucket[/prefix]]\tList buckets or objects'
+  $'cp\t<src> <dst>\tCopy files to/from S3'
+  $'sync\t<src> <dst>\tSync a directory tree with S3'
+  $'mv\t<src> <dst>\tMove files to/from S3'
+  $'rm\t<s3-path>\tRemove an object'
+  $'mb\t<s3://bucket>\tCreate a bucket'
+  $'rb\t<s3://bucket>\tRemove a bucket'
+  $'presign\t<s3-path>\tGenerate a presigned URL'
+)
+
+typeset -ga _AI_SUGGEST_AWS_EC2_SUBCMDS=(
+  $'describe-instances\t\tDescribe EC2 instances'
+  $'start-instances\t--instance-ids <id>\tStart an instance'
+  $'stop-instances\t--instance-ids <id>\tStop an instance'
+  $'terminate-instances\t--instance-ids <id>\tTerminate an instance'
+  $'describe-security-groups\t\tDescribe security groups'
+  $'describe-vpcs\t\tDescribe VPCs'
+  $'describe-subnets\t\tDescribe subnets'
+  $'describe-images\t\tDescribe AMIs'
+  $'run-instances\t--image-id <ami>\tLaunch new instances'
+  $'create-tags\t--resources <id> --tags <tags>\tTag a resource'
+)
+
+typeset -ga _AI_SUGGEST_AWS_LAMBDA_SUBCMDS=(
+  $'list-functions\t\tList Lambda functions'
+  $'invoke\t--function-name <name> <outfile>\tInvoke a function'
+  $'update-function-code\t--function-name <name>\tUpdate function code'
+  $'get-function\t--function-name <name>\tGet function configuration'
+  $'create-function\t--function-name <name>\tCreate a function'
+  $'delete-function\t--function-name <name>\tDelete a function'
+  $'list-layers\t\tList Lambda layers'
+)
+
+typeset -ga _AI_SUGGEST_AWS_IAM_SUBCMDS=(
+  $'list-users\t\tList IAM users'
+  $'list-roles\t\tList IAM roles'
+  $'get-user\t[--user-name <name>]\tGet the current or named IAM user'
+  $'create-role\t--role-name <name>\tCreate a role'
+  $'attach-role-policy\t--role-name <name> --policy-arn <arn>\tAttach a policy to a role'
+  $'list-attached-role-policies\t--role-name <name>\tList policies attached to a role'
+  $'create-access-key\t--user-name <name>\tCreate an access key'
+)
+
+typeset -ga _AI_SUGGEST_AWS_LOGS_SUBCMDS=(
+  $'tail\t<log-group>\tTail a log group in real time'
+  $'describe-log-groups\t\tList log groups'
+  $'describe-log-streams\t--log-group-name <name>\tList log streams'
+  $'get-log-events\t--log-group-name <name> --log-stream-name <stream>\tGet log events'
+  $'filter-log-events\t--log-group-name <name>\tFilter log events by pattern'
+)
+
+typeset -ga _AI_SUGGEST_AWS_STS_SUBCMDS=(
+  $'get-caller-identity\t\tShow the current IAM identity'
+  $'assume-role\t--role-arn <arn> --role-session-name <name>\tAssume an IAM role'
+)
+
+typeset -ga _AI_SUGGEST_AWS_CLOUDFORMATION_SUBCMDS=(
+  $'deploy\t--template-file <file> --stack-name <name>\tDeploy a stack'
+  $'describe-stacks\t\tDescribe stacks'
+  $'create-stack\t--stack-name <name> --template-body <file>\tCreate a stack'
+  $'update-stack\t--stack-name <name>\tUpdate a stack'
+  $'delete-stack\t--stack-name <name>\tDelete a stack'
+  $'list-stacks\t\tList stacks'
+  $'validate-template\t--template-body <file>\tValidate a template'
+)
+
+typeset -ga _AI_SUGGEST_AWS_ECR_SUBCMDS=(
+  $'get-login-password\t\tGet a password to authenticate to ECR'
+  $'describe-repositories\t\tDescribe ECR repositories'
+  $'create-repository\t--repository-name <name>\tCreate a repository'
+  $'list-images\t--repository-name <name>\tList images in a repository'
+)
+
+typeset -ga _AI_SUGGEST_AWS_ECS_SUBCMDS=(
+  $'list-clusters\t\tList ECS clusters'
+  $'list-services\t--cluster <cluster>\tList services in a cluster'
+  $'list-tasks\t--cluster <cluster>\tList tasks in a cluster'
+  $'describe-services\t--cluster <cluster> --services <svc>\tDescribe services'
+  $'update-service\t--cluster <cluster> --service <svc>\tUpdate a service'
+  $'run-task\t--cluster <cluster> --task-definition <td>\tRun a one-off task'
+)
+
+typeset -ga _AI_SUGGEST_AWS_EKS_SUBCMDS=(
+  $'list-clusters\t\tList EKS clusters'
+  $'describe-cluster\t--name <name>\tDescribe a cluster'
+  $'update-kubeconfig\t--name <name>\tUpdate local kubeconfig for a cluster'
+  $'create-cluster\t--name <name>\tCreate a cluster'
+)
+
+typeset -ga _AI_SUGGEST_AWS_SSM_SUBCMDS=(
+  $'start-session\t--target <instance-id>\tStart an interactive session on an instance'
+  $'get-parameter\t--name <name>\tGet a parameter value'
+  $'put-parameter\t--name <name> --value <value>\tCreate or update a parameter'
+  $'describe-parameters\t\tList parameters'
+  $'send-command\t--document-name <doc> --targets <targets>\tRun a command on managed instances'
+)
+
+typeset -ga _AI_SUGGEST_TERRAFORM_STATE_SUBCMDS=(
+  $'list\t[address]\tList resources in the state'
+  $'show\t<address>\tShow attributes of a resource in the state'
+  $'mv\t<src> <dst>\tMove an item in the state'
+  $'rm\t<address>\tRemove an item from the state'
+  $'pull\t\tFetch the state and output it to stdout'
+  $'push\t<file>\tUpload a local state file to the remote state'
+  $'replace-provider\t<from> <to>\tReplace a provider in the state'
+)
+
+typeset -ga _AI_SUGGEST_TERRAFORM_WORKSPACE_SUBCMDS=(
+  $'list\t\tList workspaces'
+  $'new\t<name>\tCreate a new workspace'
+  $'select\t<name>\tSelect a workspace'
+  $'delete\t<name>\tDelete a workspace'
+  $'show\t\tShow the current workspace name'
+)
+
+typeset -ga _AI_SUGGEST_HELM_REPO_SUBCMDS=(
+  $'add\t<name> <url>\tAdd a chart repository'
+  $'update\t\tUpdate information of available charts'
+  $'list\t\tList chart repositories'
+  $'remove\t<name>\tRemove a chart repository'
+)
+
+typeset -ga _AI_SUGGEST_GH_PR_SUBCMDS=(
+  $'create\t\tCreate a pull request'
+  $'list\t\tList pull requests'
+  $'view\t[number]\tView a pull request'
+  $'checkout\t<number>\tCheck out a pull request locally'
+  $'merge\t[number]\tMerge a pull request'
+  $'diff\t[number]\tView a pull request diff'
+  $'review\t[number]\tReview a pull request'
+  $'close\t[number]\tClose a pull request'
+  $'status\t\tShow status of relevant pull requests'
+)
+
+typeset -ga _AI_SUGGEST_GH_ISSUE_SUBCMDS=(
+  $'create\t\tCreate an issue'
+  $'list\t\tList issues'
+  $'view\t<number>\tView an issue'
+  $'close\t<number>\tClose an issue'
+  $'reopen\t<number>\tReopen an issue'
+  $'comment\t<number>\tAdd a comment to an issue'
+)
+
+typeset -ga _AI_SUGGEST_GH_REPO_SUBCMDS=(
+  $'clone\t<repo>\tClone a repository'
+  $'create\t[name]\tCreate a new repository'
+  $'view\t[repo]\tView a repository'
+  $'fork\t[repo]\tFork a repository'
+  $'list\t[owner]\tList repositories'
+)
+
+typeset -ga _AI_SUGGEST_GH_RUN_SUBCMDS=(
+  $'list\t\tList recent workflow runs'
+  $'view\t[run-id]\tView a workflow run'
+  $'watch\t[run-id]\tWatch a run until it completes'
+  $'rerun\t<run-id>\tRerun a workflow run'
+  $'cancel\t<run-id>\tCancel a workflow run'
+)
+
+typeset -ga _AI_SUGGEST_GLAB_MR_SUBCMDS=(
+  $'create\t\tCreate a merge request'
+  $'list\t\tList merge requests'
+  $'view\t[id]\tView a merge request'
+  $'checkout\t<id>\tCheck out a merge request locally'
+  $'merge\t[id]\tMerge a merge request'
+  $'diff\t[id]\tView a merge request diff'
+  $'approve\t[id]\tApprove a merge request'
+  $'close\t[id]\tClose a merge request'
+  $'update\t[id]\tUpdate a merge request'
+)
+
+typeset -ga _AI_SUGGEST_GLAB_CI_SUBCMDS=(
+  $'status\t\tShow CI/CD pipeline status for the current branch'
+  $'view\t[id]\tView a pipeline'
+  $'trace\t[job-id]\tTrace/follow a CI/CD job log'
+  $'retry\t[job-id]\tRetry a CI/CD job'
+  $'run\t\tCreate/run a new pipeline'
+)
+
+typeset -ga _AI_SUGGEST_GCLOUD_COMPUTE_SUBCMDS=(
+  $'instances\t[list|create|delete|describe]\tManage VM instances'
+  $'ssh\t<instance>\tSSH into a VM instance'
+  $'scp\t<src> <dst>\tCopy files to/from a VM instance'
+  $'networks\t[list|create|delete]\tManage VPC networks'
+  $'firewall-rules\t[list|create|delete]\tManage firewall rules'
+  $'disks\t[list|create|delete]\tManage persistent disks'
+)
+
+typeset -ga _AI_SUGGEST_GCLOUD_CONTAINER_SUBCMDS=(
+  $'clusters\t[list|create|delete|get-credentials]\tManage GKE clusters'
+  $'images\t[list|delete]\tManage container images'
+  $'node-pools\t[list|create|delete]\tManage GKE node pools'
+)
+
 # On-screen row/column the cursor is at, so the box lines up under wherever
 # you're actually typing instead of always sitting at the terminal's left
 # margin (col), and so the native overlay (see _ai_suggest_overlay_show) can
@@ -551,8 +985,21 @@ _ai_suggest_json_str_array() {
 # foreground command's real stdout/stderr never reaches the terminal at
 # all — reproduced down to a bare zsocket-connect-close loop with no AI/git
 # involved, so it's a genuine zsh/pty interaction bug triggered by send
-# *frequency*, not anything about this plugin's payload. Every real send
-# still fires well within what a human can perceive while typing (>=80ms
+# *frequency*, not anything about this plugin's payload. The throttle only
+# lowers how *often* this fires, though, and a single typed command (e.g.
+# typing "git push" itself, each character matching the static table and
+# triggering a send) is still enough to trip it and corrupt the interactive
+# shell before that very command is even submitted — reproduced 2026-08-02:
+# `git push` on a branch with no upstream printed nothing (not even the
+# `128 err` status segment's `fatal:` line), consistent with `_ai_suggest_
+# overlay_send`'s own zsocket call (not the command that ran after it)
+# having wedged the shell's tty state first. `_ai_suggest_overlay_send`
+# below now runs the whole zsocket lifecycle in a forked, disowned subshell
+# (`&!`) instead of the interactive shell's own process — `fork()` gives
+# the child its own copy of the fd table, so whatever zsocket does to it
+# stays confined to that throwaway child instead of the shell every
+# subsequent command actually runs in. Every real send still fires well
+# within what a human can perceive while typing (>=80ms
 # apart is faster than typical keystroke spacing), so this is invisible in
 # normal use — it only ever skips a send when keystrokes are arriving
 # faster than that.
@@ -572,10 +1019,16 @@ _ai_suggest_overlay_send() {
   local payload=$1
   (( EPOCHREALTIME - _AI_SUGGEST_LAST_OVERLAY_SEND < _AI_SUGGEST_OVERLAY_MIN_INTERVAL )) && return
   _AI_SUGGEST_LAST_OVERLAY_SEND=$EPOCHREALTIME
-  zmodload zsh/net/socket 2>/dev/null || return
-  zsocket $AI_SUGGEST_OVERLAY_SOCK 2>/dev/null || return
-  print -u $REPLY -r -- "$payload" 2>/dev/null
-  exec {REPLY}>&- 2>/dev/null
+  # Forked off (`&!`: background + disown, no job-control notification) so
+  # zsocket's connect/write/close cycle runs against a *copy* of the fd
+  # table made by fork(), not the interactive shell's own — see this
+  # function's section doc comment above for why that isolation matters.
+  (
+    zmodload zsh/net/socket 2>/dev/null || exit
+    zsocket $AI_SUGGEST_OVERLAY_SOCK 2>/dev/null || exit
+    print -u $REPLY -r -- "$payload" 2>/dev/null
+    exec {REPLY}>&- 2>/dev/null
+  ) &!
 }
 
 # Sends the current _AI_SUGGEST_CANDIDATES/etc + cursor position so the
@@ -662,6 +1115,20 @@ _ai_suggest_static_match() {
     kubectl|k) table=("${_AI_SUGGEST_KUBECTL_SUBCMDS[@]}") ;;
     npm) table=("${_AI_SUGGEST_NPM_SUBCMDS[@]}") ;;
     docker) table=("${_AI_SUGGEST_DOCKER_SUBCMDS[@]}") ;;
+    aws) table=("${_AI_SUGGEST_AWS_SUBCMDS[@]}") ;;
+    terraform|tf) table=("${_AI_SUGGEST_TERRAFORM_SUBCMDS[@]}") ;;
+    helm) table=("${_AI_SUGGEST_HELM_SUBCMDS[@]}") ;;
+    gh) table=("${_AI_SUGGEST_GH_SUBCMDS[@]}") ;;
+    glab) table=("${_AI_SUGGEST_GLAB_SUBCMDS[@]}") ;;
+    yarn) table=("${_AI_SUGGEST_YARN_SUBCMDS[@]}") ;;
+    pnpm) table=("${_AI_SUGGEST_PNPM_SUBCMDS[@]}") ;;
+    gcloud) table=("${_AI_SUGGEST_GCLOUD_SUBCMDS[@]}") ;;
+    az) table=("${_AI_SUGGEST_AZ_SUBCMDS[@]}") ;;
+    kafka-topics.sh|kafka-topics) table=("${_AI_SUGGEST_KAFKA_TOPICS_SUBCMDS[@]}") ;;
+    kafka-console-producer.sh|kafka-console-producer) table=("${_AI_SUGGEST_KAFKA_CONSOLE_PRODUCER_SUBCMDS[@]}") ;;
+    kafka-console-consumer.sh|kafka-console-consumer) table=("${_AI_SUGGEST_KAFKA_CONSOLE_CONSUMER_SUBCMDS[@]}") ;;
+    kafka-consumer-groups.sh|kafka-consumer-groups) table=("${_AI_SUGGEST_KAFKA_CONSUMER_GROUPS_SUBCMDS[@]}") ;;
+    rabbitmqctl) table=("${_AI_SUGGEST_RABBITMQCTL_SUBCMDS[@]}") ;;
     *) return 1 ;;
   esac
 
@@ -796,7 +1263,7 @@ _ai_suggest_nested_match() {
   [[ "$BUFFER" == "$tool "* ]] || return 1
 
   case "$tool" in
-    git|kubectl|k|npm|docker) ;;
+    git|kubectl|k|npm|docker|aws|terraform|tf|helm|gh|glab|gcloud) ;;
     *) return 1 ;;
   esac
 
@@ -817,6 +1284,7 @@ _ai_suggest_nested_match() {
 
   local tool_canon=$tool
   [[ "$tool" == "k" ]] && tool_canon="kubectl"
+  [[ "$tool" == "tf" ]] && tool_canon="terraform"
 
   local -a path=("${(@)words[2,-1]}")
   local seg key="${(U)tool_canon}"
