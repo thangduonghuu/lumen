@@ -8,7 +8,7 @@
 # kafka-consumer-groups/rabbitmqctl), directories under whatever path
 # follows `cd`, or local git branches once a subcommand that takes one has
 # been typed — and sends the result (plus where the cursor currently is)
-# over a Unix socket to the ai-suggest-menubar companion app, which draws a
+# over a Unix socket to the Lumen companion app, which draws a
 # real floating panel positioned against the terminal's actual on-screen
 # location (Accessibility API) — a bordered card, one row per candidate,
 # the selected row highlighted, a one-line description of it in the
@@ -19,7 +19,7 @@
 # This shell side never draws anything itself and has no idea whether the
 # companion app successfully manages to show anything — it only ever sends
 # "here's what to show and where the cursor is" (_ai_suggest_overlay_show)
-# fire-and-forget over the socket. See ai-suggest-menubar's
+# fire-and-forget over the socket. See Lumen's
 # TerminalPositioner.swift for the actual rendering/positioning logic, and
 # the project plan doc for why this is a real OS panel rather than ANSI
 # text drawn inside the terminal grid (rounded corners, shadows, no
@@ -47,7 +47,7 @@
 #   AI_SUGGEST_AUTO           1 = automatic as-you-type suggestions (default),
 #                             0 = Ctrl-Space-only
 #   AI_SUGGEST_OVERLAY        1 = show suggestions via the native floating
-#                             panel (ai-suggest-menubar companion app,
+#                             panel (Lumen companion app,
 #                             default). 0 = don't show suggestions at all —
 #                             there is no other rendering path; if the
 #                             companion app isn't running, permission
@@ -66,8 +66,8 @@
 : ${AI_SUGGEST_OVERLAY_SOCK:=$HOME/.cache/ai-suggest/overlay.sock}
 
 # Runtime on/off switch for AUTOMATIC suggestions, toggled from the
-# ai-suggest-menubar app (a separate menu-bar icon/toggle — see
-# ai-suggest-menubar/), not from this shell. The two are different
+# Lumen app (a separate menu-bar icon/toggle — see
+# Lumen/), not from this shell. The two are different
 # processes with no shared memory, so a file is the simplest thing that
 # works across both; reading one small file per keystroke is cheap enough
 # not to matter. Missing file = enabled (so it works before the menu bar
@@ -976,7 +976,7 @@ _ai_suggest_query_cursor_pos() {
 
 # --- native overlay (Kiro CLI/Fig-style floating panel) ---------------------
 #
-# The overlay is a real NSPanel owned by the ai-suggest-menubar companion
+# The overlay is a real NSPanel owned by the Lumen companion
 # app, positioned against the terminal's actual on-screen pixel location
 # via its own Accessibility-API lookup — drawn entirely outside the
 # terminal's character grid, so it can do real rounded corners and shadows
@@ -988,7 +988,7 @@ _ai_suggest_query_cursor_pos() {
 # avoiding elsewhere). There is no other rendering path: if the companion
 # app isn't running, Accessibility permission hasn't been granted, or the
 # frontmost terminal can't be positioned against (see
-# ai-suggest-menubar/Sources/ai-suggest-menubar/TerminalPositioner.swift),
+# Lumen/Sources/Lumen/TerminalPositioner.swift),
 # nothing shows for that keystroke — never an error, never a block.
 _ai_suggest_overlay_supported() {
   (( AI_SUGGEST_OVERLAY ))
@@ -1670,11 +1670,18 @@ _ai_suggest_wrap_widget accept-line _ai_suggest_accept_line
 _ai_suggest_wrap_widget zle-line-init _ai_suggest_line_init
 
 bindkey "$AI_SUGGEST_KEY" _ai_suggest_trigger
-bindkey '^I' _ai_suggest_accept          # Tab
-bindkey '^[[C' _ai_suggest_forward_char  # Right arrow (xterm)
-bindkey '^F' _ai_suggest_forward_char
-bindkey '^[[A' _ai_suggest_prev          # Up arrow
-bindkey '^[[B' _ai_suggest_next          # Down arrow
+bindkey '^I' _ai_suggest_accept  # Tab
+# forward-char (not _ai_suggest_forward_char) is the correct widget name
+# here: _ai_suggest_wrap_widget above registers our implementation UNDER
+# the name "forward-char" itself (zle -N forward-char _ai_suggest_forward_char),
+# the same way it takes over accept-line/zle-line-init below — it does not
+# also create a separate widget literally named "_ai_suggest_forward_char".
+# Binding directly to that nonexistent name is exactly what previously
+# made Right-arrow/Ctrl-F fail with "No such widget `_ai_suggest_forward_char'".
+bindkey '^[[C' forward-char  # Right arrow (xterm)
+bindkey '^F' forward-char
+bindkey '^[[A' _ai_suggest_prev  # Up arrow
+bindkey '^[[B' _ai_suggest_next  # Down arrow
 bindkey '^G' _ai_suggest_dismiss
 
 if (( AI_SUGGEST_AUTO )); then
