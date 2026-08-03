@@ -485,6 +485,398 @@ typeset -ga _AI_SUGGEST_RABBITMQCTL_SUBCMDS=(
   $'purge_queue\t<queue>\tPurge messages from a queue'
 )
 
+# --- language/build tool tables ---------------------------------------------
+
+typeset -ga _AI_SUGGEST_CARGO_SUBCMDS=(
+  $'build\t\tCompile the current package'
+  $'run\t\tRun a binary or example of the local package'
+  $'test\t\tRun the tests'
+  $'check\t\tCheck a package for errors without building'
+  $'add\t<crate>\tAdd a dependency'
+  $'remove\t<crate>\tRemove a dependency'
+  $'update\t\tUpdate dependencies in Cargo.lock'
+  $'install\t<crate>\tInstall a Rust binary'
+  $'uninstall\t<crate>\tUninstall a Rust binary'
+  $'new\t<path>\tCreate a new Cargo package'
+  $'init\t\tCreate a new Cargo package in the current directory'
+  $'publish\t\tUpload a package to crates.io'
+  $'clean\t\tRemove generated artifacts'
+  $'doc\t\tBuild documentation'
+  $'bench\t\tRun benchmarks'
+  $'clippy\t\tRun the Clippy linter'
+  $'fmt\t\tFormat source code'
+  $'search\t<query>\tSearch crates.io for crates'
+  $'tree\t\tDisplay the dependency tree'
+)
+
+typeset -ga _AI_SUGGEST_GO_SUBCMDS=(
+  $'build\t\tCompile packages and dependencies'
+  $'run\t<file>\tCompile and run a Go program'
+  $'test\t\tRun tests'
+  $'get\t<package>\tAdd dependencies and update go.mod'
+  $'install\t<package>\tCompile and install packages'
+  $'mod\t[init|tidy|download|vendor]\tManage go.mod'
+  $'fmt\t\tFormat source code'
+  $'vet\t\tReport likely mistakes in packages'
+  $'generate\t\tRun generate directives'
+  $'doc\t\tShow documentation for a package or symbol'
+  $'env\t\tPrint Go environment information'
+  $'clean\t\tRemove object files and cached files'
+  $'list\t\tList packages or modules'
+  $'work\t[init|use|edit]\tManage go.work workspace files'
+)
+
+typeset -ga _AI_SUGGEST_PIP_SUBCMDS=(
+  $'install\t<package>\tInstall a package'
+  $'uninstall\t<package>\tUninstall a package'
+  $'list\t\tList installed packages'
+  $'freeze\t\tOutput installed packages in requirements format'
+  $'show\t<package>\tShow information about an installed package'
+  $'download\t<package>\tDownload packages without installing'
+  $'wheel\t<package>\tBuild wheel archives for packages'
+  $'check\t\tVerify installed packages have compatible dependencies'
+  $'config\t[list|get|set]\tManage pip configuration'
+  $'cache\t[list|remove|purge]\tManage pip'"'"'s wheel cache'
+)
+
+typeset -ga _AI_SUGGEST_POETRY_SUBCMDS=(
+  $'install\t\tInstall dependencies from pyproject.toml'
+  $'add\t<package>\tAdd a dependency'
+  $'remove\t<package>\tRemove a dependency'
+  $'update\t\tUpdate dependencies to latest versions'
+  $'build\t\tBuild a package (sdist/wheel)'
+  $'publish\t\tPublish a package to PyPI'
+  $'run\t<cmd>\tRun a command within the project'"'"'s environment'
+  $'shell\t\tSpawn a shell within the project'"'"'s environment'
+  $'new\t<path>\tCreate a new Python project'
+  $'init\t\tAdd Poetry to an existing project'
+  $'show\t[package]\tShow information about a dependency'
+  $'lock\t\tLock dependencies without installing'
+  $'env\t[info|list|use|remove]\tManage Poetry environments'
+  $'check\t\tValidate pyproject.toml'
+)
+
+typeset -ga _AI_SUGGEST_MVN_SUBCMDS=(
+  $'clean\t\tRemove build artifacts'
+  $'compile\t\tCompile source code'
+  $'test\t\tRun tests'
+  $'package\t\tPackage compiled code (jar/war)'
+  $'install\t\tInstall the package into the local repository'
+  $'deploy\t\tDeploy the package to a remote repository'
+  $'validate\t\tValidate the project is correct'
+  $'verify\t\tRun checks to verify the package is valid'
+  $'site\t\tGenerate project documentation'
+  $'dependency:tree\t\tShow the dependency tree'
+)
+
+typeset -ga _AI_SUGGEST_GRADLE_SUBCMDS=(
+  $'build\t\tAssemble and test the project'
+  $'test\t\tRun tests'
+  $'run\t\tRun the project'
+  $'clean\t\tDelete build directory'
+  $'assemble\t\tAssemble outputs without running tests'
+  $'check\t\tRun all checks (including tests)'
+  $'dependencies\t\tDisplay the dependency tree'
+  $'tasks\t\tList available tasks'
+  $'init\t\tInitialize a new Gradle project'
+  $'wrapper\t\tGenerate the Gradle wrapper files'
+)
+
+typeset -ga _AI_SUGGEST_DOTNET_SUBCMDS=(
+  $'build\t\tBuild a project and its dependencies'
+  $'run\t\tRun source code without explicit build/publish'
+  $'test\t\tRun unit tests'
+  $'new\t<template>\tCreate a new project, config file, or solution'
+  $'add\t[package|reference]\tAdd a package or project reference'
+  $'remove\t[package|reference]\tRemove a package or project reference'
+  $'restore\t\tRestore dependencies for a project'
+  $'publish\t\tPublish for deployment'
+  $'clean\t\tClean build outputs'
+  $'watch\t\tRun and restart on file changes'
+  $'pack\t\tCreate a NuGet package'
+  $'nuget\t[push|locals]\tManage NuGet packages'
+)
+
+typeset -ga _AI_SUGGEST_BUNDLE_SUBCMDS=(
+  $'install\t\tInstall gems from the Gemfile'
+  $'update\t\tUpdate gems to the latest allowed version'
+  $'exec\t<cmd>\tRun a command in the bundle'"'"'s context'
+  $'add\t<gem>\tAdd a gem to the Gemfile'
+  $'remove\t<gem>\tRemove a gem from the Gemfile'
+  $'list\t\tList gems in the bundle'
+  $'show\t<gem>\tShow the source location of a gem'
+  $'init\t\tGenerate a new Gemfile'
+  $'check\t\tVerify dependencies are satisfied'
+  $'outdated\t\tList outdated gems'
+  $'lock\t\tGenerate a Gemfile.lock without installing'
+)
+
+typeset -ga _AI_SUGGEST_GEM_SUBCMDS=(
+  $'install\t<gem>\tInstall a gem'
+  $'uninstall\t<gem>\tUninstall a gem'
+  $'list\t\tList installed gems'
+  $'update\t[gem]\tUpdate installed gems'
+  $'search\t<query>\tSearch for gems on RubyGems.org'
+  $'build\t<gemspec>\tBuild a gem from a gemspec'
+  $'push\t<gem>\tPush a gem to RubyGems.org'
+  $'specification\t<gem>\tShow a gem'"'"'s specification'
+  $'which\t<lib>\tLocate a library file'
+)
+
+# --- system/infra/PaaS tool tables ------------------------------------------
+
+typeset -ga _AI_SUGGEST_BREW_SUBCMDS=(
+  $'install\t<formula>\tInstall a formula or cask'
+  $'uninstall\t<formula>\tUninstall a formula or cask'
+  $'update\t\tFetch the newest version of Homebrew and formulae'
+  $'upgrade\t[formula]\tUpgrade outdated formulae/casks'
+  $'list\t\tList installed formulae/casks'
+  $'search\t<text>\tSearch for formulae/casks'
+  $'info\t<formula>\tShow information about a formula/cask'
+  $'tap\t[user/repo]\tTap a formula repository'
+  $'untap\t<user/repo>\tRemove a tapped repository'
+  $'services\t[list|start|stop|restart]\tManage background services'
+  $'cleanup\t\tRemove old versions of installed formulae'
+  $'doctor\t\tCheck your system for potential problems'
+  $'outdated\t\tList installed formulae with updates available'
+  $'link\t<formula>\tSymlink a formula'"'"'s installed files'
+  $'unlink\t<formula>\tRemove symlinks for a formula'
+)
+
+typeset -ga _AI_SUGGEST_VAGRANT_SUBCMDS=(
+  $'up\t\tStart and provision the vagrant environment'
+  $'halt\t\tStop the vagrant machine'
+  $'destroy\t\tStop and delete the vagrant machine'
+  $'ssh\t\tSSH into the vagrant machine'
+  $'status\t\tShow the state of the vagrant machine'
+  $'provision\t\tRe-run provisioners'
+  $'reload\t\tRestart the vagrant machine, loading new config'
+  $'box\t[list|add|remove]\tManage Vagrant boxes'
+  $'init\t\tInitialize a new Vagrantfile'
+  $'suspend\t\tSuspend the vagrant machine'
+  $'resume\t\tResume a suspended vagrant machine'
+  $'global-status\t\tShow status of all known vagrant environments'
+  $'plugin\t[install|list|uninstall]\tManage Vagrant plugins'
+)
+
+typeset -ga _AI_SUGGEST_PULUMI_SUBCMDS=(
+  $'up\t\tCreate or update resources in a stack'
+  $'destroy\t\tDestroy resources in a stack'
+  $'preview\t\tShow a preview of changes'
+  $'stack\t[init|select|ls|output]\tManage stacks'
+  $'config\t[set|get|list]\tManage stack configuration'
+  $'new\t<template>\tCreate a new project'
+  $'login\t\tLog in to a Pulumi backend'
+  $'logout\t\tLog out of a Pulumi backend'
+  $'refresh\t\tRefresh state to match real infrastructure'
+  $'import\t\tImport existing infrastructure into a stack'
+  $'plugin\t[install|ls]\tManage plugins'
+  $'whoami\t\tShow the current logged-in user'
+)
+
+typeset -ga _AI_SUGGEST_HEROKU_SUBCMDS=(
+  $'apps\t\tList your Heroku apps'
+  $'create\t[name]\tCreate a new app'
+  $'deploy\t\tDeploy the app'
+  $'logs\t\tDisplay recent log output'
+  $'run\t<cmd>\tRun a one-off process in a dyno'
+  $'config\t[get|set|unset]\tManage config vars'
+  $'addons\t\tList add-ons for an app'
+  $'ps\t\tList dynos for an app'
+  $'releases\t\tList releases for an app'
+  $'domains\t\tList domains for an app'
+  $'login\t\tLog in to Heroku'
+  $'logout\t\tLog out of Heroku'
+  $'maintenance\t[on|off]\tToggle maintenance mode'
+)
+
+typeset -ga _AI_SUGGEST_VERCEL_SUBCMDS=(
+  $'deploy\t\tDeploy the current directory'
+  $'dev\t\tRun a local development server'
+  $'build\t\tBuild the project locally'
+  $'env\t[ls|add|rm|pull]\tManage environment variables'
+  $'domains\t\tManage domains'
+  $'login\t\tLog in to Vercel'
+  $'logout\t\tLog out of Vercel'
+  $'ls\t\tList deployments'
+  $'rm\t<deployment>\tRemove a deployment'
+  $'link\t\tLink the current directory to a Vercel project'
+  $'whoami\t\tShow the current logged-in user'
+  $'project\t[ls|add|rm]\tManage projects'
+  $'teams\t[ls|switch]\tManage teams'
+)
+
+typeset -ga _AI_SUGGEST_NETLIFY_SUBCMDS=(
+  $'deploy\t\tDeploy the site'
+  $'dev\t\tRun a local development server'
+  $'build\t\tBuild the site'
+  $'env\t[list|set|unset]\tManage environment variables'
+  $'link\t\tLink the current directory to a Netlify site'
+  $'login\t\tLog in to Netlify'
+  $'logout\t\tLog out of Netlify'
+  $'init\t\tCreate or connect a Netlify site'
+  $'open\t\tOpen the site in your browser'
+  $'status\t\tShow status of the linked site'
+  $'sites\t[list|create|delete]\tManage sites'
+  $'functions\t[list|create|invoke]\tManage serverless functions'
+)
+
+typeset -ga _AI_SUGGEST_FIREBASE_SUBCMDS=(
+  $'deploy\t\tDeploy to Firebase'
+  $'init\t\tSet up a new Firebase project'
+  $'login\t\tLog in to Firebase'
+  $'logout\t\tLog out of Firebase'
+  $'serve\t\tRun the local emulator server'
+  $'functions\t[log|shell|config]\tManage Cloud Functions'
+  $'emulators:start\t\tStart the local Firebase emulators'
+  $'use\t[alias]\tSet the active Firebase project'
+  $'projects:list\t\tList Firebase projects'
+  $'hosting:channel:deploy\t<channel>\tDeploy to a hosting preview channel'
+)
+
+typeset -ga _AI_SUGGEST_FLYCTL_SUBCMDS=(
+  $'deploy\t\tDeploy the app'
+  $'launch\t\tCreate and configure a new app'
+  $'status\t\tShow app status'
+  $'logs\t\tView app logs'
+  $'scale\t[count|vm]\tScale an app'
+  $'apps\t[list|create|destroy]\tManage apps'
+  $'machine\t[list|start|stop|restart]\tManage Fly machines'
+  $'volumes\t[list|create|destroy]\tManage volumes'
+  $'secrets\t[list|set|unset]\tManage app secrets'
+  $'ssh\t[console|shell]\tSSH into a running machine'
+  $'open\t\tOpen the app in your browser'
+  $'destroy\t<app>\tDestroy an app'
+)
+
+typeset -ga _AI_SUGGEST_DOCTL_SUBCMDS=(
+  $'compute\t[droplet|image|ssh]\tManage Droplets and related resources'
+  $'apps\t[list|create|update]\tManage App Platform apps'
+  $'databases\t[list|create|connection]\tManage managed databases'
+  $'kubernetes\t[cluster|options]\tManage DOKS clusters'
+  $'auth\t[init|list|switch]\tManage doctl authentication'
+  $'account\t\tShow account details'
+  $'projects\t[list|create]\tManage projects'
+  $'registry\t[login|repository]\tManage container registries'
+)
+
+# --- monorepo/session/version-manager tool tables ---------------------------
+
+typeset -ga _AI_SUGGEST_TURBO_SUBCMDS=(
+  $'run\t<task>\tRun a task across the monorepo'
+  $'build\t\tRun the "build" task'
+  $'dev\t\tRun the "dev" task'
+  $'link\t\tLink the repo to a remote cache'
+  $'unlink\t\tUnlink the repo from a remote cache'
+  $'login\t\tLog in to Vercel remote cache'
+  $'logout\t\tLog out of Vercel remote cache'
+  $'prune\t<scope>\tGenerate a pruned subset of the monorepo'
+  $'gen\t\tRun code generators'
+)
+
+typeset -ga _AI_SUGGEST_NX_SUBCMDS=(
+  $'run\t<project>:<target>\tRun a target for a project'
+  $'build\t[project]\tBuild a project'
+  $'test\t[project]\tTest a project'
+  $'generate\t<schematic>\tRun a generator/schematic'
+  $'g\t<schematic>\tAlias for generate'
+  $'serve\t[project]\tServe a project'
+  $'lint\t[project]\tLint a project'
+  $'e2e\t[project]\tRun end-to-end tests for a project'
+  $'graph\t\tShow the project dependency graph'
+  $'affected\t[build|test|lint]\tRun a target for affected projects only'
+  $'migrate\t<version>\tMigrate to a new Nx version'
+)
+
+typeset -ga _AI_SUGGEST_TMUX_SUBCMDS=(
+  $'new-session\t[-s name]\tCreate a new session'
+  $'attach-session\t[-t name]\tAttach to an existing session'
+  $'list-sessions\t\tList sessions'
+  $'kill-session\t[-t name]\tDestroy a session'
+  $'split-window\t[-h|-v]\tSplit the current pane'
+  $'new-window\t[-n name]\tCreate a new window'
+  $'kill-window\t[-t name]\tDestroy a window'
+  $'list-windows\t\tList windows'
+  $'detach\t\tDetach the current client'
+  $'rename-session\t<name>\tRename a session'
+  $'source-file\t<file>\tExecute commands from a config file'
+)
+
+typeset -ga _AI_SUGGEST_SYSTEMCTL_SUBCMDS=(
+  $'start\t<unit>\tStart a unit'
+  $'stop\t<unit>\tStop a unit'
+  $'restart\t<unit>\tRestart a unit'
+  $'status\t<unit>\tShow runtime status of a unit'
+  $'enable\t<unit>\tEnable a unit to start on boot'
+  $'disable\t<unit>\tDisable a unit from starting on boot'
+  $'reload\t<unit>\tReload a unit'"'"'s configuration'
+  $'is-active\t<unit>\tCheck whether a unit is active'
+  $'is-enabled\t<unit>\tCheck whether a unit is enabled'
+  $'list-units\t\tList loaded units'
+  $'daemon-reload\t\tReload systemd manager configuration'
+)
+
+typeset -ga _AI_SUGGEST_NVM_SUBCMDS=(
+  $'install\t<version>\tInstall a Node.js version'
+  $'use\t<version>\tSwitch to a Node.js version'
+  $'list\t\tList installed Node.js versions'
+  $'ls\t\tAlias for list'
+  $'alias\t[name] [version]\tManage version aliases'
+  $'current\t\tShow the currently active Node.js version'
+  $'uninstall\t<version>\tUninstall a Node.js version'
+  $'run\t<version> <args>\tRun a script with a specific Node.js version'
+  $'exec\t<version> <cmd>\tRun a command with a specific Node.js version'
+  $'which\t[version]\tShow the path to a Node.js version'
+)
+
+typeset -ga _AI_SUGGEST_PYENV_SUBCMDS=(
+  $'install\t<version>\tInstall a Python version'
+  $'uninstall\t<version>\tUninstall a Python version'
+  $'versions\t\tList installed Python versions'
+  $'version\t\tShow the current Python version'
+  $'global\t<version>\tSet the global Python version'
+  $'local\t<version>\tSet the local (per-directory) Python version'
+  $'shell\t<version>\tSet the Python version for the current shell'
+  $'rehash\t\tRebuild shim executables'
+  $'which\t<command>\tShow the path to a command'
+  $'root\t\tShow the pyenv root directory'
+)
+
+typeset -ga _AI_SUGGEST_RBENV_SUBCMDS=(
+  $'install\t<version>\tInstall a Ruby version'
+  $'uninstall\t<version>\tUninstall a Ruby version'
+  $'versions\t\tList installed Ruby versions'
+  $'version\t\tShow the current Ruby version'
+  $'global\t<version>\tSet the global Ruby version'
+  $'local\t<version>\tSet the local (per-directory) Ruby version'
+  $'shell\t<version>\tSet the Ruby version for the current shell'
+  $'rehash\t\tRebuild shim executables'
+  $'which\t<command>\tShow the path to a command'
+  $'root\t\tShow the rbenv root directory'
+)
+
+typeset -ga _AI_SUGGEST_NPX_SUBCMDS=(
+  $'--yes\t<package>\tRun a package without prompting to install it'
+  $'--no-install\t<package>\tRun a package only if already installed'
+  $'--package\t<package>\tSpecify the package to run a binary from'
+  $'-c\t<command>\tExecute a command with the local node_modules/.bin on PATH'
+)
+
+typeset -ga _AI_SUGGEST_MINIKUBE_SUBCMDS=(
+  $'start\t\tStart a local Kubernetes cluster'
+  $'stop\t\tStop a running cluster'
+  $'delete\t\tDelete a cluster'
+  $'status\t\tShow the status of a cluster'
+  $'dashboard\t\tOpen the Kubernetes dashboard'
+  $'kubectl\t<args>\tRun a kubectl command against the cluster'
+  $'ssh\t\tSSH into the cluster'
+  $'addons\t[list|enable|disable]\tManage cluster addons'
+  $'service\t<name>\tOpen a service in the browser'
+  $'tunnel\t\tCreate a network route to services'
+  $'profile\t[list|set]\tManage minikube profiles'
+  $'config\t[get|set|view]\tManage minikube configuration'
+)
+
 # --- nested (sub-subcommand and flag) tables --------------------------------
 #
 # Counterpart to the top-level *_SUBCMDS tables above, but one level deeper:
@@ -1185,6 +1577,38 @@ _ai_suggest_tool_icon_kind() {
     kafka-topics|kafka-topics.sh|kafka-console-producer|kafka-console-producer.sh|kafka-console-consumer|kafka-console-consumer.sh|kafka-consumer-groups|kafka-consumer-groups.sh)
       print -n kafka ;;
     rabbitmqctl) print -n rabbitmq ;;
+    make) print -n make ;;
+    just) print -n just ;;
+    composer) print -n composer ;;
+    deno) print -n deno ;;
+    cargo) print -n cargo ;;
+    go) print -n go ;;
+    pip|pip3) print -n pip ;;
+    poetry) print -n poetry ;;
+    mvn) print -n maven ;;
+    gradle) print -n gradle ;;
+    dotnet) print -n dotnet ;;
+    bundle) print -n bundler ;;
+    gem) print -n rubygems ;;
+    brew) print -n homebrew ;;
+    docker-compose) print -n docker ;;
+    vagrant) print -n vagrant ;;
+    pulumi) print -n pulumi ;;
+    heroku) print -n heroku ;;
+    vercel) print -n vercel ;;
+    netlify) print -n netlify ;;
+    firebase) print -n firebase ;;
+    flyctl|fly) print -n flyctl ;;
+    doctl) print -n digitalocean ;;
+    turbo) print -n turborepo ;;
+    nx) print -n nx ;;
+    tmux) print -n tmux ;;
+    systemctl) print -n systemd ;;
+    nvm) print -n nodejs ;;
+    pyenv) print -n python ;;
+    rbenv) print -n ruby ;;
+    npx) print -n npm ;;
+    minikube) print -n kubectl ;;
     *) print -n cmd ;;
   esac
 }
@@ -1221,6 +1645,34 @@ _ai_suggest_static_match() {
     kafka-console-consumer.sh|kafka-console-consumer) table=("${_AI_SUGGEST_KAFKA_CONSOLE_CONSUMER_SUBCMDS[@]}") ;;
     kafka-consumer-groups.sh|kafka-consumer-groups) table=("${_AI_SUGGEST_KAFKA_CONSUMER_GROUPS_SUBCMDS[@]}") ;;
     rabbitmqctl) table=("${_AI_SUGGEST_RABBITMQCTL_SUBCMDS[@]}") ;;
+    cargo) table=("${_AI_SUGGEST_CARGO_SUBCMDS[@]}") ;;
+    go) table=("${_AI_SUGGEST_GO_SUBCMDS[@]}") ;;
+    pip|pip3) table=("${_AI_SUGGEST_PIP_SUBCMDS[@]}") ;;
+    poetry) table=("${_AI_SUGGEST_POETRY_SUBCMDS[@]}") ;;
+    mvn) table=("${_AI_SUGGEST_MVN_SUBCMDS[@]}") ;;
+    gradle) table=("${_AI_SUGGEST_GRADLE_SUBCMDS[@]}") ;;
+    dotnet) table=("${_AI_SUGGEST_DOTNET_SUBCMDS[@]}") ;;
+    bundle) table=("${_AI_SUGGEST_BUNDLE_SUBCMDS[@]}") ;;
+    gem) table=("${_AI_SUGGEST_GEM_SUBCMDS[@]}") ;;
+    brew) table=("${_AI_SUGGEST_BREW_SUBCMDS[@]}") ;;
+    docker-compose) table=("${_AI_SUGGEST_DOCKER_COMPOSE_SUBCMDS[@]}") ;;
+    vagrant) table=("${_AI_SUGGEST_VAGRANT_SUBCMDS[@]}") ;;
+    pulumi) table=("${_AI_SUGGEST_PULUMI_SUBCMDS[@]}") ;;
+    heroku) table=("${_AI_SUGGEST_HEROKU_SUBCMDS[@]}") ;;
+    vercel) table=("${_AI_SUGGEST_VERCEL_SUBCMDS[@]}") ;;
+    netlify) table=("${_AI_SUGGEST_NETLIFY_SUBCMDS[@]}") ;;
+    firebase) table=("${_AI_SUGGEST_FIREBASE_SUBCMDS[@]}") ;;
+    flyctl|fly) table=("${_AI_SUGGEST_FLYCTL_SUBCMDS[@]}") ;;
+    doctl) table=("${_AI_SUGGEST_DOCTL_SUBCMDS[@]}") ;;
+    turbo) table=("${_AI_SUGGEST_TURBO_SUBCMDS[@]}") ;;
+    nx) table=("${_AI_SUGGEST_NX_SUBCMDS[@]}") ;;
+    tmux) table=("${_AI_SUGGEST_TMUX_SUBCMDS[@]}") ;;
+    systemctl) table=("${_AI_SUGGEST_SYSTEMCTL_SUBCMDS[@]}") ;;
+    nvm) table=("${_AI_SUGGEST_NVM_SUBCMDS[@]}") ;;
+    pyenv) table=("${_AI_SUGGEST_PYENV_SUBCMDS[@]}") ;;
+    rbenv) table=("${_AI_SUGGEST_RBENV_SUBCMDS[@]}") ;;
+    npx) table=("${_AI_SUGGEST_NPX_SUBCMDS[@]}") ;;
+    minikube) table=("${_AI_SUGGEST_MINIKUBE_SUBCMDS[@]}") ;;
     *) return 1 ;;
   esac
 
@@ -1368,6 +1820,306 @@ _ai_suggest_git_branch_match() {
   (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
 }
 
+# Shared by every JSON-based project-file matcher below (package.json's
+# "scripts", composer.json's "scripts", deno.json(c)'s "tasks"): reads
+# file $1 and prints "name<TAB>value" pairs for each key found inside the
+# first top-level object under the JSON key named $2, one per line, in
+# file order (current directory only — no upward search, same "just cwd"
+# scope as _ai_suggest_cd_match). A crude, line-based parse rather than a
+# real JSON parser: assumes the standard single-key-per-line formatting
+# every real tool that WRITES these files actually produces, and that the
+# block's closing brace is the first "}" line after the key — good enough
+# for the common case (this project's long-standing philosophy for all
+# the static tables above, applied here to a dynamic source instead), not
+# a guarantee against hand-mangled or unusually-formatted JSON. A key
+# whose value isn't a plain string (Composer allows an array of commands
+# for one script) still prints, just with an empty value — a usable
+# candidate, only the description preview is missing. Prints nothing and
+# returns 1 if the file doesn't exist or has no such block.
+_ai_suggest_json_kv_block() {
+  local file=$1 key=$2
+  [[ -f $file ]] || return 1
+  local line
+  local -i in_block=0 found=0
+  while IFS= read -r line; do
+    if (( ! in_block )); then
+      [[ "$line" == *"\"$key\""* ]] && in_block=1
+      continue
+    fi
+    [[ "$line" == *'}'* ]] && break
+    if [[ "$line" =~ '"([^"]+)"[[:space:]]*:[[:space:]]*"((\\.|[^"\\])*)"' ]]; then
+      print -r -- "${match[1]}"$'\t'"${match[2]}"
+      found=1
+    elif [[ "$line" =~ '^[[:space:]]*"([^"]+)"[[:space:]]*:' ]]; then
+      print -r -- "${match[1]}"$'\t'
+      found=1
+    fi
+  done < "$file"
+  (( found ))
+}
+
+# Matches "<tool> <partial>" (bare, yarn/pnpm only — see below) or "<tool>
+# run <partial>" (npm/yarn/pnpm) against real script names read live from
+# ./package.json, so e.g. a repo with a custom "start" script (not one of
+# the generic guesses in _AI_SUGGEST_{NPM,YARN,PNPM}_SUBCMDS) suggests
+# correctly, description showing the actual command it runs. Takes
+# priority over _ai_suggest_nested_match/_ai_suggest_static_match (tried
+# first in _ai_suggest_static_or_dynamic_match) so real project data wins
+# over the generic hand-picked guesses whenever it's available, but backs
+# off (returns 1) the moment there's no package.json or nothing matches,
+# letting those static tables handle it — this only ever ADDS coverage,
+# never removes the fallback for non-script subcommands like `install`/
+# `add`.
+#
+# npm specifically requires the explicit "run" for arbitrary scripts —
+# bare `npm <script>` only works for a handful of reserved names (start/
+# test/stop/restart), which are exactly the ones already hand-picked into
+# _AI_SUGGEST_NPM_SUBCMDS, so this only completes after "npm run " to
+# avoid suggesting a command that would actually fail to run. yarn and
+# pnpm both support invoking a script directly OR via "run", so this
+# completes either shape for those two.
+_ai_suggest_package_script_match() {
+  local tool="${BUFFER%% *}"
+  case "$tool" in
+    npm|yarn|pnpm) ;;
+    *) return 1 ;;
+  esac
+  [[ "$BUFFER" == "$tool "* ]] || return 1
+
+  local rest="${BUFFER#$tool }"
+  local prefix="" partial="$rest"
+  if [[ "$tool" == npm ]]; then
+    [[ "$rest" == run\ * ]] || return 1
+    prefix="run "
+    partial="${rest#run }"
+  elif [[ "$rest" == run\ * ]]; then
+    prefix="run "
+    partial="${rest#run }"
+  fi
+  [[ "$partial" == *' '* ]] && return 1
+
+  local -a script_lines
+  script_lines=(${(f)"$(_ai_suggest_json_kv_block package.json scripts)"})
+  (( ${#script_lines} > 0 )) || return 1
+
+  local icon_kind=$(_ai_suggest_tool_icon_kind "$tool")
+  local entry name cmd
+  _AI_SUGGEST_CANDIDATES=()
+  _AI_SUGGEST_DESCRIPTIONS=()
+  _AI_SUGGEST_HINTS=()
+  _AI_SUGGEST_LABELS=()
+  _AI_SUGGEST_ICONS=()
+  for entry in "${script_lines[@]}"; do
+    name="${entry%%$'\t'*}"
+    cmd="${entry#*$'\t'}"
+    [[ "$name" == "$partial"* ]] || continue
+    _AI_SUGGEST_CANDIDATES+=("$tool $prefix$name ")
+    _AI_SUGGEST_LABELS+=("$name")
+    _AI_SUGGEST_HINTS+=("")
+    _AI_SUGGEST_DESCRIPTIONS+=("${cmd:-package.json script}")
+    _AI_SUGGEST_ICONS+=("$icon_kind")
+    (( ${#_AI_SUGGEST_CANDIDATES} >= 9 )) && break
+  done
+  (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
+}
+
+# Reads target names out of ./Makefile (falling back to ./makefile, then
+# ./GNUmakefile — the same lookup order `make` itself uses), one per
+# line. A target definition is a line starting at column 0 (recipe lines
+# are always tab/space-indented and never match this) with a bare
+# identifier immediately followed by ":" that isn't itself immediately
+# followed by "=" (":=" / "::=" are variable-assignment operators, not a
+# target). Special targets like .PHONY/.DEFAULT start with "." and are
+# naturally excluded since the match requires an alphanumeric first
+# character — this means a real target declared alongside one in a
+# `.PHONY: build test` line still gets picked up from its own actual
+# `build:`/`test:` definition line elsewhere in the file.
+_ai_suggest_makefile_targets() {
+  local file
+  for file in Makefile makefile GNUmakefile; do
+    [[ -f $file ]] && break
+    file=""
+  done
+  [[ -n $file ]] || return 1
+  local line
+  local -i found=0
+  while IFS= read -r line; do
+    if [[ "$line" =~ '^([A-Za-z0-9][A-Za-z0-9_.%/-]*)[[:space:]]*:([^=]|$)' ]]; then
+      print -r -- "${match[1]}"
+      found=1
+    fi
+  done < "$file"
+  (( found ))
+}
+
+# Matches "make <partial>" against real target names read live from
+# ./Makefile — `make` has no static subcommand table of its own (unlike
+# npm/yarn/pnpm, there's no meaningful generic guess for what a
+# project's targets are called), so this is its only source of
+# completions. Backs off with nothing when there's no Makefile here.
+_ai_suggest_make_match() {
+  local tool="${BUFFER%% *}"
+  [[ "$tool" == make ]] || return 1
+  [[ "$BUFFER" == "$tool" || "$BUFFER" == "$tool "* ]] || return 1
+  local partial=""
+  [[ "$BUFFER" == "$tool "* ]] && partial="${BUFFER#$tool }"
+  [[ "$partial" == *' '* ]] && return 1
+
+  local -a targets
+  targets=(${(f)"$(_ai_suggest_makefile_targets)"})
+  (( ${#targets} > 0 )) || return 1
+
+  local icon_kind=$(_ai_suggest_tool_icon_kind make)
+  local name
+  _AI_SUGGEST_CANDIDATES=()
+  _AI_SUGGEST_DESCRIPTIONS=()
+  _AI_SUGGEST_HINTS=()
+  _AI_SUGGEST_LABELS=()
+  _AI_SUGGEST_ICONS=()
+  for name in "${targets[@]}"; do
+    [[ "$name" == "$partial"* ]] || continue
+    _AI_SUGGEST_CANDIDATES+=("make $name ")
+    _AI_SUGGEST_LABELS+=("$name")
+    _AI_SUGGEST_HINTS+=("")
+    _AI_SUGGEST_DESCRIPTIONS+=("Makefile target")
+    _AI_SUGGEST_ICONS+=("$icon_kind")
+    (( ${#_AI_SUGGEST_CANDIDATES} >= 9 )) && break
+  done
+  (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
+}
+
+# Reads recipe names out of ./justfile (falling back to ./Justfile — Just
+# accepts either capitalization), one per line. A recipe definition is a
+# line starting at column 0 with a bare identifier (optionally prefixed
+# by "@" for a silent recipe), followed eventually by ":" that isn't
+# immediately followed by "=" (":=" is Just's variable-assignment
+# operator, not a recipe) — recipe bodies are always indented and never
+# match this.
+_ai_suggest_justfile_recipes() {
+  local file
+  for file in justfile Justfile; do
+    [[ -f $file ]] && break
+    file=""
+  done
+  [[ -n $file ]] || return 1
+  local line
+  local -i found=0
+  while IFS= read -r line; do
+    if [[ "$line" =~ '^@?([A-Za-z_][A-Za-z0-9_-]*)[^:]*:([^=]|$)' ]]; then
+      print -r -- "${match[1]}"
+      found=1
+    fi
+  done < "$file"
+  (( found ))
+}
+
+# Matches "just <partial>" against real recipe names read live from
+# ./justfile — same reasoning as _ai_suggest_make_match: no meaningful
+# generic guess exists for a project's own recipe names, so this is
+# Just's only source of completions.
+_ai_suggest_just_match() {
+  local tool="${BUFFER%% *}"
+  [[ "$tool" == just ]] || return 1
+  [[ "$BUFFER" == "$tool" || "$BUFFER" == "$tool "* ]] || return 1
+  local partial=""
+  [[ "$BUFFER" == "$tool "* ]] && partial="${BUFFER#$tool }"
+  [[ "$partial" == *' '* ]] && return 1
+
+  local -a recipes
+  recipes=(${(f)"$(_ai_suggest_justfile_recipes)"})
+  (( ${#recipes} > 0 )) || return 1
+
+  local icon_kind=$(_ai_suggest_tool_icon_kind just)
+  local name
+  _AI_SUGGEST_CANDIDATES=()
+  _AI_SUGGEST_DESCRIPTIONS=()
+  _AI_SUGGEST_HINTS=()
+  _AI_SUGGEST_LABELS=()
+  _AI_SUGGEST_ICONS=()
+  for name in "${recipes[@]}"; do
+    [[ "$name" == "$partial"* ]] || continue
+    _AI_SUGGEST_CANDIDATES+=("just $name ")
+    _AI_SUGGEST_LABELS+=("$name")
+    _AI_SUGGEST_HINTS+=("")
+    _AI_SUGGEST_DESCRIPTIONS+=("Just recipe")
+    _AI_SUGGEST_ICONS+=("$icon_kind")
+    (( ${#_AI_SUGGEST_CANDIDATES} >= 9 )) && break
+  done
+  (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
+}
+
+# Matches "composer run-script <partial>" against real script names read
+# live from ./composer.json's "scripts" object — the PHP-ecosystem
+# equivalent of _ai_suggest_package_script_match. Unlike npm/yarn/pnpm,
+# Composer has no bare "composer <script>" invocation form at all, so
+# this only ever completes after the explicit "run-script".
+_ai_suggest_composer_match() {
+  [[ "$BUFFER" == composer\ run-script\ * ]] || return 1
+  local partial="${BUFFER#composer run-script }"
+  [[ "$partial" == *' '* ]] && return 1
+
+  local -a script_lines
+  script_lines=(${(f)"$(_ai_suggest_json_kv_block composer.json scripts)"})
+  (( ${#script_lines} > 0 )) || return 1
+
+  local icon_kind=$(_ai_suggest_tool_icon_kind composer)
+  local entry name cmd
+  _AI_SUGGEST_CANDIDATES=()
+  _AI_SUGGEST_DESCRIPTIONS=()
+  _AI_SUGGEST_HINTS=()
+  _AI_SUGGEST_LABELS=()
+  _AI_SUGGEST_ICONS=()
+  for entry in "${script_lines[@]}"; do
+    name="${entry%%$'\t'*}"
+    cmd="${entry#*$'\t'}"
+    [[ "$name" == "$partial"* ]] || continue
+    _AI_SUGGEST_CANDIDATES+=("composer run-script $name ")
+    _AI_SUGGEST_LABELS+=("$name")
+    _AI_SUGGEST_HINTS+=("")
+    _AI_SUGGEST_DESCRIPTIONS+=("${cmd:-Composer script}")
+    _AI_SUGGEST_ICONS+=("$icon_kind")
+    (( ${#_AI_SUGGEST_CANDIDATES} >= 9 )) && break
+  done
+  (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
+}
+
+# Matches "deno task <partial>" against real task names read live from
+# ./deno.json's (or ./deno.jsonc's) "tasks" object — the Deno-ecosystem
+# equivalent of _ai_suggest_package_script_match. Deno reserves its own
+# top-level subcommands (run/test/fmt/lint/task/...), so — like npm —
+# there's no bare "deno <task>" form; this only completes after "task".
+_ai_suggest_deno_task_match() {
+  [[ "$BUFFER" == deno\ task\ * ]] || return 1
+  local partial="${BUFFER#deno task }"
+  [[ "$partial" == *' '* ]] && return 1
+
+  local file=deno.json
+  [[ -f $file ]] || file=deno.jsonc
+  local -a task_lines
+  task_lines=(${(f)"$(_ai_suggest_json_kv_block "$file" tasks)"})
+  (( ${#task_lines} > 0 )) || return 1
+
+  local icon_kind=$(_ai_suggest_tool_icon_kind deno)
+  local entry name cmd
+  _AI_SUGGEST_CANDIDATES=()
+  _AI_SUGGEST_DESCRIPTIONS=()
+  _AI_SUGGEST_HINTS=()
+  _AI_SUGGEST_LABELS=()
+  _AI_SUGGEST_ICONS=()
+  for entry in "${task_lines[@]}"; do
+    name="${entry%%$'\t'*}"
+    cmd="${entry#*$'\t'}"
+    [[ "$name" == "$partial"* ]] || continue
+    _AI_SUGGEST_CANDIDATES+=("deno task $name ")
+    _AI_SUGGEST_LABELS+=("$name")
+    _AI_SUGGEST_HINTS+=("")
+    _AI_SUGGEST_DESCRIPTIONS+=("${cmd:-Deno task}")
+    _AI_SUGGEST_ICONS+=("$icon_kind")
+    (( ${#_AI_SUGGEST_CANDIDATES} >= 9 )) && break
+  done
+  (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
+}
+
 # Matches "<tool> <subcmd> [<subcmd2> ...] <partial>" against a nested
 # static table one (or more) levels deeper than _ai_suggest_static_match: the
 # sub-subcommands of a subcommand that is itself a management command (e.g.
@@ -1478,6 +2230,11 @@ _ai_suggest_nested_match() {
 _ai_suggest_static_or_dynamic_match() {
   _ai_suggest_cd_match && return 0
   _ai_suggest_git_branch_match && return 0
+  _ai_suggest_package_script_match && return 0
+  _ai_suggest_make_match && return 0
+  _ai_suggest_just_match && return 0
+  _ai_suggest_composer_match && return 0
+  _ai_suggest_deno_task_match && return 0
   _ai_suggest_nested_match && return 0
   _ai_suggest_static_match
 }

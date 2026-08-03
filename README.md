@@ -91,6 +91,23 @@ overlay app (`Lumen/`, Swift).
 - **Git branch suggestions** — once you've typed `git checkout`, `switch`,
   `merge`, `rebase`, or `branch`, the next word suggests your repo's local
   branches (via `git for-each-ref`, read fresh every time).
+- **Real project-file task completion** — beyond the static per-tool
+  tables, several task runners get their suggestions read live from the
+  actual project file in your current directory, not a generic guess:
+  - **`package.json`** — `npm run `, `yarn `, `pnpm ` suggest your
+    project's real `scripts`, description showing the actual command.
+  - **`Makefile`** (or `makefile`/`GNUmakefile`) — `make ` suggests real
+    targets.
+  - **`justfile`** (or `Justfile`) — `just ` suggests real recipes.
+  - **`composer.json`** — `composer run-script ` suggests real PHP
+    scripts.
+  - **`deno.json`/`deno.jsonc`** — `deno task ` suggests real Deno tasks.
+
+  A custom script/target/recipe name (`deploy:prod`, `lint:fix`, whatever
+  your project actually calls it) suggests correctly even though it isn't
+  one of the hand-picked generic guesses. Falls back cleanly to the
+  static tables (or nothing) when the relevant project file isn't present
+  — this only ever adds coverage, never removes anything.
 - **Suggestion chaining** — accepting a suggestion immediately shows what
   typically comes next (e.g. picking `git add ` immediately offers file
   paths), instead of going silent until your next keystroke.
@@ -296,6 +313,21 @@ showing nothing.
 | **glab** (GitLab CLI) | `mr`, `issue`, `repo`, `ci`, `pipeline`, `release`, `auth`, `label`, `variable`, `api` | `mr`/`ci` have their own subcommand tables |
 | **kafka-topics**, **kafka-console-producer**, **kafka-console-consumer**, **kafka-consumer-groups** | Flag-first (e.g. `--list`, `--bootstrap-server`) rather than subcommand-first | — |
 | **rabbitmqctl** | `status`, `cluster_status`, `list_queues`, `list_exchanges`, `list_bindings`, `list_connections`, `list_channels`, `list_vhosts`, `list_users`, `add_user`, `delete_user`, `set_permissions`, `list_permissions`, `add_vhost`, `delete_vhost`, `set_user_tags`, `stop_app`, `start_app`, `purge_queue` | — |
+
+Language/build tools, package managers, PaaS deploy CLIs, and a few
+system/session tools round out the coverage — same static-table approach,
+top-level subcommands only (no nested tables for this batch):
+
+| Category | Tools |
+|---|---|
+| Language build/package tools | **cargo** (Rust), **go**, **pip**/**pip3**, **poetry** (Python), **mvn**, **gradle** (JVM), **dotnet** (.NET), **bundle**, **gem** (Ruby) |
+| System/OS package managers | **brew** (Homebrew) |
+| Containers | **docker-compose** (standalone binary — shares the same table as `docker compose`) |
+| Infra-as-code / VMs | **vagrant**, **pulumi** |
+| PaaS / deploy CLIs | **heroku**, **vercel**, **netlify**, **firebase**, **flyctl** (also `fly`), **doctl** (DigitalOcean) |
+| Monorepo tools | **turbo**, **nx** |
+| Session/system tools | **tmux**, **systemctl** |
+| Language version managers | **nvm**, **pyenv** |
 
 Directory completion after `cd` and local git branch completion (for
 `checkout`/`switch`/`merge`/`rebase`/`branch`) work independently of these
