@@ -6,3 +6,6 @@ ai-suggest-menubar/.build/
 
 # macOS
 .DS_Store
+
+# Local notes
+goal-ai-shell-suggest.md
