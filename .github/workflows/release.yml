@@ -1,0 +1,43 @@
+name: Release DMG
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build-dmg:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Lumen.app
+        working-directory: Lumen/Lumen
+        run: ./build.sh
+
+      - name: Stamp release version into Info.plist
+        working-directory: Lumen/Lumen
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          VERSION="${TAG#v}"
+          PLIST="Lumen.app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$PLIST"
+          codesign --force --deep --sign - "Lumen.app"
+
+      - name: Create DMG
+        working-directory: Lumen/Lumen
+        run: |
+          mkdir -p dist
+          cp -R Lumen.app dist/
+          hdiutil create -volname "Lumen" -srcfolder dist -ov -format UDZO Lumen.dmg
+
+      - name: Upload DMG to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" "Lumen/Lumen/Lumen.dmg" --clobber
