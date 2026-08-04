@@ -284,12 +284,23 @@ struct OverlayContentView: View {
     /// body re-runs on every keystroke while suggestions are showing, and
     /// re-decoding the same handful of SVGs from disk that often would be
     /// wasted work for images that never change.
+    ///
+    /// Looked up under `Contents/Resources/` (where build.sh places the
+    /// resource bundle) rather than via `Bundle.module`: SwiftPM's generated
+    /// accessor only ever checks the app bundle's top level or a hardcoded
+    /// absolute dev-machine path, and content sitting at the app bundle's
+    /// top level (sibling of `Contents/`) fails `codesign` on current
+    /// toolchains ("unsealed contents present in the bundle root") — signing
+    /// only ever seals `Contents/`. `Bundle.module` is kept as a fallback so
+    /// this still resolves when running unpackaged during development.
     private func brandImage(for icon: CandidateIcon) -> NSImage? {
         let name = icon.rawValue
         if let cached = Self.brandImageCache[name] { return cached }
-        guard let url = Bundle.module.url(forResource: name, withExtension: "svg", subdirectory: "Resources"),
-              let image = NSImage(contentsOf: url)
-        else { return nil }
+        let packagedURL = Bundle.main.resourceURL?
+            .appendingPathComponent("Lumen_Lumen.bundle/Resources/\(name).svg")
+        let url = packagedURL.flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil }
+            ?? Bundle.module.url(forResource: name, withExtension: "svg", subdirectory: "Resources")
+        guard let url, let image = NSImage(contentsOf: url) else { return nil }
         Self.brandImageCache[name] = image
         return image
     }

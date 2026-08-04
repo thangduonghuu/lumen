@@ -64,16 +64,20 @@ PLIST
 mkdir -p "$APP/Contents/Resources"
 cp Sources/Lumen/Resources/Lumen.icns "$APP/Contents/Resources/Lumen.icns"
 
-# SPM's generated resource_bundle_accessor.swift (Bundle.module) looks for
-# this .bundle directly inside Bundle.main.bundleURL — i.e. the .app's own
-# top level, not Contents/Resources — so that's where it has to land for
-# the brand-icon SVGs (Sources/Lumen/Resources/*.svg) to load once this is
-# a real double-clickable .app instead of a bare binary run straight out
-# of .build/.
+# Placed under Contents/Resources/ — the standard, sealed location for
+# app-bundle resources. An earlier version of this script placed it at the
+# .app's own top level (matching SwiftPM's generated Bundle.module accessor,
+# which only ever checks Bundle.main.bundleURL directly or a hardcoded
+# absolute dev-machine path), but current codesign refuses to sign a bundle
+# with content sitting outside Contents/ ("unsealed contents present in the
+# bundle root") — only Contents/ is ever sealed. OverlayPanel.swift's
+# brandImage(for:) looks here first and falls back to Bundle.module for
+# unpackaged dev runs.
+rm -rf "$APP/Lumen_Lumen.bundle"
 RESOURCE_BUNDLE=".build/release/Lumen_Lumen.bundle"
 if [ -d "$RESOURCE_BUNDLE" ]; then
-    rm -rf "$APP/Lumen_Lumen.bundle"
-    cp -R "$RESOURCE_BUNDLE" "$APP/Lumen_Lumen.bundle"
+    rm -rf "$APP/Contents/Resources/Lumen_Lumen.bundle"
+    cp -R "$RESOURCE_BUNDLE" "$APP/Contents/Resources/Lumen_Lumen.bundle"
 fi
 
 # Re-sign at the bundle level (ad-hoc — no Developer ID needed for local
