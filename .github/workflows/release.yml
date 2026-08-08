@@ -1,4 +1,4 @@
-name: Release DMG
+name: Release Build
 
 on:
   release:
@@ -8,27 +8,33 @@ permissions:
   contents: write
 
 jobs:
-  build-dmg:
+  build:
     runs-on: macos-14
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build Lumen.app
+      - name: Build Lumen.app (native arch, for the DMG)
         working-directory: Lumen
         run: ./build.sh
 
-      - name: Stamp release version into Info.plist
+      - name: Build Lumen-universal.app (arm64 + x86_64, for the tarball)
+        working-directory: Lumen
+        run: ./build.sh --universal
+
+      - name: Stamp release version into both bundles' Info.plist
         working-directory: Lumen
         env:
           TAG: ${{ github.event.release.tag_name }}
         run: |
           VERSION="${TAG#v}"
-          PLIST="Lumen.app/Contents/Info.plist"
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
-          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$PLIST"
-          codesign --force --deep --sign - "Lumen.app"
+          for APP in Lumen.app Lumen-universal.app; do
+            PLIST="$APP/Contents/Info.plist"
+            /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
+            /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$PLIST"
+            codesign --force --deep --sign - "$APP"
+          done
 
       - name: Create DMG
         working-directory: Lumen
@@ -37,7 +43,17 @@ jobs:
           cp -R Lumen.app dist/
           hdiutil create -volname "Lumen" -srcfolder dist -ov -format UDZO Lumen.dmg
 
-      - name: Upload DMG to release
+      - name: Create universal .app.tar.gz
+        working-directory: Lumen
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          VERSION="${TAG#v}"
+          tar -czf "Lumen-${VERSION}-universal.app.tar.gz" Lumen-universal.app
+
+      - name: Upload release assets
+        working-directory: Lumen
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" "Lumen/Lumen.dmg" --clobber
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" Lumen.dmg "Lumen-${TAG#v}-universal.app.tar.gz" --clobber

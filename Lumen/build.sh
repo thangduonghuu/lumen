@@ -18,11 +18,33 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-swift build -c release
+# --universal builds arm64 and x86_64 separately and lipo's them together,
+# rather than passing both --arch flags to a single `swift build` — the
+# latter routes through Xcode's XCBuild backend, which isn't available on
+# machines with only the Command Line Tools installed. Two single-arch
+# builds use SwiftPM's native build system either way, so this works
+# everywhere. Only used for the release .app.tar.gz; the .dmg stays
+# single-arch (whatever the building machine's native arch is).
+if [ "${1:-}" = "--universal" ]; then
+    APP="Lumen-universal.app"
+    RESOURCE_BUNDLE_SRC=".build/arm64-apple-macosx/release/Lumen_Lumen.bundle"
+    for arch in arm64 x86_64; do
+        swift build -c release --arch "$arch"
+    done
+    BIN=$(mktemp)
+    lipo -create \
+        ".build/arm64-apple-macosx/release/Lumen" \
+        ".build/x86_64-apple-macosx/release/Lumen" \
+        -output "$BIN"
+else
+    APP="Lumen.app"
+    RESOURCE_BUNDLE_SRC=".build/release/Lumen_Lumen.bundle"
+    swift build -c release
+    BIN=".build/release/Lumen"
+fi
 
-APP="Lumen.app"
 mkdir -p "$APP/Contents/MacOS"
-cp .build/release/Lumen "$APP/Contents/MacOS/Lumen"
+cp "$BIN" "$APP/Contents/MacOS/Lumen"
 
 # Regenerated on every build rather than hand-maintained separately, so the
 # bundle is fully reproducible from this script alone.
@@ -74,10 +96,9 @@ cp Sources/Lumen/Resources/Lumen.icns "$APP/Contents/Resources/Lumen.icns"
 # brandImage(for:) looks here first and falls back to Bundle.module for
 # unpackaged dev runs.
 rm -rf "$APP/Lumen_Lumen.bundle"
-RESOURCE_BUNDLE=".build/release/Lumen_Lumen.bundle"
-if [ -d "$RESOURCE_BUNDLE" ]; then
+if [ -d "$RESOURCE_BUNDLE_SRC" ]; then
     rm -rf "$APP/Contents/Resources/Lumen_Lumen.bundle"
-    cp -R "$RESOURCE_BUNDLE" "$APP/Contents/Resources/Lumen_Lumen.bundle"
+    cp -R "$RESOURCE_BUNDLE_SRC" "$APP/Contents/Resources/Lumen_Lumen.bundle"
 fi
 
 # Re-sign at the bundle level (ad-hoc — no Developer ID needed for local
