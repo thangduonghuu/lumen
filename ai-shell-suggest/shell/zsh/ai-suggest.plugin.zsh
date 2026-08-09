@@ -161,7 +161,7 @@ typeset -gi _AI_SUGGEST_MAX_CANDIDATES=50
 typeset -ga _AI_SUGGEST_GIT_SUBCMDS=(
   $'status\t[pathspec...]\tShow the working tree status'
   $'add\t<file>...\tAdd file contents to the index'
-  $'commit\t-m <message>\tRecord changes to the repository'
+  $'commit\t\tRecord changes to the repository'
   $'push\t[remote] [branch]\tUpdate remote refs along with associated objects'
   $'pull\t[remote] [branch]\tFetch from and integrate with another repository'
   $'fetch\t[remote] [branch]\tDownload objects and refs from another repository'
@@ -184,7 +184,7 @@ typeset -ga _AI_SUGGEST_GIT_SUBCMDS=(
   $'show\t<commit>\tShow various types of objects'
   $'rm\t<file>...\tRemove files from the working tree and index'
   $'mv\t<src> <dst>\tMove or rename a file'
-  $'clean\t[-fd]\tRemove untracked files from the working tree'
+  $'clean\t\tRemove untracked files from the working tree'
   $'restore\t<file>...\tRestore working tree files'
 )
 
@@ -192,17 +192,16 @@ typeset -ga _AI_SUGGEST_KUBECTL_SUBCMDS=(
   $'get\t<resource>\tDisplay one or many resources'
   $'describe\t<resource> <name>\tShow detailed state of a resource'
   $'logs\t<pod>\tPrint logs for a container in a pod'
-  $'apply\t-f <file>\tApply a configuration to a resource'
-  $'exec\t-it <pod> -- <cmd>\tExecute a command in a container'
+  $'apply\t\tApply a configuration to a resource'
+  $'exec\t\tExecute a command in a container'
   $'delete\t<resource> <name>\tDelete resources'
-  $'create\t-f <file>\tCreate a resource from a file or stdin'
+  $'create\t\tCreate a resource from a file or stdin'
   $'edit\t<resource> <name>\tEdit a resource on the server'
   $'rollout\t[status|undo|restart]\tManage the rollout of a resource'
-  $'scale\t--replicas=<n> <resource>\tScale a resource'
+  $'scale\t<resource>\tScale a resource'
   $'port-forward\t<pod> <ports>\tForward local ports to a pod'
   $'config\t[get-contexts|use-context]\tModify kubeconfig files'
   $'top\t[pod|node]\tDisplay resource (CPU/memory) usage'
-  $'exec\t-it <pod> sh\tOpen a shell in a container'
   $'cp\t<src> <dst>\tCopy files to/from a container'
   $'label\t<resource> <name> <key>=<val>\tUpdate labels on a resource'
   $'run\t<name> --image=<image>\tRun a particular image on the cluster'
@@ -231,11 +230,11 @@ typeset -ga _AI_SUGGEST_NPM_SUBCMDS=(
 )
 
 typeset -ga _AI_SUGGEST_DOCKER_SUBCMDS=(
-  $'ps\t[-a]\tList containers'
+  $'ps\t\tList containers'
   $'images\t\tList images'
   $'run\t<image>\tRun a command in a new container'
-  $'build\t-t <tag> .\tBuild an image from a Dockerfile'
-  $'exec\t-it <container> <cmd>\tRun a command in a running container'
+  $'build\t.\tBuild an image from a Dockerfile'
+  $'exec\t<container>\tRun a command in a running container'
   $'logs\t<container>\tFetch the logs of a container'
   $'stop\t<container>\tStop a running container'
   $'start\t<container>\tStart a stopped container'
@@ -437,10 +436,11 @@ typeset -ga _AI_SUGGEST_AZ_SUBCMDS=(
 # as a subcommand name does.
 typeset -ga _AI_SUGGEST_KAFKA_TOPICS_SUBCMDS=(
   $'--list\t\tList all topics'
-  $'--create\t--topic <name>\tCreate a topic'
-  $'--delete\t--topic <name>\tDelete a topic'
-  $'--describe\t--topic <name>\tDescribe a topic'
-  $'--alter\t--topic <name>\tAlter a topic'"'"'s configuration'
+  $'--create\t\tCreate a topic (use with --topic)'
+  $'--delete\t\tDelete a topic (use with --topic)'
+  $'--describe\t\tDescribe a topic (use with --topic)'
+  $'--alter\t\tAlter a topic'"'"'s configuration (use with --topic)'
+  $'--topic\t<name>\tTopic name, paired with --create/--delete/--describe/--alter'
   $'--bootstrap-server\t<host:port>\tKafka broker to connect to'
   $'--partitions\t<n>\tNumber of partitions (with --create/--alter)'
   $'--replication-factor\t<n>\tReplication factor (with --create)'
@@ -462,10 +462,12 @@ typeset -ga _AI_SUGGEST_KAFKA_CONSOLE_CONSUMER_SUBCMDS=(
 
 typeset -ga _AI_SUGGEST_KAFKA_CONSUMER_GROUPS_SUBCMDS=(
   $'--list\t\tList all consumer groups'
-  $'--describe\t--group <id>\tDescribe a consumer group'
+  $'--describe\t\tDescribe a consumer group (use with --group)'
   $'--bootstrap-server\t<host:port>\tKafka broker to connect to'
-  $'--reset-offsets\t--group <id> --topic <name>\tReset consumer group offsets'
-  $'--delete\t--group <id>\tDelete a consumer group'
+  $'--reset-offsets\t\tReset consumer group offsets (use with --group/--topic)'
+  $'--delete\t\tDelete a consumer group (use with --group)'
+  $'--group\t<id>\tConsumer group to target'
+  $'--topic\t<name>\tTopic name, paired with --reset-offsets'
 )
 
 typeset -ga _AI_SUGGEST_RABBITMQCTL_SUBCMDS=(
@@ -794,17 +796,37 @@ typeset -ga _AI_SUGGEST_NX_SUBCMDS=(
 )
 
 typeset -ga _AI_SUGGEST_TMUX_SUBCMDS=(
-  $'new-session\t[-s name]\tCreate a new session'
-  $'attach-session\t[-t name]\tAttach to an existing session'
+  $'new-session\t\tCreate a new session'
+  $'attach-session\t\tAttach to an existing session'
   $'list-sessions\t\tList sessions'
-  $'kill-session\t[-t name]\tDestroy a session'
-  $'split-window\t[-h|-v]\tSplit the current pane'
-  $'new-window\t[-n name]\tCreate a new window'
-  $'kill-window\t[-t name]\tDestroy a window'
+  $'kill-session\t\tDestroy a session'
+  $'split-window\t\tSplit the current pane'
+  $'new-window\t\tCreate a new window'
+  $'kill-window\t\tDestroy a window'
   $'list-windows\t\tList windows'
   $'detach\t\tDetach the current client'
   $'rename-session\t<name>\tRename a session'
   $'source-file\t<file>\tExecute commands from a config file'
+)
+
+typeset -ga _AI_SUGGEST_TMUX_NEW_SESSION_FLAGS=(
+  $'-s\t<name>\tName for the new session'
+)
+typeset -ga _AI_SUGGEST_TMUX_ATTACH_SESSION_FLAGS=(
+  $'-t\t<name>\tSession to attach to'
+)
+typeset -ga _AI_SUGGEST_TMUX_KILL_SESSION_FLAGS=(
+  $'-t\t<name>\tSession to destroy'
+)
+typeset -ga _AI_SUGGEST_TMUX_SPLIT_WINDOW_FLAGS=(
+  $'-h\t\tSplit horizontally (side by side)'
+  $'-v\t\tSplit vertically (stacked)'
+)
+typeset -ga _AI_SUGGEST_TMUX_NEW_WINDOW_FLAGS=(
+  $'-n\t<name>\tName for the new window'
+)
+typeset -ga _AI_SUGGEST_TMUX_KILL_WINDOW_FLAGS=(
+  $'-t\t<name>\tWindow to destroy'
 )
 
 typeset -ga _AI_SUGGEST_SYSTEMCTL_SUBCMDS=(
@@ -897,23 +919,23 @@ typeset -ga _AI_SUGGEST_MINIKUBE_SUBCMDS=(
 # actually reaches for.
 
 typeset -ga _AI_SUGGEST_DOCKER_IMAGE_SUBCMDS=(
-  $'ls\t[-a]\tList images'
-  $'build\t-t <tag> .\tBuild an image from a Dockerfile'
+  $'ls\t\tList images'
+  $'build\t.\tBuild an image from a Dockerfile'
   $'pull\t<image>\tPull an image from a registry'
   $'push\t<image>\tPush an image to a registry'
   $'rm\t<image>\tRemove an image'
   $'tag\t<image> <tag>\tTag an image into a repository'
   $'inspect\t<image>\tReturn low-level info on an image'
   $'history\t<image>\tShow the history of an image'
-  $'prune\t[-a]\tRemove unused images'
-  $'save\t-o <file> <image>\tSave an image to a tar archive'
-  $'load\t-i <file>\tLoad an image from a tar archive'
+  $'prune\t\tRemove unused images'
+  $'save\t<image>\tSave an image to a tar archive'
+  $'load\t\tLoad an image from a tar archive'
 )
 
 typeset -ga _AI_SUGGEST_DOCKER_CONTAINER_SUBCMDS=(
-  $'ls\t[-a]\tList containers'
+  $'ls\t\tList containers'
   $'run\t<image>\tRun a command in a new container'
-  $'exec\t-it <container> <cmd>\tRun a command in a running container'
+  $'exec\t<container>\tRun a command in a running container'
   $'logs\t<container>\tFetch the logs of a container'
   $'stop\t<container>\tStop a running container'
   $'start\t<container>\tStart a stopped container'
@@ -945,13 +967,13 @@ typeset -ga _AI_SUGGEST_DOCKER_VOLUME_SUBCMDS=(
 
 typeset -ga _AI_SUGGEST_DOCKER_SYSTEM_SUBCMDS=(
   $'df\t\tShow docker disk usage'
-  $'prune\t[-a]\tRemove unused data'
+  $'prune\t\tRemove unused data'
   $'info\t\tDisplay system-wide information'
   $'events\t\tGet real time events from the server'
 )
 
 typeset -ga _AI_SUGGEST_DOCKER_COMPOSE_SUBCMDS=(
-  $'up\t[-d]\tCreate and start containers'
+  $'up\t\tCreate and start containers'
   $'down\t\tStop and remove containers, networks'
   $'build\t\tBuild or rebuild services'
   $'ps\t\tList containers'
@@ -1002,14 +1024,46 @@ typeset -ga _AI_SUGGEST_DOCKER_LOGS_FLAGS=(
   $'-t\t\tShow timestamps'
 )
 
+typeset -ga _AI_SUGGEST_DOCKER_BUILD_FLAGS=(
+  $'-t\t<tag>\tTag the built image (e.g. name:latest)'
+  $'-f\t<dockerfile>\tUse an alternate Dockerfile'
+  $'--no-cache\t\tDo not use cache when building'
+)
+typeset -ga _AI_SUGGEST_DOCKER_IMAGE_BUILD_FLAGS=("${_AI_SUGGEST_DOCKER_BUILD_FLAGS[@]}")
+
+typeset -ga _AI_SUGGEST_DOCKER_IMAGE_SAVE_FLAGS=(
+  $'-o\t<file>\tWrite the image to a file instead of stdout'
+)
+
+typeset -ga _AI_SUGGEST_DOCKER_IMAGE_LOAD_FLAGS=(
+  $'-i\t<file>\tRead the image from a file instead of stdin'
+)
+
+typeset -ga _AI_SUGGEST_DOCKER_CONTAINER_EXEC_FLAGS=("${_AI_SUGGEST_DOCKER_EXEC_FLAGS[@]}")
+typeset -ga _AI_SUGGEST_DOCKER_CONTAINER_LS_FLAGS=("${_AI_SUGGEST_DOCKER_PS_FLAGS[@]}")
+
+typeset -ga _AI_SUGGEST_DOCKER_IMAGE_PRUNE_FLAGS=(
+  $'-a\t\tRemove all unused images, not just dangling ones'
+)
+typeset -ga _AI_SUGGEST_DOCKER_SYSTEM_PRUNE_FLAGS=(
+  $'-a\t\tRemove all unused images too, not just dangling ones'
+)
+typeset -ga _AI_SUGGEST_DOCKER_COMPOSE_UP_FLAGS=(
+  $'-d\t\tRun containers in the background'
+)
+
 typeset -ga _AI_SUGGEST_GIT_STASH_SUBCMDS=(
-  $'push\t[-m <message>]\tStash changes'
+  $'push\t\tStash changes'
   $'pop\t\tApply and remove the most recent stash'
   $'apply\t[stash]\tApply a stash without removing it'
   $'list\t\tList stashes'
   $'show\t[stash]\tShow the changes in a stash'
   $'drop\t[stash]\tRemove a stash'
   $'clear\t\tRemove all stashes'
+)
+
+typeset -ga _AI_SUGGEST_GIT_STASH_PUSH_FLAGS=(
+  $'-m\t<message>\tLabel the stash with a message'
 )
 
 typeset -ga _AI_SUGGEST_GIT_REMOTE_SUBCMDS=(
@@ -1054,6 +1108,22 @@ typeset -ga _AI_SUGGEST_GIT_DIFF_FLAGS=(
   $'-p\t\tGenerate output in patch format (default)'
 )
 
+# Picked up by _ai_suggest_nested_match once BUFFER is "git commit " —
+# same leaf-command-falls-back-to-its-FLAGS-table path already used by
+# docker images/ps/run, git log/branch/checkout/diff, kubectl get/exec (see
+# that function's comment on the empty-partial fallback). Moved out of
+# _AI_SUGGEST_GIT_SUBCMDS's own hint text (used to be "commit -m <message>"
+# shown together on one row) so "-m" is its own follow-up suggestion after
+# "commit" is picked, instead of looking like part of the subcommand name.
+typeset -ga _AI_SUGGEST_GIT_COMMIT_FLAGS=(
+  $'-m\t<message>\tRecord changes with the given commit message'
+)
+
+typeset -ga _AI_SUGGEST_GIT_CLEAN_FLAGS=(
+  $'-f\t\tForce the removal'
+  $'-d\t\tAlso remove untracked directories'
+)
+
 typeset -ga _AI_SUGGEST_NPM_CACHE_SUBCMDS=(
   $'clean\t\tClean the npm cache'
   $'verify\t\tVerify the npm cache'
@@ -1096,6 +1166,18 @@ typeset -ga _AI_SUGGEST_KUBECTL_GET_FLAGS=(
 typeset -ga _AI_SUGGEST_KUBECTL_EXEC_FLAGS=(
   $'-it\t\tInteractive session with a tty attached'
   $'-n\t<namespace>\tNamespace of the target pod'
+)
+
+typeset -ga _AI_SUGGEST_KUBECTL_APPLY_FLAGS=(
+  $'-f\t<file>\tApply a configuration from a file'
+)
+
+typeset -ga _AI_SUGGEST_KUBECTL_CREATE_FLAGS=(
+  $'-f\t<file>\tCreate a resource from a file or stdin'
+)
+
+typeset -ga _AI_SUGGEST_KUBECTL_SCALE_FLAGS=(
+  $'--replicas\t<n>\tSet the desired number of replicas'
 )
 
 # Last-resort fallback when typing "-" at a position with no hand-picked
@@ -1143,89 +1225,230 @@ typeset -ga _AI_SUGGEST_AWS_S3_SUBCMDS=(
 
 typeset -ga _AI_SUGGEST_AWS_EC2_SUBCMDS=(
   $'describe-instances\t\tDescribe EC2 instances'
-  $'start-instances\t--instance-ids <id>\tStart an instance'
-  $'stop-instances\t--instance-ids <id>\tStop an instance'
-  $'terminate-instances\t--instance-ids <id>\tTerminate an instance'
+  $'start-instances\t\tStart an instance'
+  $'stop-instances\t\tStop an instance'
+  $'terminate-instances\t\tTerminate an instance'
   $'describe-security-groups\t\tDescribe security groups'
   $'describe-vpcs\t\tDescribe VPCs'
   $'describe-subnets\t\tDescribe subnets'
   $'describe-images\t\tDescribe AMIs'
-  $'run-instances\t--image-id <ami>\tLaunch new instances'
-  $'create-tags\t--resources <id> --tags <tags>\tTag a resource'
+  $'run-instances\t\tLaunch new instances'
+  $'create-tags\t\tTag a resource'
 )
 
 typeset -ga _AI_SUGGEST_AWS_LAMBDA_SUBCMDS=(
   $'list-functions\t\tList Lambda functions'
-  $'invoke\t--function-name <name> <outfile>\tInvoke a function'
-  $'update-function-code\t--function-name <name>\tUpdate function code'
-  $'get-function\t--function-name <name>\tGet function configuration'
-  $'create-function\t--function-name <name>\tCreate a function'
-  $'delete-function\t--function-name <name>\tDelete a function'
+  $'invoke\t\tInvoke a function'
+  $'update-function-code\t\tUpdate function code'
+  $'get-function\t\tGet function configuration'
+  $'create-function\t\tCreate a function'
+  $'delete-function\t\tDelete a function'
   $'list-layers\t\tList Lambda layers'
 )
 
 typeset -ga _AI_SUGGEST_AWS_IAM_SUBCMDS=(
   $'list-users\t\tList IAM users'
   $'list-roles\t\tList IAM roles'
-  $'get-user\t[--user-name <name>]\tGet the current or named IAM user'
-  $'create-role\t--role-name <name>\tCreate a role'
-  $'attach-role-policy\t--role-name <name> --policy-arn <arn>\tAttach a policy to a role'
-  $'list-attached-role-policies\t--role-name <name>\tList policies attached to a role'
-  $'create-access-key\t--user-name <name>\tCreate an access key'
+  $'get-user\t\tGet the current or named IAM user'
+  $'create-role\t\tCreate a role'
+  $'attach-role-policy\t\tAttach a policy to a role'
+  $'list-attached-role-policies\t\tList policies attached to a role'
+  $'create-access-key\t\tCreate an access key'
 )
 
 typeset -ga _AI_SUGGEST_AWS_LOGS_SUBCMDS=(
   $'tail\t<log-group>\tTail a log group in real time'
   $'describe-log-groups\t\tList log groups'
-  $'describe-log-streams\t--log-group-name <name>\tList log streams'
-  $'get-log-events\t--log-group-name <name> --log-stream-name <stream>\tGet log events'
-  $'filter-log-events\t--log-group-name <name>\tFilter log events by pattern'
+  $'describe-log-streams\t\tList log streams'
+  $'get-log-events\t\tGet log events'
+  $'filter-log-events\t\tFilter log events by pattern'
 )
 
 typeset -ga _AI_SUGGEST_AWS_STS_SUBCMDS=(
   $'get-caller-identity\t\tShow the current IAM identity'
-  $'assume-role\t--role-arn <arn> --role-session-name <name>\tAssume an IAM role'
+  $'assume-role\t\tAssume an IAM role'
 )
 
 typeset -ga _AI_SUGGEST_AWS_CLOUDFORMATION_SUBCMDS=(
-  $'deploy\t--template-file <file> --stack-name <name>\tDeploy a stack'
+  $'deploy\t\tDeploy a stack'
   $'describe-stacks\t\tDescribe stacks'
-  $'create-stack\t--stack-name <name> --template-body <file>\tCreate a stack'
-  $'update-stack\t--stack-name <name>\tUpdate a stack'
-  $'delete-stack\t--stack-name <name>\tDelete a stack'
+  $'create-stack\t\tCreate a stack'
+  $'update-stack\t\tUpdate a stack'
+  $'delete-stack\t\tDelete a stack'
   $'list-stacks\t\tList stacks'
-  $'validate-template\t--template-body <file>\tValidate a template'
+  $'validate-template\t\tValidate a template'
 )
 
 typeset -ga _AI_SUGGEST_AWS_ECR_SUBCMDS=(
   $'get-login-password\t\tGet a password to authenticate to ECR'
   $'describe-repositories\t\tDescribe ECR repositories'
-  $'create-repository\t--repository-name <name>\tCreate a repository'
-  $'list-images\t--repository-name <name>\tList images in a repository'
+  $'create-repository\t\tCreate a repository'
+  $'list-images\t\tList images in a repository'
 )
 
 typeset -ga _AI_SUGGEST_AWS_ECS_SUBCMDS=(
   $'list-clusters\t\tList ECS clusters'
-  $'list-services\t--cluster <cluster>\tList services in a cluster'
-  $'list-tasks\t--cluster <cluster>\tList tasks in a cluster'
-  $'describe-services\t--cluster <cluster> --services <svc>\tDescribe services'
-  $'update-service\t--cluster <cluster> --service <svc>\tUpdate a service'
-  $'run-task\t--cluster <cluster> --task-definition <td>\tRun a one-off task'
+  $'list-services\t\tList services in a cluster'
+  $'list-tasks\t\tList tasks in a cluster'
+  $'describe-services\t\tDescribe services'
+  $'update-service\t\tUpdate a service'
+  $'run-task\t\tRun a one-off task'
 )
 
 typeset -ga _AI_SUGGEST_AWS_EKS_SUBCMDS=(
   $'list-clusters\t\tList EKS clusters'
-  $'describe-cluster\t--name <name>\tDescribe a cluster'
-  $'update-kubeconfig\t--name <name>\tUpdate local kubeconfig for a cluster'
-  $'create-cluster\t--name <name>\tCreate a cluster'
+  $'describe-cluster\t\tDescribe a cluster'
+  $'update-kubeconfig\t\tUpdate local kubeconfig for a cluster'
+  $'create-cluster\t\tCreate a cluster'
 )
 
 typeset -ga _AI_SUGGEST_AWS_SSM_SUBCMDS=(
-  $'start-session\t--target <instance-id>\tStart an interactive session on an instance'
-  $'get-parameter\t--name <name>\tGet a parameter value'
-  $'put-parameter\t--name <name> --value <value>\tCreate or update a parameter'
+  $'start-session\t\tStart an interactive session on an instance'
+  $'get-parameter\t\tGet a parameter value'
+  $'put-parameter\t\tCreate or update a parameter'
   $'describe-parameters\t\tList parameters'
-  $'send-command\t--document-name <doc> --targets <targets>\tRun a command on managed instances'
+  $'send-command\t\tRun a command on managed instances'
+)
+
+# Follow-up flags for the AWS_*_SUBCMDS operations above — picked up by
+# _ai_suggest_nested_match once BUFFER is e.g. "aws ec2 start-instances "
+# (same leaf-command-falls-back-to-its-FLAGS-table path as git commit/docker
+# images; see that function's comment). Split out of each operation's own
+# hint text so a required flag shows as its own follow-up suggestion
+# instead of being pre-glued onto the operation name.
+typeset -ga _AI_SUGGEST_AWS_EC2_START_INSTANCES_FLAGS=(
+  $'--instance-ids\t<id>\tInstance ID(s) to start'
+)
+typeset -ga _AI_SUGGEST_AWS_EC2_STOP_INSTANCES_FLAGS=(
+  $'--instance-ids\t<id>\tInstance ID(s) to stop'
+)
+typeset -ga _AI_SUGGEST_AWS_EC2_TERMINATE_INSTANCES_FLAGS=(
+  $'--instance-ids\t<id>\tInstance ID(s) to terminate'
+)
+typeset -ga _AI_SUGGEST_AWS_EC2_RUN_INSTANCES_FLAGS=(
+  $'--image-id\t<ami>\tAMI to launch instances from'
+)
+typeset -ga _AI_SUGGEST_AWS_EC2_CREATE_TAGS_FLAGS=(
+  $'--resources\t<id>\tResource(s) to tag'
+  $'--tags\t<tags>\tTags to apply, e.g. Key=Name,Value=foo'
+)
+
+typeset -ga _AI_SUGGEST_AWS_LAMBDA_INVOKE_FLAGS=(
+  $'--function-name\t<name>\tFunction to invoke (followed by an output file)'
+)
+typeset -ga _AI_SUGGEST_AWS_LAMBDA_UPDATE_FUNCTION_CODE_FLAGS=(
+  $'--function-name\t<name>\tFunction to update'
+)
+typeset -ga _AI_SUGGEST_AWS_LAMBDA_GET_FUNCTION_FLAGS=(
+  $'--function-name\t<name>\tFunction to look up'
+)
+typeset -ga _AI_SUGGEST_AWS_LAMBDA_CREATE_FUNCTION_FLAGS=(
+  $'--function-name\t<name>\tName for the new function'
+)
+typeset -ga _AI_SUGGEST_AWS_LAMBDA_DELETE_FUNCTION_FLAGS=(
+  $'--function-name\t<name>\tFunction to delete'
+)
+
+typeset -ga _AI_SUGGEST_AWS_IAM_GET_USER_FLAGS=(
+  $'--user-name\t<name>\tUser to look up (omit for the current user)'
+)
+typeset -ga _AI_SUGGEST_AWS_IAM_CREATE_ROLE_FLAGS=(
+  $'--role-name\t<name>\tName for the new role'
+)
+typeset -ga _AI_SUGGEST_AWS_IAM_ATTACH_ROLE_POLICY_FLAGS=(
+  $'--role-name\t<name>\tRole to attach the policy to'
+  $'--policy-arn\t<arn>\tARN of the policy to attach'
+)
+typeset -ga _AI_SUGGEST_AWS_IAM_LIST_ATTACHED_ROLE_POLICIES_FLAGS=(
+  $'--role-name\t<name>\tRole to list policies for'
+)
+typeset -ga _AI_SUGGEST_AWS_IAM_CREATE_ACCESS_KEY_FLAGS=(
+  $'--user-name\t<name>\tUser to create the key for'
+)
+
+typeset -ga _AI_SUGGEST_AWS_LOGS_DESCRIBE_LOG_STREAMS_FLAGS=(
+  $'--log-group-name\t<name>\tLog group to list streams for'
+)
+typeset -ga _AI_SUGGEST_AWS_LOGS_GET_LOG_EVENTS_FLAGS=(
+  $'--log-group-name\t<name>\tLog group to read from'
+  $'--log-stream-name\t<stream>\tLog stream to read from'
+)
+typeset -ga _AI_SUGGEST_AWS_LOGS_FILTER_LOG_EVENTS_FLAGS=(
+  $'--log-group-name\t<name>\tLog group to search'
+)
+
+typeset -ga _AI_SUGGEST_AWS_STS_ASSUME_ROLE_FLAGS=(
+  $'--role-arn\t<arn>\tARN of the role to assume'
+  $'--role-session-name\t<name>\tIdentifier for the assumed-role session'
+)
+
+typeset -ga _AI_SUGGEST_AWS_CLOUDFORMATION_DEPLOY_FLAGS=(
+  $'--template-file\t<file>\tLocal template file to deploy'
+  $'--stack-name\t<name>\tStack to create or update'
+)
+typeset -ga _AI_SUGGEST_AWS_CLOUDFORMATION_CREATE_STACK_FLAGS=(
+  $'--stack-name\t<name>\tName for the new stack'
+  $'--template-body\t<file>\tTemplate file for the stack'
+)
+typeset -ga _AI_SUGGEST_AWS_CLOUDFORMATION_UPDATE_STACK_FLAGS=(
+  $'--stack-name\t<name>\tStack to update'
+)
+typeset -ga _AI_SUGGEST_AWS_CLOUDFORMATION_DELETE_STACK_FLAGS=(
+  $'--stack-name\t<name>\tStack to delete'
+)
+typeset -ga _AI_SUGGEST_AWS_CLOUDFORMATION_VALIDATE_TEMPLATE_FLAGS=(
+  $'--template-body\t<file>\tTemplate file to validate'
+)
+
+typeset -ga _AI_SUGGEST_AWS_ECR_CREATE_REPOSITORY_FLAGS=(
+  $'--repository-name\t<name>\tName for the new repository'
+)
+typeset -ga _AI_SUGGEST_AWS_ECR_LIST_IMAGES_FLAGS=(
+  $'--repository-name\t<name>\tRepository to list images in'
+)
+
+typeset -ga _AI_SUGGEST_AWS_ECS_LIST_SERVICES_FLAGS=(
+  $'--cluster\t<cluster>\tCluster to list services in'
+)
+typeset -ga _AI_SUGGEST_AWS_ECS_LIST_TASKS_FLAGS=(
+  $'--cluster\t<cluster>\tCluster to list tasks in'
+)
+typeset -ga _AI_SUGGEST_AWS_ECS_DESCRIBE_SERVICES_FLAGS=(
+  $'--cluster\t<cluster>\tCluster the services run in'
+  $'--services\t<svc>\tService(s) to describe'
+)
+typeset -ga _AI_SUGGEST_AWS_ECS_UPDATE_SERVICE_FLAGS=(
+  $'--cluster\t<cluster>\tCluster the service runs in'
+  $'--service\t<svc>\tService to update'
+)
+typeset -ga _AI_SUGGEST_AWS_ECS_RUN_TASK_FLAGS=(
+  $'--cluster\t<cluster>\tCluster to run the task in'
+  $'--task-definition\t<td>\tTask definition to run'
+)
+
+typeset -ga _AI_SUGGEST_AWS_EKS_DESCRIBE_CLUSTER_FLAGS=(
+  $'--name\t<name>\tCluster to describe'
+)
+typeset -ga _AI_SUGGEST_AWS_EKS_UPDATE_KUBECONFIG_FLAGS=(
+  $'--name\t<name>\tCluster to update kubeconfig for'
+)
+typeset -ga _AI_SUGGEST_AWS_EKS_CREATE_CLUSTER_FLAGS=(
+  $'--name\t<name>\tName for the new cluster'
+)
+
+typeset -ga _AI_SUGGEST_AWS_SSM_START_SESSION_FLAGS=(
+  $'--target\t<instance-id>\tInstance to start the session on'
+)
+typeset -ga _AI_SUGGEST_AWS_SSM_GET_PARAMETER_FLAGS=(
+  $'--name\t<name>\tParameter to read'
+)
+typeset -ga _AI_SUGGEST_AWS_SSM_PUT_PARAMETER_FLAGS=(
+  $'--name\t<name>\tParameter to create or update'
+  $'--value\t<value>\tValue to store'
+)
+typeset -ga _AI_SUGGEST_AWS_SSM_SEND_COMMAND_FLAGS=(
+  $'--document-name\t<doc>\tSSM document to run'
+  $'--targets\t<targets>\tTarget instance(s)'
 )
 
 typeset -ga _AI_SUGGEST_TERRAFORM_STATE_SUBCMDS=(
@@ -2145,7 +2368,7 @@ _ai_suggest_nested_match() {
   [[ "$BUFFER" == "$tool "* ]] || return 1
 
   case "$tool" in
-    git|kubectl|k|npm|docker|aws|terraform|tf|helm|gh|glab|gcloud) ;;
+    git|kubectl|k|npm|docker|aws|terraform|tf|helm|gh|glab|gcloud|tmux) ;;
     *) return 1 ;;
   esac
 
