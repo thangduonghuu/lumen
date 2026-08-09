@@ -142,6 +142,11 @@ typeset -ga _AI_SUGGEST_LABELS=()
 # any tool without its own glyph yet.
 typeset -ga _AI_SUGGEST_ICONS=()
 typeset -gi _AI_SUGGEST_INDEX=0
+# Per-matcher cap on how many candidates get built. The native overlay
+# (OverlayContentView in OverlayPanel.swift) scrolls past whatever doesn't
+# fit on screen, so this just bounds how much work each matcher's loop does
+# and how far Down-arrow cycling goes — not a display constraint anymore.
+typeset -gi _AI_SUGGEST_MAX_CANDIDATES=50
 
 # Static subcommand tables: `name<TAB>arg-hint<TAB>description`, ordered by
 # how commonly each subcommand is actually used (not alphabetically) since
@@ -1718,7 +1723,7 @@ _ai_suggest_static_match() {
     _AI_SUGGEST_HINTS+=("${parts[2]:-}")
     _AI_SUGGEST_DESCRIPTIONS+=("${parts[3]:-}")
     _AI_SUGGEST_ICONS+=("$icon_kind")
-    (( ${#_AI_SUGGEST_CANDIDATES} >= 9 )) && break
+    (( ${#_AI_SUGGEST_CANDIDATES} >= _AI_SUGGEST_MAX_CANDIDATES )) && break
   done
   (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
 }
@@ -1765,7 +1770,7 @@ _ai_suggest_cd_match() {
     _AI_SUGGEST_HINTS+=("")
     _AI_SUGGEST_DESCRIPTIONS+=("Change directory")
     _AI_SUGGEST_ICONS+=("dir")
-    (( ${#_AI_SUGGEST_CANDIDATES} >= 9 )) && break
+    (( ${#_AI_SUGGEST_CANDIDATES} >= _AI_SUGGEST_MAX_CANDIDATES )) && break
   done
   (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
 }
@@ -1815,7 +1820,7 @@ _ai_suggest_git_branch_match() {
     _AI_SUGGEST_HINTS+=("")
     _AI_SUGGEST_DESCRIPTIONS+=("Local branch")
     _AI_SUGGEST_ICONS+=("branch")
-    (( ${#_AI_SUGGEST_CANDIDATES} >= 9 )) && break
+    (( ${#_AI_SUGGEST_CANDIDATES} >= _AI_SUGGEST_MAX_CANDIDATES )) && break
   done
   (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
 }
@@ -1918,7 +1923,7 @@ _ai_suggest_package_script_match() {
     _AI_SUGGEST_HINTS+=("")
     _AI_SUGGEST_DESCRIPTIONS+=("${cmd:-package.json script}")
     _AI_SUGGEST_ICONS+=("$icon_kind")
-    (( ${#_AI_SUGGEST_CANDIDATES} >= 9 )) && break
+    (( ${#_AI_SUGGEST_CANDIDATES} >= _AI_SUGGEST_MAX_CANDIDATES )) && break
   done
   (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
 }
@@ -1983,7 +1988,7 @@ _ai_suggest_make_match() {
     _AI_SUGGEST_HINTS+=("")
     _AI_SUGGEST_DESCRIPTIONS+=("Makefile target")
     _AI_SUGGEST_ICONS+=("$icon_kind")
-    (( ${#_AI_SUGGEST_CANDIDATES} >= 9 )) && break
+    (( ${#_AI_SUGGEST_CANDIDATES} >= _AI_SUGGEST_MAX_CANDIDATES )) && break
   done
   (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
 }
@@ -2043,7 +2048,7 @@ _ai_suggest_just_match() {
     _AI_SUGGEST_HINTS+=("")
     _AI_SUGGEST_DESCRIPTIONS+=("Just recipe")
     _AI_SUGGEST_ICONS+=("$icon_kind")
-    (( ${#_AI_SUGGEST_CANDIDATES} >= 9 )) && break
+    (( ${#_AI_SUGGEST_CANDIDATES} >= _AI_SUGGEST_MAX_CANDIDATES )) && break
   done
   (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
 }
@@ -2078,7 +2083,7 @@ _ai_suggest_composer_match() {
     _AI_SUGGEST_HINTS+=("")
     _AI_SUGGEST_DESCRIPTIONS+=("${cmd:-Composer script}")
     _AI_SUGGEST_ICONS+=("$icon_kind")
-    (( ${#_AI_SUGGEST_CANDIDATES} >= 9 )) && break
+    (( ${#_AI_SUGGEST_CANDIDATES} >= _AI_SUGGEST_MAX_CANDIDATES )) && break
   done
   (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
 }
@@ -2115,7 +2120,7 @@ _ai_suggest_deno_task_match() {
     _AI_SUGGEST_HINTS+=("")
     _AI_SUGGEST_DESCRIPTIONS+=("${cmd:-Deno task}")
     _AI_SUGGEST_ICONS+=("$icon_kind")
-    (( ${#_AI_SUGGEST_CANDIDATES} >= 9 )) && break
+    (( ${#_AI_SUGGEST_CANDIDATES} >= _AI_SUGGEST_MAX_CANDIDATES )) && break
   done
   (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
 }
@@ -2217,7 +2222,7 @@ _ai_suggest_nested_match() {
     _AI_SUGGEST_HINTS+=("${parts[2]:-}")
     _AI_SUGGEST_DESCRIPTIONS+=("${parts[3]:-}")
     _AI_SUGGEST_ICONS+=("$icon_kind")
-    (( ${#_AI_SUGGEST_CANDIDATES} >= 9 )) && break
+    (( ${#_AI_SUGGEST_CANDIDATES} >= _AI_SUGGEST_MAX_CANDIDATES )) && break
   done
   (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
 }

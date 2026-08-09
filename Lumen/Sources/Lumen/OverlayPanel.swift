@@ -195,24 +195,50 @@ struct OverlayContentView: View {
         return desc.isEmpty ? nil : desc
     }
 
+    /// Number of rows visible before the list scrolls instead of growing
+    /// further — pinned via `rowHeight` below rather than left to font
+    /// metrics, so this stays exactly 5 regardless of system font size.
+    private let visibleRowCount = 5
+    private let rowHeight: CGFloat = 26
+    private let rowSpacing: CGFloat = 2
+    private var maxListHeight: CGFloat {
+        CGFloat(visibleRowCount) * rowHeight + CGFloat(visibleRowCount - 1) * rowSpacing
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            ForEach(Array(state.candidates.enumerated()), id: \.offset) { idx, candidate in
-                let selected = idx == state.selectedIndex
-                HStack(spacing: 8) {
-                    iconBadge(for: candidate.icon)
-                    Text(candidate.label)
-                        .font(.system(.body, design: .monospaced))
-                        .fontWeight(selected ? .bold : .regular)
-                        .foregroundStyle(selected ? .primary : .secondary)
-                    Spacer(minLength: 12)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: rowSpacing) {
+                        ForEach(Array(state.candidates.enumerated()), id: \.offset) { idx, candidate in
+                            let selected = idx == state.selectedIndex
+                            HStack(spacing: 8) {
+                                iconBadge(for: candidate.icon)
+                                Text(candidate.label)
+                                    .font(.system(.body, design: .monospaced))
+                                    .fontWeight(selected ? .bold : .regular)
+                                    .foregroundStyle(selected ? .primary : .secondary)
+                                Spacer(minLength: 12)
+                            }
+                            .frame(height: rowHeight)
+                            .padding(.horizontal, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(selected ? Color.accentColor.opacity(0.28) : Color.clear)
+                            )
+                            .id(idx)
+                        }
+                    }
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(selected ? Color.accentColor.opacity(0.28) : Color.clear)
-                )
+                .frame(maxHeight: maxListHeight)
+                // Keyboard-driven selection (see _ai_suggest_move in
+                // ai-suggest.plugin.zsh) can move selectedIndex outside the
+                // currently scrolled-to viewport; follow it so Down/Up
+                // arrows past the visible rows keep the selection in view
+                // the same way mouse-scrolling does.
+                .onChange(of: state.selectedIndex) { newValue in
+                    proxy.scrollTo(newValue, anchor: nil)
+                }
             }
             if let desc = selectedDescription {
                 Divider().padding(.top, 2)
