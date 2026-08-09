@@ -2546,7 +2546,16 @@ _ai_suggest_edit_wrapper() {
     zle .$WIDGET
   fi
 
-  if (( deleted_trailing_space )); then
+  # A paste (bracketed-paste — terminals send the whole blob as one event,
+  # not a run of individual keystrokes) drops in a complete command someone
+  # already knows they want to run, not a partial word to keep exploring —
+  # showing a suggestion for it is noise, not help. Worse, without this
+  # case a paste that momentarily looks like a flag prefix mid-insert can
+  # leave a stale suggestion on screen with nothing left to correct it
+  # afterward, since a paste is one atomic buffer change with no further
+  # per-character events to re-evaluate on. So: run the real paste (still
+  # inserts the text normally) but always clear rather than suggest.
+  if [[ $WIDGET == bracketed-paste ]] || (( deleted_trailing_space )); then
     _ai_suggest_clear_display
   else
     _ai_suggest_suggest_now
@@ -2751,6 +2760,11 @@ if (( AI_SUGGEST_AUTO )); then
     # "commit" -> "-m") silent until some other, self-insert-bound key
     # was pressed.
     magic-space
+    # Terminal pastes arrive as this one widget (see _ai_suggest_edit_
+    # wrapper's bracketed-paste case) rather than a run of self-insert
+    # calls — has to be watched separately or a paste leaves whatever was
+    # already showing stuck on screen with no further event to clear it.
+    bracketed-paste
   )
   local _w
   for _w in $_ai_suggest_watched_widgets; do
