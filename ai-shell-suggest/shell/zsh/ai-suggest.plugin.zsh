@@ -1662,11 +1662,20 @@ _ai_suggest_json_str_array() {
 # subsequent command actually runs in. Every real send still fires well
 # within what a human can perceive while typing (>=80ms
 # apart is faster than typical keystroke spacing), so this is invisible in
-# normal use — it only ever skips a send when keystrokes are arriving
-# faster than that.
+# normal use — a send that lands inside the window is never just dropped,
+# though: see _ai_suggest_overlay_schedule_flush below for what happens to
+# it instead.
 zmodload zsh/datetime 2>/dev/null
 typeset -gF _AI_SUGGEST_LAST_OVERLAY_SEND=0
 typeset -gF _AI_SUGGEST_OVERLAY_MIN_INTERVAL=0.08
+# Holds the most recent payload a throttled call couldn't send yet, and the
+# fd of the in-flight timer counting down to when it can. Together these
+# turn the throttle above into a trailing-flush debounce instead of a hard
+# drop: a burst of keystrokes inside one window (fast typing, held
+# Backspace) still ends with the panel showing its correct, final state,
+# not frozen on whichever mid-burst prefix happened to win the throttle.
+typeset -g _AI_SUGGEST_OVERLAY_PENDING_PAYLOAD=""
+typeset -gi _AI_SUGGEST_OVERLAY_FLUSH_FD=-1
 
 # Fire-and-forget send of a JSON payload to the overlay companion app.
 # zsocket (zsh/net/socket) connecting to a path with nothing listening —
@@ -1683,14 +1692,35 @@ _ai_suggest_overlay_send() {
   # exit) rather than the rapid-fire-keystrokes case the throttle exists
   # for (see the big comment above _AI_SUGGEST_OVERLAY_MIN_INTERVAL). Without
   # this, a hide sent within 80ms of the show that preceded it — e.g.
-  # pressing Escape right after typing, the common case — silently gets
-  # dropped by the same guard, leaving the panel visibly stuck open until
-  # some later keystroke happens to trigger another send.
+  # pressing Escape right after typing, the common case — would go through
+  # the same debounce path as a throttled show, leaving the panel visibly
+  # stuck open until the scheduled flush (or a later keystroke) catches up.
   local -i force=${2:-0}
   if (( ! force )) && (( EPOCHREALTIME - _AI_SUGGEST_LAST_OVERLAY_SEND < _AI_SUGGEST_OVERLAY_MIN_INTERVAL )); then
+    # Trailing-flush debounce, not a hard drop: remember this payload —
+    # overwriting whatever an earlier keystroke in the same burst queued,
+    # since only the newest state matters — and make sure a flush is
+    # scheduled for the moment the throttle window clears. That's what
+    # keeps a burst that ends mid-window (fast typing, held Backspace) from
+    # leaving the panel frozen on a stale, in-between suggestion.
+    _AI_SUGGEST_OVERLAY_PENDING_PAYLOAD=$payload
+    _ai_suggest_overlay_schedule_flush
     return
   fi
+  _ai_suggest_overlay_send_now "$payload"
+}
+
+# Does the actual zsocket send, bypassing the throttle entirely — called
+# either directly (send allowed right now) or later, from the flush
+# handler below (send was queued and the window has since cleared).
+_ai_suggest_overlay_send_now() {
+  local payload=$1
   _AI_SUGGEST_LAST_OVERLAY_SEND=$EPOCHREALTIME
+  # This send supersedes anything still queued from an earlier, throttled
+  # call (including the case where this very call *is* that queued
+  # payload) — clear it so a stale flush can't re-fire after a force=1
+  # send (e.g. Escape) has already put the panel in its final state.
+  _AI_SUGGEST_OVERLAY_PENDING_PAYLOAD=""
   # Forked off (`&!`: background + disown, no job-control notification) so
   # zsocket's connect/write/close cycle runs against a *copy* of the fd
   # table made by fork(), not the interactive shell's own — see this
@@ -1701,6 +1731,50 @@ _ai_suggest_overlay_send() {
     print -u $REPLY -r -- "$payload" 2>/dev/null
     exec {REPLY}>&- 2>/dev/null
   ) &!
+}
+
+# Arranges for _AI_SUGGEST_OVERLAY_PENDING_PAYLOAD to actually get sent once
+# the current throttle window ends, instead of sitting there unsent until
+# some later keystroke happens to call _ai_suggest_overlay_send again (which
+# may never come — the user may just pause to read what's on screen). Uses
+# `zle -F`, the same mechanism async-completion plugins use, to register a
+# handler that zle's own idle loop invokes once a backgrounded timer fd
+# becomes readable — this wakes the panel up while the shell is sitting at
+# the prompt waiting for the next key, without blocking that wait itself.
+# A no-op if a flush is already scheduled: _AI_SUGGEST_OVERLAY_PENDING_PAYLOAD
+# is updated in place by the caller, so the one flush already in flight
+# picks up whatever's newest when it fires — at most one extra background
+# process per throttle window, not one per dropped keystroke.
+_ai_suggest_overlay_schedule_flush() {
+  (( _AI_SUGGEST_OVERLAY_FLUSH_FD >= 0 )) && return
+  local -F remaining=$(( _AI_SUGGEST_OVERLAY_MIN_INTERVAL - (EPOCHREALTIME - _AI_SUGGEST_LAST_OVERLAY_SEND) ))
+  local -i centis
+  # zselect's timeout is in centiseconds; round up by 1 so the flush never
+  # fires a hair before the throttle window it's waiting out actually ends.
+  (( centis = remaining > 0 ? remaining * 100 + 1 : 1 ))
+  exec {_AI_SUGGEST_OVERLAY_FLUSH_FD}< <(
+    # zselect (zsh/zselect) is a builtin sub-second sleep — no watched fds,
+    # just the timeout — so this doesn't need to fork/exec an external
+    # `sleep` binary on top of the subshell fork already happening here. If
+    # the module can't load, the `print` below still runs immediately, so
+    # this degrades to "flush right away" rather than "never flush".
+    zmodload zsh/zselect 2>/dev/null
+    zselect -t $centis 2>/dev/null
+    print -n x
+  )
+  zle -F $_AI_SUGGEST_OVERLAY_FLUSH_FD _ai_suggest_overlay_flush_handler
+}
+
+# zle -F callback for _ai_suggest_overlay_schedule_flush: the throttle
+# window has cleared, so send whatever's currently pending — the newest
+# state at the time this fires, not necessarily the payload that triggered
+# the scheduling — and deregister.
+_ai_suggest_overlay_flush_handler() {
+  local -i fd=$1
+  zle -F $fd
+  exec {fd}<&-
+  _AI_SUGGEST_OVERLAY_FLUSH_FD=-1
+  (( ${#_AI_SUGGEST_OVERLAY_PENDING_PAYLOAD} )) && _ai_suggest_overlay_send_now "$_AI_SUGGEST_OVERLAY_PENDING_PAYLOAD"
 }
 
 # Sends the current _AI_SUGGEST_CANDIDATES/etc + cursor position so the
@@ -1773,13 +1847,14 @@ _ai_suggest_reset_candidates() {
 # immediately re-suggest afterward (a keystroke, accepting a candidate)
 # must NOT go through here first: _ai_suggest_overlay_send throttles sends
 # under _AI_SUGGEST_OVERLAY_MIN_INTERVAL apart, and a hide here followed
-# microseconds later by a show would mean the hide always goes through but
-# the show is *always* dropped by that same guard — not just occasionally,
-# every single time, since the two calls land far closer together than any
-# human keystroke ever could. That was the actual cause of suggestions
-# visibly disappearing while continuing to type: every keystroke hid the
-# previous suggestion successfully, then silently failed to show the new
-# one. See _ai_suggest_suggest_now/_ai_suggest_trigger/_ai_suggest_accept,
+# microseconds later by a show would mean the hide always goes through
+# (force=1) but the show *always* hits the throttle — not just
+# occasionally, every single time, since the two calls land far closer
+# together than any human keystroke ever could. The show is no longer
+# lost outright (it gets queued and flushed once the window clears, see
+# _ai_suggest_overlay_schedule_flush), but it's still needless churn and a
+# real, if brief, moment where the panel visibly disappears mid-typing.
+# See _ai_suggest_suggest_now/_ai_suggest_trigger/_ai_suggest_accept,
 # which use _ai_suggest_reset_candidates instead and only call
 # _ai_suggest_overlay_hide directly, on its own, when they've already
 # determined nothing else will be shown this round.
@@ -2570,7 +2645,7 @@ _ai_suggest_trigger() {
 
   if [[ -z $BUFFER ]]; then
     (( had_candidates )) && _ai_suggest_overlay_hide 1
-    zle -M "ai-suggest: dòng lệnh đang trống"
+    zle -M "ai-suggest: command line is empty"
     return
   fi
 
@@ -2581,7 +2656,7 @@ _ai_suggest_trigger() {
   fi
 
   (( had_candidates )) && _ai_suggest_overlay_hide 1
-  zle -M "ai-suggest: không có gợi ý cho lệnh này"
+  zle -M "ai-suggest: no suggestions for this command"
   return 1
 }
 
