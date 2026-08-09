@@ -1678,7 +1678,18 @@ typeset -gF _AI_SUGGEST_OVERLAY_MIN_INTERVAL=0.08
 # in the middle of typing.
 _ai_suggest_overlay_send() {
   local payload=$1
-  (( EPOCHREALTIME - _AI_SUGGEST_LAST_OVERLAY_SEND < _AI_SUGGEST_OVERLAY_MIN_INTERVAL )) && return
+  # force=1 bypasses the throttle below — for a discrete, one-shot action
+  # (Escape/Ctrl-G dismiss, accepting a candidate, Ctrl-Space trigger, shell
+  # exit) rather than the rapid-fire-keystrokes case the throttle exists
+  # for (see the big comment above _AI_SUGGEST_OVERLAY_MIN_INTERVAL). Without
+  # this, a hide sent within 80ms of the show that preceded it — e.g.
+  # pressing Escape right after typing, the common case — silently gets
+  # dropped by the same guard, leaving the panel visibly stuck open until
+  # some later keystroke happens to trigger another send.
+  local -i force=${2:-0}
+  if (( ! force )) && (( EPOCHREALTIME - _AI_SUGGEST_LAST_OVERLAY_SEND < _AI_SUGGEST_OVERLAY_MIN_INTERVAL )); then
+    return
+  fi
   _AI_SUGGEST_LAST_OVERLAY_SEND=$EPOCHREALTIME
   # Forked off (`&!`: background + disown, no job-control notification) so
   # zsocket's connect/write/close cycle runs against a *copy* of the fd
@@ -1736,7 +1747,8 @@ _ai_suggest_overlay_show() {
 }
 
 _ai_suggest_overlay_hide() {
-  _ai_suggest_overlay_send '{"hide":true}'
+  local -i force=${1:-0}
+  _ai_suggest_overlay_send '{"hide":true}' $force
 }
 
 _ai_suggest_present_candidates() {
@@ -1772,7 +1784,11 @@ _ai_suggest_reset_candidates() {
 # _ai_suggest_overlay_hide directly, on its own, when they've already
 # determined nothing else will be shown this round.
 _ai_suggest_clear_display() {
-  (( ${#_AI_SUGGEST_CANDIDATES} > 0 )) && _ai_suggest_overlay_hide
+  # force=1: every caller of this function is a discrete, one-shot action
+  # (Escape/Ctrl-G dismiss, accept-line, a fresh prompt) — never the
+  # rapid-keystrokes case _AI_SUGGEST_OVERLAY_MIN_INTERVAL guards against —
+  # so the hide must never get silently dropped by that throttle.
+  (( ${#_AI_SUGGEST_CANDIDATES} > 0 )) && _ai_suggest_overlay_hide 1
   _ai_suggest_reset_candidates
 }
 
@@ -2512,12 +2528,29 @@ _ai_suggest_suggest_now() {
 # back to the plain builtin (`zle .$WIDGET`) when nothing else had claimed
 # it, then re-evaluates suggestions for the resulting buffer.
 _ai_suggest_edit_wrapper() {
+  # Backspacing the trailing space that just triggered a follow-up
+  # suggestion (e.g. "git commit " -> "-m") should close that suggestion,
+  # not re-show one — without this check, deleting back to "git commit"
+  # re-matches the top-level "commit" entry against itself (same reason
+  # _ai_suggest_accept_line has to guard against that self-match; see its
+  # comment) and the panel looks like it never closed, just swapped back to
+  # the previous suggestion instead of following the character you deleted.
+  local -i deleted_trailing_space=0
+  if [[ $WIDGET == backward-delete-char && $CURSOR == ${#BUFFER} && $BUFFER == *' ' ]]; then
+    deleted_trailing_space=1
+  fi
+
   if (( $+_AI_SUGGEST_ORIG_WIDGET[$WIDGET] )); then
     _ai_suggest_call_orig_widget $WIDGET
   else
     zle .$WIDGET
   fi
-  _ai_suggest_suggest_now
+
+  if (( deleted_trailing_space )); then
+    _ai_suggest_clear_display
+  else
+    _ai_suggest_suggest_now
+  fi
 }
 
 # --- the manual, immediate trigger ------------------------------------------
@@ -2527,7 +2560,7 @@ _ai_suggest_trigger() {
   _ai_suggest_reset_candidates
 
   if [[ -z $BUFFER ]]; then
-    (( had_candidates )) && _ai_suggest_overlay_hide
+    (( had_candidates )) && _ai_suggest_overlay_hide 1
     zle -M "ai-suggest: dòng lệnh đang trống"
     return
   fi
@@ -2538,7 +2571,7 @@ _ai_suggest_trigger() {
     return
   fi
 
-  (( had_candidates )) && _ai_suggest_overlay_hide
+  (( had_candidates )) && _ai_suggest_overlay_hide 1
   zle -M "ai-suggest: không có gợi ý cho lệnh này"
   return 1
 }
@@ -2561,7 +2594,7 @@ _ai_suggest_accept() {
     # of popping up immediately on accept the way it used to.
     BUFFER=${chosen% }
     CURSOR=${#BUFFER}
-    _ai_suggest_overlay_hide
+    _ai_suggest_overlay_hide 1
   else
     zle .expand-or-complete
   fi
@@ -2736,7 +2769,7 @@ fi
 # zshexit function/hook some other plugin or the user's own .zshrc may
 # already have.
 _ai_suggest_on_shell_exit() {
-  (( ${#_AI_SUGGEST_CANDIDATES} > 0 )) && _ai_suggest_overlay_hide
+  (( ${#_AI_SUGGEST_CANDIDATES} > 0 )) && _ai_suggest_overlay_hide 1
 }
 autoload -Uz add-zsh-hook
 add-zsh-hook zshexit _ai_suggest_on_shell_exit
