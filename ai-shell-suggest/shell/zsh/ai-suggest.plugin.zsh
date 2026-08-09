@@ -2550,22 +2550,18 @@ _ai_suggest_accept() {
     # Capture the chosen candidate before resetting the arrays.
     local chosen=$_AI_SUGGEST_CANDIDATES[$_AI_SUGGEST_INDEX]
     _ai_suggest_reset_candidates
-    BUFFER=$chosen
+    # Candidates carry their own trailing separator baked in — a space for
+    # every matcher except `cd`, which appends "/" instead (see e.g.
+    # _ai_suggest_static_match's "$tool $name " vs the cd matcher's
+    # "$tool ${dir%/}/"). Stripping just the space here means accepting
+    # inserts only the word itself, cursor right after it — not "word " —
+    # so the next suggestion (e.g. "commit" -> "-m") only appears once you
+    # actually type a space yourself (self-insert already re-evaluates
+    # suggestions on every keystroke, see _ai_suggest_edit_wrapper), instead
+    # of popping up immediately on accept the way it used to.
+    BUFFER=${chosen% }
     CURSOR=${#BUFFER}
-    # `cd` suggestions are a flat directory listing, not a chain to walk
-    # word-by-word the way "git add" -> "git add <file>" is — accepting one
-    # should just complete the path and stop, not immediately pop up the
-    # next directory level's list on top of it, so this is the one branch
-    # that actually hides rather than chaining into _ai_suggest_suggest_now
-    # (which sends its own show/hide as appropriate — see its comment for
-    # why calling _ai_suggest_clear_display here first, instead of the
-    # non-sending _ai_suggest_reset_candidates above, would silently drop
-    # whichever of the two sends came second).
-    if [[ "$chosen" == cd\ * ]]; then
-      _ai_suggest_overlay_hide
-    else
-      _ai_suggest_suggest_now
-    fi
+    _ai_suggest_overlay_hide
   else
     zle .expand-or-complete
   fi
@@ -2714,6 +2710,14 @@ if (( AI_SUGGEST_AUTO )); then
   _ai_suggest_watched_widgets=(
     self-insert backward-delete-char delete-char
     backward-kill-word kill-word kill-line backward-kill-line
+    # The physical spacebar is bound to zsh's own `magic-space` widget by
+    # default (history "!"-expansion on space), NOT `self-insert` — so
+    # without watching it too, pressing space would insert the space
+    # (magic-space still runs, chained via _AI_SUGGEST_ORIG_WIDGET below)
+    # but never re-trigger suggestions, leaving chained follow-ups (e.g.
+    # "commit" -> "-m") silent until some other, self-insert-bound key
+    # was pressed.
+    magic-space
   )
   local _w
   for _w in $_ai_suggest_watched_widgets; do
