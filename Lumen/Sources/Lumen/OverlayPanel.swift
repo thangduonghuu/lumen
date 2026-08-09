@@ -1,4 +1,6 @@
 import AppKit
+import ApplicationServices
+import CoreGraphics
 import SwiftUI
 
 /// Row icon kind, mirrored from the zsh plugin's _AI_SUGGEST_ICONS —
@@ -124,7 +126,9 @@ final class OverlayController {
         if let existing = panel.contentView as? NSHostingView<OverlayContentView> {
             hosting = existing
         } else {
-            hosting = NSHostingView(rootView: OverlayContentView(state: state))
+            hosting = NSHostingView(rootView: OverlayContentView(state: state, onSelect: { [weak self] idx in
+                self?.acceptCandidate(at: idx)
+            }))
             panel.contentView = hosting
         }
 
@@ -167,6 +171,46 @@ final class OverlayController {
         anchoredPID = nil
     }
 
+    /// Handles a click on candidate row `idx`. There's no back-channel from
+    /// this app to the zsh plugin (OverlayServer is fire-and-forget,
+    /// shell -> app only — see its header comment), and the plugin's Tab
+    /// widget only ever accepts whatever candidate it currently considers
+    /// selected (`_AI_SUGGEST_CANDIDATES[$_AI_SUGGEST_INDEX]`). So a click
+    /// is turned into the same real keystrokes Up/Down/Tab navigation
+    /// already sends — Down/Up-arrow `delta` times to walk the shell's own
+    /// selection over to `idx` (its modulo-wrapping cycle logic, see
+    /// _ai_suggest_move in ai-suggest.plugin.zsh, makes this exact), then
+    /// Tab to accept — posted straight to the anchored terminal's pid via
+    /// Quartz Event Services rather than needing the terminal to be key/
+    /// frontmost (`.nonactivatingPanel` means clicking this panel doesn't
+    /// activate Lumen.app or steal focus, so the terminal never stops being
+    /// the target). Reuses the same Accessibility grant already required
+    /// for cursor positioning — no extra permission prompt.
+    private func acceptCandidate(at idx: Int) {
+        guard let pid = anchoredPID, state.candidates.indices.contains(idx) else {
+            debugLog("Lumen: overlay click ignored: anchoredPID=\(String(describing: anchoredPID)) "
+                + "idx=\(idx) candidateCount=\(state.candidates.count)")
+            return
+        }
+        let delta = idx - state.selectedIndex
+        debugLog("Lumen: overlay click idx=\(idx) selectedIndex=\(state.selectedIndex) delta=\(delta) "
+            + "pid=\(pid) AXIsProcessTrusted=\(AXIsProcessTrusted())")
+        let stepKey: CGKeyCode = delta >= 0 ? 0x7D : 0x7E // Down arrow : Up arrow
+        for _ in 0..<abs(delta) {
+            postKey(stepKey, toPID: pid)
+        }
+        postKey(0x30, toPID: pid) // Tab — accepts the now-selected candidate
+    }
+
+    private func postKey(_ keyCode: CGKeyCode, toPID pid: pid_t) {
+        guard let source = CGEventSource(stateID: .hidSystemState),
+              let down = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
+              let up = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
+        else { return }
+        down.postToPid(pid)
+        up.postToPid(pid)
+    }
+
     private func makePanel() -> NSPanel {
         let p = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 260, height: 100),
@@ -188,6 +232,9 @@ final class OverlayController {
 
 struct OverlayContentView: View {
     @ObservedObject var state: OverlayState
+    let onSelect: (Int) -> Void
+
+    @State private var hoveredIndex: Int?
 
     private var selectedDescription: String? {
         guard state.candidates.indices.contains(state.selectedIndex) else { return nil }
@@ -195,24 +242,57 @@ struct OverlayContentView: View {
         return desc.isEmpty ? nil : desc
     }
 
+    /// Number of rows visible before the list scrolls instead of growing
+    /// further — pinned via `rowHeight` below rather than left to font
+    /// metrics, so this stays exactly 5 regardless of system font size.
+    private let visibleRowCount = 5
+    private let rowHeight: CGFloat = 26
+    private let rowSpacing: CGFloat = 2
+    private var maxListHeight: CGFloat {
+        CGFloat(visibleRowCount) * rowHeight + CGFloat(visibleRowCount - 1) * rowSpacing
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            ForEach(Array(state.candidates.enumerated()), id: \.offset) { idx, candidate in
-                let selected = idx == state.selectedIndex
-                HStack(spacing: 8) {
-                    iconBadge(for: candidate.icon)
-                    Text(candidate.label)
-                        .font(.system(.body, design: .monospaced))
-                        .fontWeight(selected ? .bold : .regular)
-                        .foregroundStyle(selected ? .primary : .secondary)
-                    Spacer(minLength: 12)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: rowSpacing) {
+                        ForEach(Array(state.candidates.enumerated()), id: \.offset) { idx, candidate in
+                            let selected = idx == state.selectedIndex
+                            HStack(spacing: 8) {
+                                iconBadge(for: candidate.icon)
+                                Text(candidate.label)
+                                    .font(.system(.body, design: .monospaced))
+                                    .fontWeight(selected ? .bold : .regular)
+                                    .foregroundStyle(selected ? .primary : .secondary)
+                                Spacer(minLength: 12)
+                            }
+                            .frame(height: rowHeight)
+                            .padding(.horizontal, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(
+                                        selected ? Color.accentColor.opacity(0.28)
+                                            : idx == hoveredIndex ? Color.primary.opacity(0.08)
+                                            : Color.clear
+                                    )
+                            )
+                            .contentShape(Rectangle())
+                            .onTapGesture { onSelect(idx) }
+                            .onHover { hovering in hoveredIndex = hovering ? idx : nil }
+                            .id(idx)
+                        }
+                    }
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(selected ? Color.accentColor.opacity(0.28) : Color.clear)
-                )
+                .frame(maxHeight: maxListHeight)
+                // Keyboard-driven selection (see _ai_suggest_move in
+                // ai-suggest.plugin.zsh) can move selectedIndex outside the
+                // currently scrolled-to viewport; follow it so Down/Up
+                // arrows past the visible rows keep the selection in view
+                // the same way mouse-scrolling does.
+                .onChange(of: state.selectedIndex) { newValue in
+                    proxy.scrollTo(newValue, anchor: nil)
+                }
             }
             if let desc = selectedDescription {
                 Divider().padding(.top, 2)
