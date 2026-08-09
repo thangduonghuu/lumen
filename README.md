@@ -10,6 +10,7 @@
   <img alt="platform" src="https://img.shields.io/badge/platform-macOS-lightgrey">
   <img alt="shell" src="https://img.shields.io/badge/shell-zsh-89e051">
   <img alt="swift" src="https://img.shields.io/badge/swift-5.9%2B-f05138">
+  <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-blue"></a>
 </p>
 
 <p align="center">
@@ -21,7 +22,8 @@
   <a href="#known-tool-subcommand-coverage">Tool coverage</a> ·
   <a href="#the-lumen-menu-bar-app">Menu bar app</a> ·
   <a href="#troubleshooting">Troubleshooting</a> ·
-  <a href="#known-limitations">Known limitations</a>
+  <a href="#known-limitations">Known limitations</a> ·
+  <a href="#license">License</a>
 </p>
 
 ---
@@ -65,6 +67,11 @@ overlay app (`Lumen/`, Swift).
   unless you're actively typing or ask for it.
 - **Two trigger modes** — automatic as-you-type suggestions, or Ctrl-Space
   to ask immediately for the current buffer.
+- **Scrollable, mouse-friendly panel** — up to 5 rows show at once; longer
+  candidate lists scroll (mouse wheel, or Up/Down past the visible range)
+  instead of growing the panel indefinitely. Rows also respond to the
+  mouse directly — hover to highlight, click to select and accept a
+  candidate without stepping through it via Up/Down first.
 - **Broad tool coverage** — git, docker, kubectl, npm, yarn, pnpm, aws,
   gcloud, az, terraform, helm, gh, glab, the Kafka CLI scripts, and
   rabbitmqctl all resolve their subcommands from static tables. See
@@ -272,9 +279,11 @@ subcommand/flag table, `cd <partial>`, or a git branch-taking subcommand.
 | Key | Action |
 |---|---|
 | Ctrl-Space (`$AI_SUGGEST_KEY`) | Ask immediately for the current buffer |
-| Up / Down | Cycle through candidates (falls back to normal history search when no suggestion is shown) |
-| Tab / Right arrow (at end of line) | Accept the shown suggestion |
-| Ctrl-G | Dismiss the current suggestion (keeps what you typed) |
+| Up / Down | Cycle through candidates (falls back to normal history search when no suggestion is shown); scrolls the panel to keep the selection in view once there are more candidates than fit on screen |
+| Tab / Right arrow (at end of line) / Enter | Accept the shown suggestion (Enter runs the line as normal when nothing is showing, or when the buffer already matches the only candidate exactly) |
+| Click a row in the panel | Select and accept that candidate directly, without stepping through it via Up/Down first |
+| Ctrl-G | Dismiss the current suggestion (keeps what you typed); with nothing showing, falls back to normal Ctrl-G behavior |
+| Escape | Dismiss the current suggestion (keeps what you typed); a silent no-op when nothing is showing |
 
 Other environment variables (set before sourcing the plugin):
 
@@ -420,3 +429,7 @@ built or run by anything documented here.
   via the Accessibility API — some terminal apps work better than others
   (see [Troubleshooting](#troubleshooting)).
 - Bash and Fish shells are not supported.
+
+## License
+
+[MIT](LICENSE)
