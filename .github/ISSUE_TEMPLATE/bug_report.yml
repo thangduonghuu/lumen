@@ -1,0 +1,65 @@
+name: Bug report
+description: Something isn't working the way it should
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug. What did you expect instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: What did you type / click, in what order?
+      placeholder: |
+        1. Open a terminal, type `docker `
+        2. ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where does this happen?
+      options:
+        - Zsh plugin (suggestions themselves are wrong/missing)
+        - Menu bar app (panel doesn't show, positions wrong, etc.)
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version
+      placeholder: e.g. macOS 14.5 (Sonoma)
+    validations:
+      required: true
+
+  - type: input
+    id: terminal-app
+    attributes:
+      label: Terminal app
+      placeholder: e.g. Terminal.app, iTerm2, Warp, Ghostty
+    validations:
+      required: true
+
+  - type: textarea
+    id: debug-log
+    attributes:
+      label: Debug log (menu bar app / positioning issues)
+      description: >
+        If the panel doesn't show up or positions wrong, paste relevant lines
+        from `/tmp/ai-suggest-overlay-debug.log` (see the README's
+        [Troubleshooting](../../README.md#troubleshooting) section).
+      render: shell
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Optional — anything else that might be relevant.
