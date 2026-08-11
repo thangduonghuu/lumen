@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" width="96" alt="Lumen logo">
+  <img src="assets/logo.png" width="96" alt="Lumen logo">
 </p>
 
 <h1 align="center">Lumen</h1>
@@ -23,10 +23,15 @@
   <a href="#the-lumen-menu-bar-app">Menu bar app</a> ·
   <a href="#troubleshooting">Troubleshooting</a> ·
   <a href="#known-limitations">Known limitations</a> ·
+  <a href="#contributing">Contributing</a> ·
   <a href="#license">License</a>
 </p>
 
 ---
+
+<p align="center">
+  <img src="assets/demo.gif" width="700" alt="Lumen suggesting a git branch after git checkout">
+</p>
 
 ## Screenshots
 
@@ -344,10 +349,6 @@ tables — see [Features](#features).
 
 ## The Lumen menu bar app
 
-<p align="center">
-  <img src="assets/app-icon.png" width="96" alt="Lumen.app icon">
-</p>
-
 `Lumen.app` is a small SwiftUI app that owns the floating suggestion panel
 and toggles **automatic** (as-you-type) suggestions on or off without
 touching the terminal. The menu bar icon shows ✨ when on, ⏸ when paused.
@@ -429,6 +430,11 @@ built or run by anything documented here.
   via the Accessibility API — some terminal apps work better than others
   (see [Troubleshooting](#troubleshooting)).
 - Bash and Fish shells are not supported.
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for how
+to set up a dev environment, make a change, and submit a pull request.
 
 ## License
 
