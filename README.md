@@ -23,6 +23,7 @@
   <a href="#the-lumen-menu-bar-app">Menu bar app</a> ·
   <a href="#troubleshooting">Troubleshooting</a> ·
   <a href="#known-limitations">Known limitations</a> ·
+  <a href="#contributing">Contributing</a> ·
   <a href="#license">License</a>
 </p>
 
@@ -429,6 +430,11 @@ built or run by anything documented here.
   via the Accessibility API — some terminal apps work better than others
   (see [Troubleshooting](#troubleshooting)).
 - Bash and Fish shells are not supported.
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for how
+to set up a dev environment, make a change, and submit a pull request.
 
 ## License
 
