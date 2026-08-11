@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" width="96" alt="Lumen logo">
+  <img src="assets/logo.png" width="96" alt="Lumen logo">
 </p>
 
 <h1 align="center">Lumen</h1>
@@ -28,6 +28,10 @@
 </p>
 
 ---
+
+<p align="center">
+  <img src="assets/demo.gif" width="700" alt="Lumen suggesting a git branch after git checkout">
+</p>
 
 ## Screenshots
 
@@ -344,10 +348,6 @@ Directory completion after `cd` and local git branch completion (for
 tables — see [Features](#features).
 
 ## The Lumen menu bar app
-
-<p align="center">
-  <img src="assets/app-icon.png" width="96" alt="Lumen.app icon">
-</p>
 
 `Lumen.app` is a small SwiftUI app that owns the floating suggestion panel
 and toggles **automatic** (as-you-type) suggestions on or off without
