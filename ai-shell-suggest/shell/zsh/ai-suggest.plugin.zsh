@@ -2602,6 +2602,23 @@ _ai_suggest_suggest_now() {
 # `url-quote-magic` on self-insert — see _ai_suggest_wrap_widget), falling
 # back to the plain builtin (`zle .$WIDGET`) when nothing else had claimed
 # it, then re-evaluates suggestions for the resulting buffer.
+# Set for the duration of a `bracketed-paste` dispatch (see
+# _ai_suggest_edit_wrapper) — including the nested self-insert calls that
+# happen *inside* it, not just the outer call itself. Needed because
+# bracketed-paste handlers (confirmed for oh-my-zsh's bundled
+# bracketed-paste-magic via /tmp/ai-suggest-paste-debug.log, 2026-08-13:
+# one `bracketed-paste` dispatch immediately followed by dozens of
+# individual `self-insert` calls, one per pasted character) commonly read
+# the whole paste up front, then loop over it *in memory*, replaying it as
+# a run of ordinary self-insert dispatches — purely so other plugins
+# (syntax highlighting, etc.) still see every character go through the
+# normal path. Each of those nested calls has $WIDGET==self-insert like
+# any real keystroke, and crucially $PENDING==0 throughout (there's
+# nothing left to read from the terminal — the whole paste was already
+# consumed before the loop started), so neither of those alone can tell a
+# paste-replay character apart from a real one. This flag can.
+typeset -gi _AI_SUGGEST_IN_PASTE=0
+
 _ai_suggest_edit_wrapper() {
   # Backspacing the trailing space that just triggered a follow-up
   # suggestion (e.g. "git commit " -> "-m") should close that suggestion,
@@ -2615,11 +2632,19 @@ _ai_suggest_edit_wrapper() {
     deleted_trailing_space=1
   fi
 
+  local -i is_paste_dispatch=0
+  if [[ $WIDGET == bracketed-paste ]]; then
+    is_paste_dispatch=1
+    _AI_SUGGEST_IN_PASTE=1
+  fi
+
   if (( $+_AI_SUGGEST_ORIG_WIDGET[$WIDGET] )); then
     _ai_suggest_call_orig_widget $WIDGET
   else
     zle .$WIDGET
   fi
+
+  (( is_paste_dispatch )) && _AI_SUGGEST_IN_PASTE=0
 
   # A paste (bracketed-paste — terminals send the whole blob as one event,
   # not a run of individual keystrokes) drops in a complete command someone
@@ -2632,6 +2657,14 @@ _ai_suggest_edit_wrapper() {
   # inserts the text normally) but always clear rather than suggest.
   if [[ $WIDGET == bracketed-paste ]] || (( deleted_trailing_space )); then
     _ai_suggest_clear_display
+  elif (( _AI_SUGGEST_IN_PASTE )); then
+    # One of the nested self-insert replay calls described above — see
+    # the comment on _AI_SUGGEST_IN_PASTE. Re-matching/re-rendering for
+    # every one of these about-to-be-superseded intermediate states is
+    # exactly what produces the paste flicker; skip them. The outer
+    # bracketed-paste branch above already clears the display once the
+    # whole paste is done.
+    :
   else
     _ai_suggest_suggest_now
   fi
