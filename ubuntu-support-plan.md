@@ -15,7 +15,7 @@ Zsh (ZLE) --keystroke/Ctrl-Space--> deterministic matchers (in-plugin)
 ```
 
 Key fact that shapes this whole plan: the Rust daemon
-(`ai-shell-suggest/src/`) is **parked** — it is not wired into the live
+(`daemon/src/`) is **parked** — it is not wired into the live
 path (see README, "Parked: the Rust daemon"). All suggestion logic lives
 in the 2,864-line zsh plugin itself (`lumen.plugin.zsh`), built on
 `zle`/`bindkey` (31/11 uses respectively). That plugin, not the Rust code,

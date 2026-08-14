@@ -11,9 +11,9 @@ for the full picture):
 
 | Path | What it is |
 | --- | --- |
-| [`ai-shell-suggest/shell/zsh/`](ai-shell-suggest/shell/zsh/) | The Zsh plugin — a single shell script, this is the active suggestion engine. |
+| [`shell/zsh/`](shell/zsh/) | The Zsh plugin — a single shell script, this is the active suggestion engine. |
 | [`Lumen/`](Lumen/) | The SwiftUI menu bar app that draws the floating panel. |
-| [`ai-shell-suggest/src/`](ai-shell-suggest/src/) | A parked Rust daemon/client, not wired into the live path — see the README's [Parked: the Rust daemon](README.md#parked-the-rust-daemon) section. Only touch this if your change is specifically about it. |
+| [`daemon/src/`](daemon/src/) | A parked Rust daemon/client, not wired into the live path — see the README's [Parked: the Rust daemon](README.md#parked-the-rust-daemon) section. Only touch this if your change is specifically about it. |
 
 Most contributions will touch either the Zsh plugin or the Swift app, not
 both.
@@ -26,7 +26,7 @@ both.
 - Swift 5.9+ / Xcode command line tools (`xcode-select --install`) to
   build the menu bar app
 - Rust (stable, via [rustup](https://rustup.rs/)) — only needed if you're
-  touching `ai-shell-suggest/src/`
+  touching `daemon/src/`
 
 ### 1. Fork and clone
 
@@ -38,7 +38,7 @@ cd lumen
 ### 2. Point your shell at your working copy
 
 ```sh
-echo 'source '"$(pwd)"'/ai-shell-suggest/shell/zsh/lumen.plugin.zsh' >> ~/.zshrc
+echo 'source '"$(pwd)"'/shell/zsh/lumen.plugin.zsh' >> ~/.zshrc
 source ~/.zshrc
 ```
 
@@ -59,7 +59,7 @@ above doesn't work as expected.
 
 ### Editing the Zsh plugin
 
-`ai-shell-suggest/shell/zsh/lumen.plugin.zsh` is a single file with
+`shell/zsh/lumen.plugin.zsh` is a single file with
 no build step. Edit it, then reload it in any open terminal:
 
 ```sh
@@ -95,7 +95,7 @@ rm -rf .build Lumen.app
 ### Editing the Rust daemon (parked)
 
 ```sh
-cd ai-shell-suggest
+cd daemon
 cargo build
 ```
 
