@@ -133,17 +133,17 @@ overlay app (`Lumen/`, Swift).
 Zsh (ZLE)  --keystroke or Ctrl-Space-->  deterministic matchers (per-tool subcommand/flag tables, cd glob, git branches)
                                                           |
                                                           v
-                                          Unix socket (~/.cache/ai-suggest/overlay.sock)
+                                          Unix socket (~/.cache/lumen/overlay.sock)
                                                           |
                                                           v
                                           Lumen.app (native floating panel)
 
-Lumen.app  --shared state file (~/.cache/ai-suggest/enabled)-->  Zsh plugin
+Lumen.app  --shared state file (~/.cache/lumen/enabled)-->  Zsh plugin
 ```
 
-- **`ai-shell-suggest/shell/zsh/ai-suggest.plugin.zsh`**: ZLE integration
+- **`ai-shell-suggest/shell/zsh/lumen.plugin.zsh`**: ZLE integration
   and the only place suggestions are computed. Every buffer-editing
-  keystroke re-evaluates the matchers (`AI_SUGGEST_AUTO=1`, the default);
+  keystroke re-evaluates the matchers (`LUMEN_AUTO=1`, the default);
   Ctrl-Space asks immediately regardless. Matches are sent fire-and-forget
   over a Unix socket to the overlay app — this shell side never draws
   anything itself and has no idea whether the panel actually renders.
@@ -173,7 +173,7 @@ Lumen.app  --shared state file (~/.cache/ai-suggest/enabled)-->  Zsh plugin
 ### 1. Add the Zsh plugin to your shell
 
 ```sh
-echo 'source /path/to/Lumen/ai-shell-suggest/shell/zsh/ai-suggest.plugin.zsh' >> ~/.zshrc
+echo 'source /path/to/Lumen/ai-shell-suggest/shell/zsh/lumen.plugin.zsh' >> ~/.zshrc
 ```
 
 Open a new terminal tab (or `source ~/.zshrc`) to pick it up. At this
@@ -277,13 +277,13 @@ if you want more control (restart-on-crash, logging, etc).
 
 ## Usage / keybindings
 
-Suggestions appear automatically as you type (`AI_SUGGEST_AUTO=1`, the
+Suggestions appear automatically as you type (`LUMEN_AUTO=1`, the
 default) whenever the buffer matches a known shape: a tool with a static
 subcommand/flag table, `cd <partial>`, or a git branch-taking subcommand.
 
 | Key | Action |
 |---|---|
-| Ctrl-Space (`$AI_SUGGEST_KEY`) | Ask immediately for the current buffer |
+| Ctrl-Space (`$LUMEN_KEY`) | Ask immediately for the current buffer |
 | Up / Down | Cycle through candidates (falls back to normal history search when no suggestion is shown); scrolls the panel to keep the selection in view once there are more candidates than fit on screen |
 | Tab / Right arrow (at end of line) / Enter | Accept the shown suggestion (Enter runs the line as normal when nothing is showing, or when the buffer already matches the only candidate exactly) |
 | Click a row in the panel | Select and accept that candidate directly, without stepping through it via Up/Down first |
@@ -294,14 +294,14 @@ Other environment variables (set before sourcing the plugin):
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `AI_SUGGEST_AUTO` | `1` | `0` disables automatic as-you-type suggestions, Ctrl-Space-only |
-| `AI_SUGGEST_KEY` | `^@` (Ctrl-Space) | Manual trigger keybinding |
-| `AI_SUGGEST_OVERLAY` | `1` | `0` disables the floating panel entirely (no other rendering path exists) |
+| `LUMEN_AUTO` | `1` | `0` disables automatic as-you-type suggestions, Ctrl-Space-only |
+| `LUMEN_KEY` | `^@` (Ctrl-Space) | Manual trigger keybinding |
+| `LUMEN_OVERLAY` | `1` | `0` disables the floating panel entirely (no other rendering path exists) |
 
 ## Known-tool subcommand coverage
 
 All of this comes from static, hand-picked tables in
-`ai-suggest.plugin.zsh` — not exhaustive (e.g. git has 40+ porcelain
+`lumen.plugin.zsh` — not exhaustive (e.g. git has 40+ porcelain
 commands, aws/gcloud have hundreds of subcommands per service), just the
 common-case fast path for each tool. Table lookup is by naming convention
 from the words you've actually typed, so adding coverage for a new
@@ -364,7 +364,7 @@ Installation](#5-optional-auto-start-on-login). Quit it from its own menu
 
 **How it syncs with the shell:** this app and the Zsh plugin are separate,
 unrelated processes with no shared memory — the only things connecting
-them are a state file and a socket, both under `~/.cache/ai-suggest/`.
+them are a state file and a socket, both under `~/.cache/lumen/`.
 Toggling the switch writes `1` or `0` to `enabled`; the Zsh plugin reads it
 before firing an *automatic* suggestion. A missing file means enabled by
 default, so the shell plugin works normally even if this app has never
@@ -388,7 +388,7 @@ of Installation](#4-grant-accessibility-permission).
    most common cause, especially right after a rebuild (see above).
 3. Check the debug log for what's actually failing:
    ```sh
-   tail -f /tmp/ai-suggest-overlay-debug.log
+   tail -f /tmp/lumen-overlay-debug.log
    ```
    Type something in a matching shape (e.g. `docker`) and watch for lines
    like `AXIsProcessTrusted=false` (permission not granted) or `no focused
@@ -400,7 +400,7 @@ ways — asking the focused element directly where its text cursor renders
 (most reliable, but only works for apps with a real accessibility text
 bridge), or falling back to computing it from the window frame ÷ terminal
 columns/lines (an approximation, calibrated per-app via
-`~/.config/ai-suggest/overlay_position.json`, see
+`~/.config/lumen/overlay_position.json`, see
 `PositionerConfig` in `TerminalPositioner.swift`). Some terminal apps
 render their content in ways that don't expose either path fully — check
 the debug log to see which path is being tried and why it's failing for a

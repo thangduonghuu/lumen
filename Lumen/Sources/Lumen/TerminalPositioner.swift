@@ -10,7 +10,7 @@ import Foundation
 /// to-file gives full-fidelity diagnostics regardless of launch method.
 func debugLog(_ message: String) {
     let line = "\(Date()) \(message)\n"
-    let path = "/tmp/ai-suggest-overlay-debug.log"
+    let path = "/tmp/lumen-overlay-debug.log"
     if let data = line.data(using: .utf8) {
         if let handle = FileHandle(forWritingAtPath: path) {
             handle.seekToEndOfFile()
@@ -23,7 +23,7 @@ func debugLog(_ message: String) {
 }
 
 /// Fine-tuning knobs for TerminalPositioner, overridable at runtime from
-/// ~/.config/ai-suggest/overlay_position.json without rebuilding the app.
+/// ~/.config/lumen/overlay_position.json without rebuilding the app.
 /// This exists specifically because iterating on these constants by editing
 /// Swift source means: rebuild -> re-sign (new ad-hoc hash) -> Accessibility
 /// permission gets invalidated -> remove+re-add in System Settings -> native
@@ -67,7 +67,7 @@ struct PositionerConfig: Decodable {
 
     static let shared: PositionerConfig = {
         let path = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/ai-suggest/overlay_position.json")
+            .appendingPathComponent(".config/lumen/overlay_position.json")
         guard let data = try? Data(contentsOf: path) else {
             debugLog("Lumen: no overlay_position.json at \(path.path), using built-in defaults")
             return PositionerConfig()
