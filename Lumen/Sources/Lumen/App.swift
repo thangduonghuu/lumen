@@ -4,7 +4,7 @@ import ApplicationServices
 
 // Menu bar toggle for Lumen's automatic (as-you-type) suggestions.
 // State is a single file the zsh plugin polls before firing an automatic
-// suggestion (see _ai_suggest_auto_enabled in ai-suggest.plugin.zsh) — this
+// suggestion (see _lumen_auto_enabled in lumen.plugin.zsh) — this
 // app and the shell plugin are separate processes with no shared memory, so
 // a file is the simplest thing that works across both, and reading one small
 // file per keystroke is cheap enough not to matter.
@@ -14,7 +14,7 @@ import ApplicationServices
 // off by default and only turn on when wanted, not to block an explicit ask.
 
 let stateDir = FileManager.default.homeDirectoryForCurrentUser
-    .appendingPathComponent(".cache/ai-suggest")
+    .appendingPathComponent(".cache/lumen")
 let stateFile = stateDir.appendingPathComponent("enabled")
 
 final class ToggleState: ObservableObject {
@@ -237,7 +237,7 @@ struct LumenApp: App {
     @StateObject private var state = ToggleState()
     private let overlayBridge = OverlayBridge(
         socketPath: FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".cache/ai-suggest/overlay.sock").path
+            .appendingPathComponent(".cache/lumen/overlay.sock").path
     )
 
     init() {

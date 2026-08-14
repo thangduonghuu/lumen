@@ -1,13 +1,9 @@
 # Rust
-ai-shell-suggest/target/
+daemon/target/
 
 # Swift
-ai-suggest-menubar/.build/
 Lumen/.build/
 Lumen/Lumen.app/
 
 # macOS
 .DS_Store
-
-# Local notes
-goal-ai-shell-suggest.md

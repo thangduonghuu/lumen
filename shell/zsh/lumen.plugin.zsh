@@ -1,5 +1,5 @@
 #!/usr/bin/env zsh
-# ai-suggest.plugin.zsh
+# lumen.plugin.zsh
 #
 # Deterministic, no-AI command suggestions, Fig/Kiro-CLI style: as you type,
 # this plugin matches $BUFFER against known, hand-picked data — a tool's
@@ -14,11 +14,11 @@
 # the selected row highlighted, a one-line description of it in the
 # footer. Pick one from the list with Up/Down, accept with
 # Tab/Right-arrow/Enter, or dismiss with Ctrl-G. Ctrl-Space (or
-# $AI_SUGGEST_KEY) asks immediately for the current buffer.
+# $LUMEN_KEY) asks immediately for the current buffer.
 #
 # This shell side never draws anything itself and has no idea whether the
 # companion app successfully manages to show anything — it only ever sends
-# "here's what to show and where the cursor is" (_ai_suggest_overlay_show)
+# "here's what to show and where the cursor is" (_lumen_overlay_show)
 # fire-and-forget over the socket. See Lumen's
 # TerminalPositioner.swift for the actual rendering/positioning logic, and
 # the project plan doc for why this is a real OS panel rather than ANSI
@@ -35,7 +35,7 @@
 # tool's own subcommands or your own branches/directories are.
 #
 # Keys:
-#   Ctrl-Space (or $AI_SUGGEST_KEY)     ask immediately for the current buffer
+#   Ctrl-Space (or $LUMEN_KEY)     ask immediately for the current buffer
 #   Up / Down                           cycle candidates (falls back to
 #                                        normal history search when no
 #                                        suggestion is shown)
@@ -43,10 +43,10 @@
 #   Ctrl-G                              dismiss the current suggestion
 #
 # Config (set before sourcing this file):
-#   AI_SUGGEST_KEY            manual trigger keybinding (default: '^@', i.e. Ctrl-Space)
-#   AI_SUGGEST_AUTO           1 = automatic as-you-type suggestions (default),
+#   LUMEN_KEY            manual trigger keybinding (default: '^@', i.e. Ctrl-Space)
+#   LUMEN_AUTO           1 = automatic as-you-type suggestions (default),
 #                             0 = Ctrl-Space-only
-#   AI_SUGGEST_OVERLAY        1 = show suggestions via the native floating
+#   LUMEN_OVERLAY        1 = show suggestions via the native floating
 #                             panel (Lumen companion app,
 #                             default). 0 = don't show suggestions at all —
 #                             there is no other rendering path; if the
@@ -59,11 +59,11 @@
 [[ -o interactive ]] || return
 [[ -n $ZSH_VERSION ]] || return
 
-: ${AI_SUGGEST_KEY:='^@'}
-: ${AI_SUGGEST_AUTO:=1}
-: ${AI_SUGGEST_STATE_FILE:=$HOME/.cache/ai-suggest/enabled}
-: ${AI_SUGGEST_OVERLAY:=1}
-: ${AI_SUGGEST_OVERLAY_SOCK:=$HOME/.cache/ai-suggest/overlay.sock}
+: ${LUMEN_KEY:='^@'}
+: ${LUMEN_AUTO:=1}
+: ${LUMEN_STATE_FILE:=$HOME/.cache/lumen/enabled}
+: ${LUMEN_OVERLAY:=1}
+: ${LUMEN_OVERLAY_SOCK:=$HOME/.cache/lumen/overlay.sock}
 
 # Runtime on/off switch for AUTOMATIC suggestions, toggled from the
 # Lumen app (a separate menu-bar icon/toggle — see
@@ -72,13 +72,13 @@
 # works across both; reading one small file per keystroke is cheap enough
 # not to matter. Missing file = enabled (so it works before the menu bar
 # app has ever run). Deliberately does NOT gate the manual trigger
-# ($AI_SUGGEST_KEY): the point of the toggle is to let automatic
+# ($LUMEN_KEY): the point of the toggle is to let automatic
 # suggestions default to paused rather than always firing, not to block an
 # explicit ask.
-_ai_suggest_auto_enabled() {
-  [[ -f $AI_SUGGEST_STATE_FILE ]] || return 0
+_lumen_auto_enabled() {
+  [[ -f $LUMEN_STATE_FILE ]] || return 0
   local content
-  content=$(<$AI_SUGGEST_STATE_FILE)
+  content=$(<$LUMEN_STATE_FILE)
   [[ $content != "0" ]]
 }
 
@@ -86,8 +86,8 @@ _ai_suggest_auto_enabled() {
 # bound to them before we got to them (e.g. Powerlevel10k's own
 # `zle-line-init`, zsh's `url-quote-magic` on `self-insert`) — maps the
 # original widget name to the alias we copied it under, so our wrappers can
-# chain into it. Populated by _ai_suggest_wrap_widget at registration time.
-typeset -gA _AI_SUGGEST_ORIG_WIDGET=()
+# chain into it. Populated by _lumen_wrap_widget at registration time.
+typeset -gA _LUMEN_ORIG_WIDGET=()
 
 # Registers $2 as the implementation for zle widget $1, preserving any
 # pre-existing USER-DEFINED widget under that name first (`zle -A`, which
@@ -96,7 +96,7 @@ typeset -gA _AI_SUGGEST_ORIG_WIDGET=()
 # being silently replaced. Builtin (non-user) widgets don't need
 # preserving — `zle .$WIDGET` already reaches those directly, no chaining
 # required.
-_ai_suggest_wrap_widget() {
+_lumen_wrap_widget() {
   local widget=$1 impl=$2
   local current=${widgets[$widget]-}
   # Only preserve a widget that belongs to SOMEONE ELSE. If this plugin
@@ -104,49 +104,49 @@ _ai_suggest_wrap_widget() {
   # loaded via .zshrc, common when testing), $current on the second pass is
   # already one of our own wrappers from the first pass — aliasing that as
   # "the original" would make our own wrapper call itself, recursing
-  # forever on the very next keystroke. Excluding our own `_ai_suggest_*`
+  # forever on the very next keystroke. Excluding our own `_lumen_*`
   # functions here means a re-source just re-registers cleanly instead.
-  if [[ $current == user:* && $current != user:_ai_suggest_* ]]; then
-    local orig="_ai_suggest_orig_${widget//[^a-zA-Z0-9_]/_}"
+  if [[ $current == user:* && $current != user:_lumen_* ]]; then
+    local orig="_lumen_orig_${widget//[^a-zA-Z0-9_]/_}"
     zle -A $widget $orig
-    _AI_SUGGEST_ORIG_WIDGET[$widget]=$orig
+    _LUMEN_ORIG_WIDGET[$widget]=$orig
   fi
   zle -N $widget $impl
 }
 
-# Runs whatever _ai_suggest_wrap_widget preserved for $1, if anything —
+# Runs whatever _lumen_wrap_widget preserved for $1, if anything —
 # shared by every wrapper below so "chain into the widget we replaced" is
 # one call instead of the same guarded lookup repeated in each of them.
-_ai_suggest_call_orig_widget() {
-  (( $+_AI_SUGGEST_ORIG_WIDGET[$1] )) && zle ${_AI_SUGGEST_ORIG_WIDGET[$1]}
+_lumen_call_orig_widget() {
+  (( $+_LUMEN_ORIG_WIDGET[$1] )) && zle ${_LUMEN_ORIG_WIDGET[$1]}
 }
 
-typeset -ga _AI_SUGGEST_CANDIDATES=()
-typeset -ga _AI_SUGGEST_DESCRIPTIONS=()
-typeset -ga _AI_SUGGEST_HINTS=()
+typeset -ga _LUMEN_CANDIDATES=()
+typeset -ga _LUMEN_DESCRIPTIONS=()
+typeset -ga _LUMEN_HINTS=()
 # Explicit display text per row, decoupled from the insertable command in
-# _AI_SUGGEST_CANDIDATES — e.g. for "git status " the insertable text
+# _LUMEN_CANDIDATES — e.g. for "git status " the insertable text
 # includes the tool name (needed on accept), but the row should just read
 # "status" since "git" is already visible in what you typed. Empty means
 # "no override, fall back to the full candidate text" (see
-# _ai_suggest_overlay_show); every current matcher sets this explicitly, but
+# _lumen_overlay_show); every current matcher sets this explicitly, but
 # the fallback stays as a safety net for anything that doesn't.
-typeset -ga _AI_SUGGEST_LABELS=()
+typeset -ga _LUMEN_LABELS=()
 # Per-row icon kind — "dir" (cd match) or "branch" (git branch match) from
-# their respective matchers, or one of _ai_suggest_tool_icon_kind's per-tool
+# their respective matchers, or one of _lumen_tool_icon_kind's per-tool
 # identifiers ("git"/"docker"/"kubectl"/"aws"/"kafka"/...) for everything
 # from the static/nested subcommand tables — parallel to
-# _AI_SUGGEST_CANDIDATES, sent to the overlay companion app so it can draw a
+# _LUMEN_CANDIDATES, sent to the overlay companion app so it can draw a
 # distinct glyph+color per row (see CandidateIcon in OverlayPanel.swift)
 # instead of one generic badge for everything. "cmd" is the fallback for
 # any tool without its own glyph yet.
-typeset -ga _AI_SUGGEST_ICONS=()
-typeset -gi _AI_SUGGEST_INDEX=0
+typeset -ga _LUMEN_ICONS=()
+typeset -gi _LUMEN_INDEX=0
 # Per-matcher cap on how many candidates get built. The native overlay
 # (OverlayContentView in OverlayPanel.swift) scrolls past whatever doesn't
 # fit on screen, so this just bounds how much work each matcher's loop does
 # and how far Down-arrow cycling goes — not a display constraint anymore.
-typeset -gi _AI_SUGGEST_MAX_CANDIDATES=50
+typeset -gi _LUMEN_MAX_CANDIDATES=50
 
 # Static subcommand tables: `name<TAB>arg-hint<TAB>description`, ordered by
 # how commonly each subcommand is actually used (not alphabetically) since
@@ -158,7 +158,7 @@ typeset -gi _AI_SUGGEST_MAX_CANDIDATES=50
 # Deliberately small and hand-picked rather than exhaustive (e.g. git has
 # ~40+ porcelain commands) — this is the common-case fast path, not a
 # replacement for `git help -a`.
-typeset -ga _AI_SUGGEST_GIT_SUBCMDS=(
+typeset -ga _LUMEN_GIT_SUBCMDS=(
   $'status\t[pathspec...]\tShow the working tree status'
   $'add\t<file>...\tAdd file contents to the index'
   $'commit\t\tRecord changes to the repository'
@@ -188,7 +188,7 @@ typeset -ga _AI_SUGGEST_GIT_SUBCMDS=(
   $'restore\t<file>...\tRestore working tree files'
 )
 
-typeset -ga _AI_SUGGEST_KUBECTL_SUBCMDS=(
+typeset -ga _LUMEN_KUBECTL_SUBCMDS=(
   $'get\t<resource>\tDisplay one or many resources'
   $'describe\t<resource> <name>\tShow detailed state of a resource'
   $'logs\t<pod>\tPrint logs for a container in a pod'
@@ -210,7 +210,7 @@ typeset -ga _AI_SUGGEST_KUBECTL_SUBCMDS=(
   $'namespace\t<name>\tSwitch active namespace (via config set-context)'
 )
 
-typeset -ga _AI_SUGGEST_NPM_SUBCMDS=(
+typeset -ga _LUMEN_NPM_SUBCMDS=(
   $'run\t<script>\tRun a script defined in package.json'
   $'install\t[package]\tInstall dependencies (or add one)'
   $'start\t\tRun the "start" script'
@@ -229,7 +229,7 @@ typeset -ga _AI_SUGGEST_NPM_SUBCMDS=(
   $'exec\t<package>\tRun a package binary without installing it'
 )
 
-typeset -ga _AI_SUGGEST_DOCKER_SUBCMDS=(
+typeset -ga _LUMEN_DOCKER_SUBCMDS=(
   $'ps\t\tList containers'
   $'images\t\tList images'
   $'run\t<image>\tRun a command in a new container'
@@ -256,8 +256,8 @@ typeset -ga _AI_SUGGEST_DOCKER_SUBCMDS=(
 # aws/gcloud-style CLIs are two levels deep by nature (`aws <service>
 # <operation>`), so this top-level table lists services rather than
 # operations directly — see the AWS_<SERVICE>_SUBCMDS tables below (picked
-# up by _ai_suggest_nested_match) for the operations themselves.
-typeset -ga _AI_SUGGEST_AWS_SUBCMDS=(
+# up by _lumen_nested_match) for the operations themselves.
+typeset -ga _LUMEN_AWS_SUBCMDS=(
   $'s3\t\tManage S3 buckets and objects'
   $'ec2\t\tManage EC2 instances and related resources'
   $'lambda\t\tManage Lambda functions'
@@ -280,7 +280,7 @@ typeset -ga _AI_SUGGEST_AWS_SUBCMDS=(
   $'sso\t[login|logout]\tAWS SSO login and configuration'
 )
 
-typeset -ga _AI_SUGGEST_TERRAFORM_SUBCMDS=(
+typeset -ga _LUMEN_TERRAFORM_SUBCMDS=(
   $'init\t\tInitialize a working directory'
   $'plan\t\tShow changes required by the current configuration'
   $'apply\t\tApply changes to reach the desired state'
@@ -304,7 +304,7 @@ typeset -ga _AI_SUGGEST_TERRAFORM_SUBCMDS=(
   $'force-unlock\t<lock-id>\tRelease a stuck lock on the state'
 )
 
-typeset -ga _AI_SUGGEST_HELM_SUBCMDS=(
+typeset -ga _LUMEN_HELM_SUBCMDS=(
   $'install\t<name> <chart>\tInstall a chart'
   $'upgrade\t<name> <chart>\tUpgrade a release'
   $'uninstall\t<name>\tUninstall a release'
@@ -323,7 +323,7 @@ typeset -ga _AI_SUGGEST_HELM_SUBCMDS=(
   $'dependency\t[list|update|build]\tManage chart dependencies'
 )
 
-typeset -ga _AI_SUGGEST_GH_SUBCMDS=(
+typeset -ga _LUMEN_GH_SUBCMDS=(
   $'pr\t[create|list|view|checkout|merge]\tManage pull requests'
   $'issue\t[create|list|view|close]\tManage issues'
   $'repo\t[clone|create|view|fork]\tManage repositories'
@@ -338,7 +338,7 @@ typeset -ga _AI_SUGGEST_GH_SUBCMDS=(
   $'search\t[repos|issues|prs]\tSearch GitHub'
 )
 
-typeset -ga _AI_SUGGEST_YARN_SUBCMDS=(
+typeset -ga _LUMEN_YARN_SUBCMDS=(
   $'add\t<package>\tAdd a dependency'
   $'remove\t<package>\tRemove a dependency'
   $'install\t\tInstall all dependencies'
@@ -357,7 +357,7 @@ typeset -ga _AI_SUGGEST_YARN_SUBCMDS=(
   $'dlx\t<package>\tRun a package binary without installing it'
 )
 
-typeset -ga _AI_SUGGEST_PNPM_SUBCMDS=(
+typeset -ga _LUMEN_PNPM_SUBCMDS=(
   $'add\t<package>\tAdd a dependency'
   $'remove\t<package>\tRemove a dependency'
   $'install\t\tInstall all dependencies'
@@ -377,7 +377,7 @@ typeset -ga _AI_SUGGEST_PNPM_SUBCMDS=(
 
 # GitLab's counterpart to gh — same shape, but "mr" (merge request) where
 # GitHub says "pr".
-typeset -ga _AI_SUGGEST_GLAB_SUBCMDS=(
+typeset -ga _LUMEN_GLAB_SUBCMDS=(
   $'mr\t[create|list|view|merge|checkout]\tManage merge requests'
   $'issue\t[create|list|view|close]\tManage issues'
   $'repo\t[clone|create|view|fork]\tManage repositories'
@@ -391,10 +391,10 @@ typeset -ga _AI_SUGGEST_GLAB_SUBCMDS=(
 )
 
 # gcloud, like aws, is a two-level "<tool> <group> <command>" CLI — this
-# table lists resource groups; see _AI_SUGGEST_GCLOUD_COMPUTE_SUBCMDS/
-# _GCLOUD_CONTAINER_SUBCMDS below (picked up by _ai_suggest_nested_match)
+# table lists resource groups; see _LUMEN_GCLOUD_COMPUTE_SUBCMDS/
+# _GCLOUD_CONTAINER_SUBCMDS below (picked up by _lumen_nested_match)
 # for the commands themselves.
-typeset -ga _AI_SUGGEST_GCLOUD_SUBCMDS=(
+typeset -ga _LUMEN_GCLOUD_SUBCMDS=(
   $'compute\t\tManage Compute Engine resources'
   $'container\t\tManage GKE clusters (Kubernetes Engine)'
   $'run\t\tManage Cloud Run services'
@@ -412,7 +412,7 @@ typeset -ga _AI_SUGGEST_GCLOUD_SUBCMDS=(
   $'secrets\t\tManage Secret Manager secrets'
 )
 
-typeset -ga _AI_SUGGEST_AZ_SUBCMDS=(
+typeset -ga _LUMEN_AZ_SUBCMDS=(
   $'vm\t\tManage virtual machines'
   $'aks\t\tManage Azure Kubernetes Service clusters'
   $'group\t[list|create|delete]\tManage resource groups'
@@ -434,7 +434,7 @@ typeset -ga _AI_SUGGEST_AZ_SUBCMDS=(
 # machinery only cares that "first word after the tool name" is a
 # prefix-matchable string, and a flag like "--list" fits that just as well
 # as a subcommand name does.
-typeset -ga _AI_SUGGEST_KAFKA_TOPICS_SUBCMDS=(
+typeset -ga _LUMEN_KAFKA_TOPICS_SUBCMDS=(
   $'--list\t\tList all topics'
   $'--create\t\tCreate a topic (use with --topic)'
   $'--delete\t\tDelete a topic (use with --topic)'
@@ -446,13 +446,13 @@ typeset -ga _AI_SUGGEST_KAFKA_TOPICS_SUBCMDS=(
   $'--replication-factor\t<n>\tReplication factor (with --create)'
 )
 
-typeset -ga _AI_SUGGEST_KAFKA_CONSOLE_PRODUCER_SUBCMDS=(
+typeset -ga _LUMEN_KAFKA_CONSOLE_PRODUCER_SUBCMDS=(
   $'--topic\t<name>\tTopic to produce to'
   $'--bootstrap-server\t<host:port>\tKafka broker to connect to'
   $'--property\t<key=value>\tSet a producer property (e.g. parse.key=true)'
 )
 
-typeset -ga _AI_SUGGEST_KAFKA_CONSOLE_CONSUMER_SUBCMDS=(
+typeset -ga _LUMEN_KAFKA_CONSOLE_CONSUMER_SUBCMDS=(
   $'--topic\t<name>\tTopic to consume from'
   $'--bootstrap-server\t<host:port>\tKafka broker to connect to'
   $'--from-beginning\t\tConsume from the start of the topic'
@@ -460,7 +460,7 @@ typeset -ga _AI_SUGGEST_KAFKA_CONSOLE_CONSUMER_SUBCMDS=(
   $'--partition\t<n>\tConsume only from a specific partition'
 )
 
-typeset -ga _AI_SUGGEST_KAFKA_CONSUMER_GROUPS_SUBCMDS=(
+typeset -ga _LUMEN_KAFKA_CONSUMER_GROUPS_SUBCMDS=(
   $'--list\t\tList all consumer groups'
   $'--describe\t\tDescribe a consumer group (use with --group)'
   $'--bootstrap-server\t<host:port>\tKafka broker to connect to'
@@ -470,7 +470,7 @@ typeset -ga _AI_SUGGEST_KAFKA_CONSUMER_GROUPS_SUBCMDS=(
   $'--topic\t<name>\tTopic name, paired with --reset-offsets'
 )
 
-typeset -ga _AI_SUGGEST_RABBITMQCTL_SUBCMDS=(
+typeset -ga _LUMEN_RABBITMQCTL_SUBCMDS=(
   $'status\t\tShow broker status'
   $'cluster_status\t\tShow cluster status'
   $'list_queues\t[vhost]\tList queues'
@@ -494,7 +494,7 @@ typeset -ga _AI_SUGGEST_RABBITMQCTL_SUBCMDS=(
 
 # --- language/build tool tables ---------------------------------------------
 
-typeset -ga _AI_SUGGEST_CARGO_SUBCMDS=(
+typeset -ga _LUMEN_CARGO_SUBCMDS=(
   $'build\t\tCompile the current package'
   $'run\t\tRun a binary or example of the local package'
   $'test\t\tRun the tests'
@@ -516,7 +516,7 @@ typeset -ga _AI_SUGGEST_CARGO_SUBCMDS=(
   $'tree\t\tDisplay the dependency tree'
 )
 
-typeset -ga _AI_SUGGEST_GO_SUBCMDS=(
+typeset -ga _LUMEN_GO_SUBCMDS=(
   $'build\t\tCompile packages and dependencies'
   $'run\t<file>\tCompile and run a Go program'
   $'test\t\tRun tests'
@@ -533,7 +533,7 @@ typeset -ga _AI_SUGGEST_GO_SUBCMDS=(
   $'work\t[init|use|edit]\tManage go.work workspace files'
 )
 
-typeset -ga _AI_SUGGEST_PIP_SUBCMDS=(
+typeset -ga _LUMEN_PIP_SUBCMDS=(
   $'install\t<package>\tInstall a package'
   $'uninstall\t<package>\tUninstall a package'
   $'list\t\tList installed packages'
@@ -546,7 +546,7 @@ typeset -ga _AI_SUGGEST_PIP_SUBCMDS=(
   $'cache\t[list|remove|purge]\tManage pip'"'"'s wheel cache'
 )
 
-typeset -ga _AI_SUGGEST_POETRY_SUBCMDS=(
+typeset -ga _LUMEN_POETRY_SUBCMDS=(
   $'install\t\tInstall dependencies from pyproject.toml'
   $'add\t<package>\tAdd a dependency'
   $'remove\t<package>\tRemove a dependency'
@@ -563,7 +563,7 @@ typeset -ga _AI_SUGGEST_POETRY_SUBCMDS=(
   $'check\t\tValidate pyproject.toml'
 )
 
-typeset -ga _AI_SUGGEST_MVN_SUBCMDS=(
+typeset -ga _LUMEN_MVN_SUBCMDS=(
   $'clean\t\tRemove build artifacts'
   $'compile\t\tCompile source code'
   $'test\t\tRun tests'
@@ -576,7 +576,7 @@ typeset -ga _AI_SUGGEST_MVN_SUBCMDS=(
   $'dependency:tree\t\tShow the dependency tree'
 )
 
-typeset -ga _AI_SUGGEST_GRADLE_SUBCMDS=(
+typeset -ga _LUMEN_GRADLE_SUBCMDS=(
   $'build\t\tAssemble and test the project'
   $'test\t\tRun tests'
   $'run\t\tRun the project'
@@ -589,7 +589,7 @@ typeset -ga _AI_SUGGEST_GRADLE_SUBCMDS=(
   $'wrapper\t\tGenerate the Gradle wrapper files'
 )
 
-typeset -ga _AI_SUGGEST_DOTNET_SUBCMDS=(
+typeset -ga _LUMEN_DOTNET_SUBCMDS=(
   $'build\t\tBuild a project and its dependencies'
   $'run\t\tRun source code without explicit build/publish'
   $'test\t\tRun unit tests'
@@ -604,7 +604,7 @@ typeset -ga _AI_SUGGEST_DOTNET_SUBCMDS=(
   $'nuget\t[push|locals]\tManage NuGet packages'
 )
 
-typeset -ga _AI_SUGGEST_BUNDLE_SUBCMDS=(
+typeset -ga _LUMEN_BUNDLE_SUBCMDS=(
   $'install\t\tInstall gems from the Gemfile'
   $'update\t\tUpdate gems to the latest allowed version'
   $'exec\t<cmd>\tRun a command in the bundle'"'"'s context'
@@ -618,7 +618,7 @@ typeset -ga _AI_SUGGEST_BUNDLE_SUBCMDS=(
   $'lock\t\tGenerate a Gemfile.lock without installing'
 )
 
-typeset -ga _AI_SUGGEST_GEM_SUBCMDS=(
+typeset -ga _LUMEN_GEM_SUBCMDS=(
   $'install\t<gem>\tInstall a gem'
   $'uninstall\t<gem>\tUninstall a gem'
   $'list\t\tList installed gems'
@@ -632,7 +632,7 @@ typeset -ga _AI_SUGGEST_GEM_SUBCMDS=(
 
 # --- system/infra/PaaS tool tables ------------------------------------------
 
-typeset -ga _AI_SUGGEST_BREW_SUBCMDS=(
+typeset -ga _LUMEN_BREW_SUBCMDS=(
   $'install\t<formula>\tInstall a formula or cask'
   $'uninstall\t<formula>\tUninstall a formula or cask'
   $'update\t\tFetch the newest version of Homebrew and formulae'
@@ -650,7 +650,7 @@ typeset -ga _AI_SUGGEST_BREW_SUBCMDS=(
   $'unlink\t<formula>\tRemove symlinks for a formula'
 )
 
-typeset -ga _AI_SUGGEST_VAGRANT_SUBCMDS=(
+typeset -ga _LUMEN_VAGRANT_SUBCMDS=(
   $'up\t\tStart and provision the vagrant environment'
   $'halt\t\tStop the vagrant machine'
   $'destroy\t\tStop and delete the vagrant machine'
@@ -666,7 +666,7 @@ typeset -ga _AI_SUGGEST_VAGRANT_SUBCMDS=(
   $'plugin\t[install|list|uninstall]\tManage Vagrant plugins'
 )
 
-typeset -ga _AI_SUGGEST_PULUMI_SUBCMDS=(
+typeset -ga _LUMEN_PULUMI_SUBCMDS=(
   $'up\t\tCreate or update resources in a stack'
   $'destroy\t\tDestroy resources in a stack'
   $'preview\t\tShow a preview of changes'
@@ -681,7 +681,7 @@ typeset -ga _AI_SUGGEST_PULUMI_SUBCMDS=(
   $'whoami\t\tShow the current logged-in user'
 )
 
-typeset -ga _AI_SUGGEST_HEROKU_SUBCMDS=(
+typeset -ga _LUMEN_HEROKU_SUBCMDS=(
   $'apps\t\tList your Heroku apps'
   $'create\t[name]\tCreate a new app'
   $'deploy\t\tDeploy the app'
@@ -697,7 +697,7 @@ typeset -ga _AI_SUGGEST_HEROKU_SUBCMDS=(
   $'maintenance\t[on|off]\tToggle maintenance mode'
 )
 
-typeset -ga _AI_SUGGEST_VERCEL_SUBCMDS=(
+typeset -ga _LUMEN_VERCEL_SUBCMDS=(
   $'deploy\t\tDeploy the current directory'
   $'dev\t\tRun a local development server'
   $'build\t\tBuild the project locally'
@@ -713,7 +713,7 @@ typeset -ga _AI_SUGGEST_VERCEL_SUBCMDS=(
   $'teams\t[ls|switch]\tManage teams'
 )
 
-typeset -ga _AI_SUGGEST_NETLIFY_SUBCMDS=(
+typeset -ga _LUMEN_NETLIFY_SUBCMDS=(
   $'deploy\t\tDeploy the site'
   $'dev\t\tRun a local development server'
   $'build\t\tBuild the site'
@@ -728,7 +728,7 @@ typeset -ga _AI_SUGGEST_NETLIFY_SUBCMDS=(
   $'functions\t[list|create|invoke]\tManage serverless functions'
 )
 
-typeset -ga _AI_SUGGEST_FIREBASE_SUBCMDS=(
+typeset -ga _LUMEN_FIREBASE_SUBCMDS=(
   $'deploy\t\tDeploy to Firebase'
   $'init\t\tSet up a new Firebase project'
   $'login\t\tLog in to Firebase'
@@ -741,7 +741,7 @@ typeset -ga _AI_SUGGEST_FIREBASE_SUBCMDS=(
   $'hosting:channel:deploy\t<channel>\tDeploy to a hosting preview channel'
 )
 
-typeset -ga _AI_SUGGEST_FLYCTL_SUBCMDS=(
+typeset -ga _LUMEN_FLYCTL_SUBCMDS=(
   $'deploy\t\tDeploy the app'
   $'launch\t\tCreate and configure a new app'
   $'status\t\tShow app status'
@@ -756,7 +756,7 @@ typeset -ga _AI_SUGGEST_FLYCTL_SUBCMDS=(
   $'destroy\t<app>\tDestroy an app'
 )
 
-typeset -ga _AI_SUGGEST_DOCTL_SUBCMDS=(
+typeset -ga _LUMEN_DOCTL_SUBCMDS=(
   $'compute\t[droplet|image|ssh]\tManage Droplets and related resources'
   $'apps\t[list|create|update]\tManage App Platform apps'
   $'databases\t[list|create|connection]\tManage managed databases'
@@ -769,7 +769,7 @@ typeset -ga _AI_SUGGEST_DOCTL_SUBCMDS=(
 
 # --- monorepo/session/version-manager tool tables ---------------------------
 
-typeset -ga _AI_SUGGEST_TURBO_SUBCMDS=(
+typeset -ga _LUMEN_TURBO_SUBCMDS=(
   $'run\t<task>\tRun a task across the monorepo'
   $'build\t\tRun the "build" task'
   $'dev\t\tRun the "dev" task'
@@ -781,7 +781,7 @@ typeset -ga _AI_SUGGEST_TURBO_SUBCMDS=(
   $'gen\t\tRun code generators'
 )
 
-typeset -ga _AI_SUGGEST_NX_SUBCMDS=(
+typeset -ga _LUMEN_NX_SUBCMDS=(
   $'run\t<project>:<target>\tRun a target for a project'
   $'build\t[project]\tBuild a project'
   $'test\t[project]\tTest a project'
@@ -795,7 +795,7 @@ typeset -ga _AI_SUGGEST_NX_SUBCMDS=(
   $'migrate\t<version>\tMigrate to a new Nx version'
 )
 
-typeset -ga _AI_SUGGEST_TMUX_SUBCMDS=(
+typeset -ga _LUMEN_TMUX_SUBCMDS=(
   $'new-session\t\tCreate a new session'
   $'attach-session\t\tAttach to an existing session'
   $'list-sessions\t\tList sessions'
@@ -809,27 +809,27 @@ typeset -ga _AI_SUGGEST_TMUX_SUBCMDS=(
   $'source-file\t<file>\tExecute commands from a config file'
 )
 
-typeset -ga _AI_SUGGEST_TMUX_NEW_SESSION_FLAGS=(
+typeset -ga _LUMEN_TMUX_NEW_SESSION_FLAGS=(
   $'-s\t<name>\tName for the new session'
 )
-typeset -ga _AI_SUGGEST_TMUX_ATTACH_SESSION_FLAGS=(
+typeset -ga _LUMEN_TMUX_ATTACH_SESSION_FLAGS=(
   $'-t\t<name>\tSession to attach to'
 )
-typeset -ga _AI_SUGGEST_TMUX_KILL_SESSION_FLAGS=(
+typeset -ga _LUMEN_TMUX_KILL_SESSION_FLAGS=(
   $'-t\t<name>\tSession to destroy'
 )
-typeset -ga _AI_SUGGEST_TMUX_SPLIT_WINDOW_FLAGS=(
+typeset -ga _LUMEN_TMUX_SPLIT_WINDOW_FLAGS=(
   $'-h\t\tSplit horizontally (side by side)'
   $'-v\t\tSplit vertically (stacked)'
 )
-typeset -ga _AI_SUGGEST_TMUX_NEW_WINDOW_FLAGS=(
+typeset -ga _LUMEN_TMUX_NEW_WINDOW_FLAGS=(
   $'-n\t<name>\tName for the new window'
 )
-typeset -ga _AI_SUGGEST_TMUX_KILL_WINDOW_FLAGS=(
+typeset -ga _LUMEN_TMUX_KILL_WINDOW_FLAGS=(
   $'-t\t<name>\tWindow to destroy'
 )
 
-typeset -ga _AI_SUGGEST_SYSTEMCTL_SUBCMDS=(
+typeset -ga _LUMEN_SYSTEMCTL_SUBCMDS=(
   $'start\t<unit>\tStart a unit'
   $'stop\t<unit>\tStop a unit'
   $'restart\t<unit>\tRestart a unit'
@@ -843,7 +843,7 @@ typeset -ga _AI_SUGGEST_SYSTEMCTL_SUBCMDS=(
   $'daemon-reload\t\tReload systemd manager configuration'
 )
 
-typeset -ga _AI_SUGGEST_NVM_SUBCMDS=(
+typeset -ga _LUMEN_NVM_SUBCMDS=(
   $'install\t<version>\tInstall a Node.js version'
   $'use\t<version>\tSwitch to a Node.js version'
   $'list\t\tList installed Node.js versions'
@@ -856,7 +856,7 @@ typeset -ga _AI_SUGGEST_NVM_SUBCMDS=(
   $'which\t[version]\tShow the path to a Node.js version'
 )
 
-typeset -ga _AI_SUGGEST_PYENV_SUBCMDS=(
+typeset -ga _LUMEN_PYENV_SUBCMDS=(
   $'install\t<version>\tInstall a Python version'
   $'uninstall\t<version>\tUninstall a Python version'
   $'versions\t\tList installed Python versions'
@@ -869,7 +869,7 @@ typeset -ga _AI_SUGGEST_PYENV_SUBCMDS=(
   $'root\t\tShow the pyenv root directory'
 )
 
-typeset -ga _AI_SUGGEST_RBENV_SUBCMDS=(
+typeset -ga _LUMEN_RBENV_SUBCMDS=(
   $'install\t<version>\tInstall a Ruby version'
   $'uninstall\t<version>\tUninstall a Ruby version'
   $'versions\t\tList installed Ruby versions'
@@ -882,14 +882,14 @@ typeset -ga _AI_SUGGEST_RBENV_SUBCMDS=(
   $'root\t\tShow the rbenv root directory'
 )
 
-typeset -ga _AI_SUGGEST_NPX_SUBCMDS=(
+typeset -ga _LUMEN_NPX_SUBCMDS=(
   $'--yes\t<package>\tRun a package without prompting to install it'
   $'--no-install\t<package>\tRun a package only if already installed'
   $'--package\t<package>\tSpecify the package to run a binary from'
   $'-c\t<command>\tExecute a command with the local node_modules/.bin on PATH'
 )
 
-typeset -ga _AI_SUGGEST_MINIKUBE_SUBCMDS=(
+typeset -ga _LUMEN_MINIKUBE_SUBCMDS=(
   $'start\t\tStart a local Kubernetes cluster'
   $'stop\t\tStop a running cluster'
   $'delete\t\tDelete a cluster'
@@ -911,14 +911,14 @@ typeset -ga _AI_SUGGEST_MINIKUBE_SUBCMDS=(
 # (`docker image` -> ls/build/rm/...) or the flags of a specific, possibly
 # nested, subcommand (`docker ps` -> -a/-q/..., `docker image ls` -> -a/-q/...).
 # Looked up by naming convention from the words actually typed rather than a
-# hand-maintained dispatch table — see _ai_suggest_nested_match, which builds
-# the variable name "_AI_SUGGEST_<TOOL>_<SUBCMD...>_SUBCMDS" (or "_FLAGS" if
+# hand-maintained dispatch table — see _lumen_nested_match, which builds
+# the variable name "_LUMEN_<TOOL>_<SUBCMD...>_SUBCMDS" (or "_FLAGS" if
 # the word being completed starts with "-") from the command path so far and
 # looks it up indirectly. Same hand-picked-common-case philosophy as the
 # top-level tables: not exhaustive, just the subcommands/flags someone
 # actually reaches for.
 
-typeset -ga _AI_SUGGEST_DOCKER_IMAGE_SUBCMDS=(
+typeset -ga _LUMEN_DOCKER_IMAGE_SUBCMDS=(
   $'ls\t\tList images'
   $'build\t.\tBuild an image from a Dockerfile'
   $'pull\t<image>\tPull an image from a registry'
@@ -932,7 +932,7 @@ typeset -ga _AI_SUGGEST_DOCKER_IMAGE_SUBCMDS=(
   $'load\t\tLoad an image from a tar archive'
 )
 
-typeset -ga _AI_SUGGEST_DOCKER_CONTAINER_SUBCMDS=(
+typeset -ga _LUMEN_DOCKER_CONTAINER_SUBCMDS=(
   $'ls\t\tList containers'
   $'run\t<image>\tRun a command in a new container'
   $'exec\t<container>\tRun a command in a running container'
@@ -947,7 +947,7 @@ typeset -ga _AI_SUGGEST_DOCKER_CONTAINER_SUBCMDS=(
   $'prune\t\tRemove all stopped containers'
 )
 
-typeset -ga _AI_SUGGEST_DOCKER_NETWORK_SUBCMDS=(
+typeset -ga _LUMEN_DOCKER_NETWORK_SUBCMDS=(
   $'ls\t\tList networks'
   $'create\t<name>\tCreate a network'
   $'rm\t<network>\tRemove a network'
@@ -957,7 +957,7 @@ typeset -ga _AI_SUGGEST_DOCKER_NETWORK_SUBCMDS=(
   $'prune\t\tRemove unused networks'
 )
 
-typeset -ga _AI_SUGGEST_DOCKER_VOLUME_SUBCMDS=(
+typeset -ga _LUMEN_DOCKER_VOLUME_SUBCMDS=(
   $'ls\t\tList volumes'
   $'create\t<name>\tCreate a volume'
   $'rm\t<volume>\tRemove a volume'
@@ -965,14 +965,14 @@ typeset -ga _AI_SUGGEST_DOCKER_VOLUME_SUBCMDS=(
   $'prune\t\tRemove unused volumes'
 )
 
-typeset -ga _AI_SUGGEST_DOCKER_SYSTEM_SUBCMDS=(
+typeset -ga _LUMEN_DOCKER_SYSTEM_SUBCMDS=(
   $'df\t\tShow docker disk usage'
   $'prune\t\tRemove unused data'
   $'info\t\tDisplay system-wide information'
   $'events\t\tGet real time events from the server'
 )
 
-typeset -ga _AI_SUGGEST_DOCKER_COMPOSE_SUBCMDS=(
+typeset -ga _LUMEN_DOCKER_COMPOSE_SUBCMDS=(
   $'up\t\tCreate and start containers'
   $'down\t\tStop and remove containers, networks'
   $'build\t\tBuild or rebuild services'
@@ -986,22 +986,22 @@ typeset -ga _AI_SUGGEST_DOCKER_COMPOSE_SUBCMDS=(
   $'config\t\tValidate and view the compose file'
 )
 
-typeset -ga _AI_SUGGEST_DOCKER_PS_FLAGS=(
+typeset -ga _LUMEN_DOCKER_PS_FLAGS=(
   $'-a\t\tShow all containers (default shows just running)'
   $'-q\t\tOnly display container IDs'
   $'--filter\t<expr>\tFilter output based on conditions'
   $'--format\t<template>\tFormat output using a Go template'
 )
 
-typeset -ga _AI_SUGGEST_DOCKER_IMAGES_FLAGS=(
+typeset -ga _LUMEN_DOCKER_IMAGES_FLAGS=(
   $'-a\t\tShow all images (default hides intermediate images)'
   $'-q\t\tOnly display image IDs'
   $'--filter\t<expr>\tFilter output based on conditions'
 )
 
-typeset -ga _AI_SUGGEST_DOCKER_IMAGE_LS_FLAGS=("${_AI_SUGGEST_DOCKER_IMAGES_FLAGS[@]}")
+typeset -ga _LUMEN_DOCKER_IMAGE_LS_FLAGS=("${_LUMEN_DOCKER_IMAGES_FLAGS[@]}")
 
-typeset -ga _AI_SUGGEST_DOCKER_RUN_FLAGS=(
+typeset -ga _LUMEN_DOCKER_RUN_FLAGS=(
   $'-d\t\tRun container in the background'
   $'-it\t\tInteractive session with a tty attached'
   $'--rm\t\tAutomatically remove the container on exit'
@@ -1011,48 +1011,48 @@ typeset -ga _AI_SUGGEST_DOCKER_RUN_FLAGS=(
   $'-e\t<key>=<value>\tSet an environment variable'
 )
 
-typeset -ga _AI_SUGGEST_DOCKER_EXEC_FLAGS=(
+typeset -ga _LUMEN_DOCKER_EXEC_FLAGS=(
   $'-it\t\tInteractive session with a tty attached'
   $'-d\t\tRun the command in the background'
   $'-u\t<user>\tRun as a specific user'
   $'-w\t<dir>\tWorking directory inside the container'
 )
 
-typeset -ga _AI_SUGGEST_DOCKER_LOGS_FLAGS=(
+typeset -ga _LUMEN_DOCKER_LOGS_FLAGS=(
   $'-f\t\tFollow log output'
   $'--tail\t<n>\tShow only the last n lines'
   $'-t\t\tShow timestamps'
 )
 
-typeset -ga _AI_SUGGEST_DOCKER_BUILD_FLAGS=(
+typeset -ga _LUMEN_DOCKER_BUILD_FLAGS=(
   $'-t\t<tag>\tTag the built image (e.g. name:latest)'
   $'-f\t<dockerfile>\tUse an alternate Dockerfile'
   $'--no-cache\t\tDo not use cache when building'
 )
-typeset -ga _AI_SUGGEST_DOCKER_IMAGE_BUILD_FLAGS=("${_AI_SUGGEST_DOCKER_BUILD_FLAGS[@]}")
+typeset -ga _LUMEN_DOCKER_IMAGE_BUILD_FLAGS=("${_LUMEN_DOCKER_BUILD_FLAGS[@]}")
 
-typeset -ga _AI_SUGGEST_DOCKER_IMAGE_SAVE_FLAGS=(
+typeset -ga _LUMEN_DOCKER_IMAGE_SAVE_FLAGS=(
   $'-o\t<file>\tWrite the image to a file instead of stdout'
 )
 
-typeset -ga _AI_SUGGEST_DOCKER_IMAGE_LOAD_FLAGS=(
+typeset -ga _LUMEN_DOCKER_IMAGE_LOAD_FLAGS=(
   $'-i\t<file>\tRead the image from a file instead of stdin'
 )
 
-typeset -ga _AI_SUGGEST_DOCKER_CONTAINER_EXEC_FLAGS=("${_AI_SUGGEST_DOCKER_EXEC_FLAGS[@]}")
-typeset -ga _AI_SUGGEST_DOCKER_CONTAINER_LS_FLAGS=("${_AI_SUGGEST_DOCKER_PS_FLAGS[@]}")
+typeset -ga _LUMEN_DOCKER_CONTAINER_EXEC_FLAGS=("${_LUMEN_DOCKER_EXEC_FLAGS[@]}")
+typeset -ga _LUMEN_DOCKER_CONTAINER_LS_FLAGS=("${_LUMEN_DOCKER_PS_FLAGS[@]}")
 
-typeset -ga _AI_SUGGEST_DOCKER_IMAGE_PRUNE_FLAGS=(
+typeset -ga _LUMEN_DOCKER_IMAGE_PRUNE_FLAGS=(
   $'-a\t\tRemove all unused images, not just dangling ones'
 )
-typeset -ga _AI_SUGGEST_DOCKER_SYSTEM_PRUNE_FLAGS=(
+typeset -ga _LUMEN_DOCKER_SYSTEM_PRUNE_FLAGS=(
   $'-a\t\tRemove all unused images too, not just dangling ones'
 )
-typeset -ga _AI_SUGGEST_DOCKER_COMPOSE_UP_FLAGS=(
+typeset -ga _LUMEN_DOCKER_COMPOSE_UP_FLAGS=(
   $'-d\t\tRun containers in the background'
 )
 
-typeset -ga _AI_SUGGEST_GIT_STASH_SUBCMDS=(
+typeset -ga _LUMEN_GIT_STASH_SUBCMDS=(
   $'push\t\tStash changes'
   $'pop\t\tApply and remove the most recent stash'
   $'apply\t[stash]\tApply a stash without removing it'
@@ -1062,11 +1062,11 @@ typeset -ga _AI_SUGGEST_GIT_STASH_SUBCMDS=(
   $'clear\t\tRemove all stashes'
 )
 
-typeset -ga _AI_SUGGEST_GIT_STASH_PUSH_FLAGS=(
+typeset -ga _LUMEN_GIT_STASH_PUSH_FLAGS=(
   $'-m\t<message>\tLabel the stash with a message'
 )
 
-typeset -ga _AI_SUGGEST_GIT_REMOTE_SUBCMDS=(
+typeset -ga _LUMEN_GIT_REMOTE_SUBCMDS=(
   $'-v\t\tShow remote URLs'
   $'add\t<name> <url>\tAdd a remote'
   $'remove\t<name>\tRemove a remote'
@@ -1076,11 +1076,11 @@ typeset -ga _AI_SUGGEST_GIT_REMOTE_SUBCMDS=(
   $'prune\t<name>\tRemove stale remote-tracking branches'
 )
 
-typeset -ga _AI_SUGGEST_GIT_REMOTE_FLAGS=(
+typeset -ga _LUMEN_GIT_REMOTE_FLAGS=(
   $'-v\t\tShow remote URLs'
 )
 
-typeset -ga _AI_SUGGEST_GIT_LOG_FLAGS=(
+typeset -ga _LUMEN_GIT_LOG_FLAGS=(
   $'--oneline\t\tOne line per commit'
   $'--graph\t\tDraw a text-based commit graph'
   $'-p\t\tShow the full diff for each commit'
@@ -1088,7 +1088,7 @@ typeset -ga _AI_SUGGEST_GIT_LOG_FLAGS=(
   $'-n\t<count>\tLimit the number of commits'
 )
 
-typeset -ga _AI_SUGGEST_GIT_BRANCH_FLAGS=(
+typeset -ga _LUMEN_GIT_BRANCH_FLAGS=(
   $'-a\t\tList both local and remote branches'
   $'-d\t<branch>\tDelete a branch'
   $'-D\t<branch>\tForce-delete a branch'
@@ -1096,49 +1096,49 @@ typeset -ga _AI_SUGGEST_GIT_BRANCH_FLAGS=(
   $'-v\t\tShow last commit on each branch'
 )
 
-typeset -ga _AI_SUGGEST_GIT_CHECKOUT_FLAGS=(
+typeset -ga _LUMEN_GIT_CHECKOUT_FLAGS=(
   $'-b\t<branch>\tCreate and switch to a new branch'
   $'--track\t<remote-branch>\tCreate a tracking branch'
   $'-f\t\tForce checkout, discarding local changes'
 )
 
-typeset -ga _AI_SUGGEST_GIT_DIFF_FLAGS=(
+typeset -ga _LUMEN_GIT_DIFF_FLAGS=(
   $'--stat\t\tShow a diffstat instead of the full diff'
   $'--cached\t\tShow staged changes'
   $'-p\t\tGenerate output in patch format (default)'
 )
 
-# Picked up by _ai_suggest_nested_match once BUFFER is "git commit " —
+# Picked up by _lumen_nested_match once BUFFER is "git commit " —
 # same leaf-command-falls-back-to-its-FLAGS-table path already used by
 # docker images/ps/run, git log/branch/checkout/diff, kubectl get/exec (see
 # that function's comment on the empty-partial fallback). Moved out of
-# _AI_SUGGEST_GIT_SUBCMDS's own hint text (used to be "commit -m <message>"
+# _LUMEN_GIT_SUBCMDS's own hint text (used to be "commit -m <message>"
 # shown together on one row) so "-m" is its own follow-up suggestion after
 # "commit" is picked, instead of looking like part of the subcommand name.
-typeset -ga _AI_SUGGEST_GIT_COMMIT_FLAGS=(
+typeset -ga _LUMEN_GIT_COMMIT_FLAGS=(
   $'-m\t<message>\tRecord changes with the given commit message'
 )
 
-typeset -ga _AI_SUGGEST_GIT_CLEAN_FLAGS=(
+typeset -ga _LUMEN_GIT_CLEAN_FLAGS=(
   $'-f\t\tForce the removal'
   $'-d\t\tAlso remove untracked directories'
 )
 
-typeset -ga _AI_SUGGEST_NPM_CACHE_SUBCMDS=(
+typeset -ga _LUMEN_NPM_CACHE_SUBCMDS=(
   $'clean\t\tClean the npm cache'
   $'verify\t\tVerify the npm cache'
   $'add\t<package>\tAdd a package to the cache'
   $'ls\t\tList the contents of the cache'
 )
 
-typeset -ga _AI_SUGGEST_NPM_INSTALL_FLAGS=(
+typeset -ga _LUMEN_NPM_INSTALL_FLAGS=(
   $'--save-dev\t\tSave to devDependencies'
   $'--save-exact\t\tPin the exact installed version'
   $'-g\t\tInstall globally'
   $'--legacy-peer-deps\t\tIgnore peer dependency conflicts'
 )
 
-typeset -ga _AI_SUGGEST_KUBECTL_CONFIG_SUBCMDS=(
+typeset -ga _LUMEN_KUBECTL_CONFIG_SUBCMDS=(
   $'get-contexts\t\tList the available contexts'
   $'use-context\t<name>\tSet the current context'
   $'current-context\t\tDisplay the current context'
@@ -1147,7 +1147,7 @@ typeset -ga _AI_SUGGEST_KUBECTL_CONFIG_SUBCMDS=(
   $'delete-context\t<name>\tDelete a context'
 )
 
-typeset -ga _AI_SUGGEST_KUBECTL_ROLLOUT_SUBCMDS=(
+typeset -ga _LUMEN_KUBECTL_ROLLOUT_SUBCMDS=(
   $'status\t<resource>\tShow the status of a rollout'
   $'undo\t<resource>\tRoll back to a previous revision'
   $'restart\t<resource>\tRestart a resource'
@@ -1156,27 +1156,27 @@ typeset -ga _AI_SUGGEST_KUBECTL_ROLLOUT_SUBCMDS=(
   $'resume\t<resource>\tResume a paused rollout'
 )
 
-typeset -ga _AI_SUGGEST_KUBECTL_GET_FLAGS=(
+typeset -ga _LUMEN_KUBECTL_GET_FLAGS=(
   $'-o\t<format>\tOutput format (json|yaml|wide|...)'
   $'-n\t<namespace>\tNamespace to query'
   $'--all-namespaces\t\tList across all namespaces'
   $'-w\t\tWatch for changes'
 )
 
-typeset -ga _AI_SUGGEST_KUBECTL_EXEC_FLAGS=(
+typeset -ga _LUMEN_KUBECTL_EXEC_FLAGS=(
   $'-it\t\tInteractive session with a tty attached'
   $'-n\t<namespace>\tNamespace of the target pod'
 )
 
-typeset -ga _AI_SUGGEST_KUBECTL_APPLY_FLAGS=(
+typeset -ga _LUMEN_KUBECTL_APPLY_FLAGS=(
   $'-f\t<file>\tApply a configuration from a file'
 )
 
-typeset -ga _AI_SUGGEST_KUBECTL_CREATE_FLAGS=(
+typeset -ga _LUMEN_KUBECTL_CREATE_FLAGS=(
   $'-f\t<file>\tCreate a resource from a file or stdin'
 )
 
-typeset -ga _AI_SUGGEST_KUBECTL_SCALE_FLAGS=(
+typeset -ga _LUMEN_KUBECTL_SCALE_FLAGS=(
   $'--replicas\t<n>\tSet the desired number of replicas'
 )
 
@@ -1190,7 +1190,7 @@ typeset -ga _AI_SUGGEST_KUBECTL_SCALE_FLAGS=(
 # a particular tool happens not to support is a no-op/an error the user
 # immediately sees and ignores, which costs far less than this table
 # staying empty and suggesting nothing at all.
-typeset -ga _AI_SUGGEST_GENERIC_FLAGS=(
+typeset -ga _LUMEN_GENERIC_FLAGS=(
   $'-h\t\tShow help for this command'
   $'--help\t\tShow help for this command'
   $'--version\t\tShow version information'
@@ -1212,7 +1212,7 @@ typeset -ga _AI_SUGGEST_GENERIC_FLAGS=(
   $'--config\t<file>\tUse a specific configuration file'
 )
 
-typeset -ga _AI_SUGGEST_AWS_S3_SUBCMDS=(
+typeset -ga _LUMEN_AWS_S3_SUBCMDS=(
   $'ls\t[s3://bucket[/prefix]]\tList buckets or objects'
   $'cp\t<src> <dst>\tCopy files to/from S3'
   $'sync\t<src> <dst>\tSync a directory tree with S3'
@@ -1223,7 +1223,7 @@ typeset -ga _AI_SUGGEST_AWS_S3_SUBCMDS=(
   $'presign\t<s3-path>\tGenerate a presigned URL'
 )
 
-typeset -ga _AI_SUGGEST_AWS_EC2_SUBCMDS=(
+typeset -ga _LUMEN_AWS_EC2_SUBCMDS=(
   $'describe-instances\t\tDescribe EC2 instances'
   $'start-instances\t\tStart an instance'
   $'stop-instances\t\tStop an instance'
@@ -1236,7 +1236,7 @@ typeset -ga _AI_SUGGEST_AWS_EC2_SUBCMDS=(
   $'create-tags\t\tTag a resource'
 )
 
-typeset -ga _AI_SUGGEST_AWS_LAMBDA_SUBCMDS=(
+typeset -ga _LUMEN_AWS_LAMBDA_SUBCMDS=(
   $'list-functions\t\tList Lambda functions'
   $'invoke\t\tInvoke a function'
   $'update-function-code\t\tUpdate function code'
@@ -1246,7 +1246,7 @@ typeset -ga _AI_SUGGEST_AWS_LAMBDA_SUBCMDS=(
   $'list-layers\t\tList Lambda layers'
 )
 
-typeset -ga _AI_SUGGEST_AWS_IAM_SUBCMDS=(
+typeset -ga _LUMEN_AWS_IAM_SUBCMDS=(
   $'list-users\t\tList IAM users'
   $'list-roles\t\tList IAM roles'
   $'get-user\t\tGet the current or named IAM user'
@@ -1256,7 +1256,7 @@ typeset -ga _AI_SUGGEST_AWS_IAM_SUBCMDS=(
   $'create-access-key\t\tCreate an access key'
 )
 
-typeset -ga _AI_SUGGEST_AWS_LOGS_SUBCMDS=(
+typeset -ga _LUMEN_AWS_LOGS_SUBCMDS=(
   $'tail\t<log-group>\tTail a log group in real time'
   $'describe-log-groups\t\tList log groups'
   $'describe-log-streams\t\tList log streams'
@@ -1264,12 +1264,12 @@ typeset -ga _AI_SUGGEST_AWS_LOGS_SUBCMDS=(
   $'filter-log-events\t\tFilter log events by pattern'
 )
 
-typeset -ga _AI_SUGGEST_AWS_STS_SUBCMDS=(
+typeset -ga _LUMEN_AWS_STS_SUBCMDS=(
   $'get-caller-identity\t\tShow the current IAM identity'
   $'assume-role\t\tAssume an IAM role'
 )
 
-typeset -ga _AI_SUGGEST_AWS_CLOUDFORMATION_SUBCMDS=(
+typeset -ga _LUMEN_AWS_CLOUDFORMATION_SUBCMDS=(
   $'deploy\t\tDeploy a stack'
   $'describe-stacks\t\tDescribe stacks'
   $'create-stack\t\tCreate a stack'
@@ -1279,14 +1279,14 @@ typeset -ga _AI_SUGGEST_AWS_CLOUDFORMATION_SUBCMDS=(
   $'validate-template\t\tValidate a template'
 )
 
-typeset -ga _AI_SUGGEST_AWS_ECR_SUBCMDS=(
+typeset -ga _LUMEN_AWS_ECR_SUBCMDS=(
   $'get-login-password\t\tGet a password to authenticate to ECR'
   $'describe-repositories\t\tDescribe ECR repositories'
   $'create-repository\t\tCreate a repository'
   $'list-images\t\tList images in a repository'
 )
 
-typeset -ga _AI_SUGGEST_AWS_ECS_SUBCMDS=(
+typeset -ga _LUMEN_AWS_ECS_SUBCMDS=(
   $'list-clusters\t\tList ECS clusters'
   $'list-services\t\tList services in a cluster'
   $'list-tasks\t\tList tasks in a cluster'
@@ -1295,14 +1295,14 @@ typeset -ga _AI_SUGGEST_AWS_ECS_SUBCMDS=(
   $'run-task\t\tRun a one-off task'
 )
 
-typeset -ga _AI_SUGGEST_AWS_EKS_SUBCMDS=(
+typeset -ga _LUMEN_AWS_EKS_SUBCMDS=(
   $'list-clusters\t\tList EKS clusters'
   $'describe-cluster\t\tDescribe a cluster'
   $'update-kubeconfig\t\tUpdate local kubeconfig for a cluster'
   $'create-cluster\t\tCreate a cluster'
 )
 
-typeset -ga _AI_SUGGEST_AWS_SSM_SUBCMDS=(
+typeset -ga _LUMEN_AWS_SSM_SUBCMDS=(
   $'start-session\t\tStart an interactive session on an instance'
   $'get-parameter\t\tGet a parameter value'
   $'put-parameter\t\tCreate or update a parameter'
@@ -1311,147 +1311,147 @@ typeset -ga _AI_SUGGEST_AWS_SSM_SUBCMDS=(
 )
 
 # Follow-up flags for the AWS_*_SUBCMDS operations above — picked up by
-# _ai_suggest_nested_match once BUFFER is e.g. "aws ec2 start-instances "
+# _lumen_nested_match once BUFFER is e.g. "aws ec2 start-instances "
 # (same leaf-command-falls-back-to-its-FLAGS-table path as git commit/docker
 # images; see that function's comment). Split out of each operation's own
 # hint text so a required flag shows as its own follow-up suggestion
 # instead of being pre-glued onto the operation name.
-typeset -ga _AI_SUGGEST_AWS_EC2_START_INSTANCES_FLAGS=(
+typeset -ga _LUMEN_AWS_EC2_START_INSTANCES_FLAGS=(
   $'--instance-ids\t<id>\tInstance ID(s) to start'
 )
-typeset -ga _AI_SUGGEST_AWS_EC2_STOP_INSTANCES_FLAGS=(
+typeset -ga _LUMEN_AWS_EC2_STOP_INSTANCES_FLAGS=(
   $'--instance-ids\t<id>\tInstance ID(s) to stop'
 )
-typeset -ga _AI_SUGGEST_AWS_EC2_TERMINATE_INSTANCES_FLAGS=(
+typeset -ga _LUMEN_AWS_EC2_TERMINATE_INSTANCES_FLAGS=(
   $'--instance-ids\t<id>\tInstance ID(s) to terminate'
 )
-typeset -ga _AI_SUGGEST_AWS_EC2_RUN_INSTANCES_FLAGS=(
+typeset -ga _LUMEN_AWS_EC2_RUN_INSTANCES_FLAGS=(
   $'--image-id\t<ami>\tAMI to launch instances from'
 )
-typeset -ga _AI_SUGGEST_AWS_EC2_CREATE_TAGS_FLAGS=(
+typeset -ga _LUMEN_AWS_EC2_CREATE_TAGS_FLAGS=(
   $'--resources\t<id>\tResource(s) to tag'
   $'--tags\t<tags>\tTags to apply, e.g. Key=Name,Value=foo'
 )
 
-typeset -ga _AI_SUGGEST_AWS_LAMBDA_INVOKE_FLAGS=(
+typeset -ga _LUMEN_AWS_LAMBDA_INVOKE_FLAGS=(
   $'--function-name\t<name>\tFunction to invoke (followed by an output file)'
 )
-typeset -ga _AI_SUGGEST_AWS_LAMBDA_UPDATE_FUNCTION_CODE_FLAGS=(
+typeset -ga _LUMEN_AWS_LAMBDA_UPDATE_FUNCTION_CODE_FLAGS=(
   $'--function-name\t<name>\tFunction to update'
 )
-typeset -ga _AI_SUGGEST_AWS_LAMBDA_GET_FUNCTION_FLAGS=(
+typeset -ga _LUMEN_AWS_LAMBDA_GET_FUNCTION_FLAGS=(
   $'--function-name\t<name>\tFunction to look up'
 )
-typeset -ga _AI_SUGGEST_AWS_LAMBDA_CREATE_FUNCTION_FLAGS=(
+typeset -ga _LUMEN_AWS_LAMBDA_CREATE_FUNCTION_FLAGS=(
   $'--function-name\t<name>\tName for the new function'
 )
-typeset -ga _AI_SUGGEST_AWS_LAMBDA_DELETE_FUNCTION_FLAGS=(
+typeset -ga _LUMEN_AWS_LAMBDA_DELETE_FUNCTION_FLAGS=(
   $'--function-name\t<name>\tFunction to delete'
 )
 
-typeset -ga _AI_SUGGEST_AWS_IAM_GET_USER_FLAGS=(
+typeset -ga _LUMEN_AWS_IAM_GET_USER_FLAGS=(
   $'--user-name\t<name>\tUser to look up (omit for the current user)'
 )
-typeset -ga _AI_SUGGEST_AWS_IAM_CREATE_ROLE_FLAGS=(
+typeset -ga _LUMEN_AWS_IAM_CREATE_ROLE_FLAGS=(
   $'--role-name\t<name>\tName for the new role'
 )
-typeset -ga _AI_SUGGEST_AWS_IAM_ATTACH_ROLE_POLICY_FLAGS=(
+typeset -ga _LUMEN_AWS_IAM_ATTACH_ROLE_POLICY_FLAGS=(
   $'--role-name\t<name>\tRole to attach the policy to'
   $'--policy-arn\t<arn>\tARN of the policy to attach'
 )
-typeset -ga _AI_SUGGEST_AWS_IAM_LIST_ATTACHED_ROLE_POLICIES_FLAGS=(
+typeset -ga _LUMEN_AWS_IAM_LIST_ATTACHED_ROLE_POLICIES_FLAGS=(
   $'--role-name\t<name>\tRole to list policies for'
 )
-typeset -ga _AI_SUGGEST_AWS_IAM_CREATE_ACCESS_KEY_FLAGS=(
+typeset -ga _LUMEN_AWS_IAM_CREATE_ACCESS_KEY_FLAGS=(
   $'--user-name\t<name>\tUser to create the key for'
 )
 
-typeset -ga _AI_SUGGEST_AWS_LOGS_DESCRIBE_LOG_STREAMS_FLAGS=(
+typeset -ga _LUMEN_AWS_LOGS_DESCRIBE_LOG_STREAMS_FLAGS=(
   $'--log-group-name\t<name>\tLog group to list streams for'
 )
-typeset -ga _AI_SUGGEST_AWS_LOGS_GET_LOG_EVENTS_FLAGS=(
+typeset -ga _LUMEN_AWS_LOGS_GET_LOG_EVENTS_FLAGS=(
   $'--log-group-name\t<name>\tLog group to read from'
   $'--log-stream-name\t<stream>\tLog stream to read from'
 )
-typeset -ga _AI_SUGGEST_AWS_LOGS_FILTER_LOG_EVENTS_FLAGS=(
+typeset -ga _LUMEN_AWS_LOGS_FILTER_LOG_EVENTS_FLAGS=(
   $'--log-group-name\t<name>\tLog group to search'
 )
 
-typeset -ga _AI_SUGGEST_AWS_STS_ASSUME_ROLE_FLAGS=(
+typeset -ga _LUMEN_AWS_STS_ASSUME_ROLE_FLAGS=(
   $'--role-arn\t<arn>\tARN of the role to assume'
   $'--role-session-name\t<name>\tIdentifier for the assumed-role session'
 )
 
-typeset -ga _AI_SUGGEST_AWS_CLOUDFORMATION_DEPLOY_FLAGS=(
+typeset -ga _LUMEN_AWS_CLOUDFORMATION_DEPLOY_FLAGS=(
   $'--template-file\t<file>\tLocal template file to deploy'
   $'--stack-name\t<name>\tStack to create or update'
 )
-typeset -ga _AI_SUGGEST_AWS_CLOUDFORMATION_CREATE_STACK_FLAGS=(
+typeset -ga _LUMEN_AWS_CLOUDFORMATION_CREATE_STACK_FLAGS=(
   $'--stack-name\t<name>\tName for the new stack'
   $'--template-body\t<file>\tTemplate file for the stack'
 )
-typeset -ga _AI_SUGGEST_AWS_CLOUDFORMATION_UPDATE_STACK_FLAGS=(
+typeset -ga _LUMEN_AWS_CLOUDFORMATION_UPDATE_STACK_FLAGS=(
   $'--stack-name\t<name>\tStack to update'
 )
-typeset -ga _AI_SUGGEST_AWS_CLOUDFORMATION_DELETE_STACK_FLAGS=(
+typeset -ga _LUMEN_AWS_CLOUDFORMATION_DELETE_STACK_FLAGS=(
   $'--stack-name\t<name>\tStack to delete'
 )
-typeset -ga _AI_SUGGEST_AWS_CLOUDFORMATION_VALIDATE_TEMPLATE_FLAGS=(
+typeset -ga _LUMEN_AWS_CLOUDFORMATION_VALIDATE_TEMPLATE_FLAGS=(
   $'--template-body\t<file>\tTemplate file to validate'
 )
 
-typeset -ga _AI_SUGGEST_AWS_ECR_CREATE_REPOSITORY_FLAGS=(
+typeset -ga _LUMEN_AWS_ECR_CREATE_REPOSITORY_FLAGS=(
   $'--repository-name\t<name>\tName for the new repository'
 )
-typeset -ga _AI_SUGGEST_AWS_ECR_LIST_IMAGES_FLAGS=(
+typeset -ga _LUMEN_AWS_ECR_LIST_IMAGES_FLAGS=(
   $'--repository-name\t<name>\tRepository to list images in'
 )
 
-typeset -ga _AI_SUGGEST_AWS_ECS_LIST_SERVICES_FLAGS=(
+typeset -ga _LUMEN_AWS_ECS_LIST_SERVICES_FLAGS=(
   $'--cluster\t<cluster>\tCluster to list services in'
 )
-typeset -ga _AI_SUGGEST_AWS_ECS_LIST_TASKS_FLAGS=(
+typeset -ga _LUMEN_AWS_ECS_LIST_TASKS_FLAGS=(
   $'--cluster\t<cluster>\tCluster to list tasks in'
 )
-typeset -ga _AI_SUGGEST_AWS_ECS_DESCRIBE_SERVICES_FLAGS=(
+typeset -ga _LUMEN_AWS_ECS_DESCRIBE_SERVICES_FLAGS=(
   $'--cluster\t<cluster>\tCluster the services run in'
   $'--services\t<svc>\tService(s) to describe'
 )
-typeset -ga _AI_SUGGEST_AWS_ECS_UPDATE_SERVICE_FLAGS=(
+typeset -ga _LUMEN_AWS_ECS_UPDATE_SERVICE_FLAGS=(
   $'--cluster\t<cluster>\tCluster the service runs in'
   $'--service\t<svc>\tService to update'
 )
-typeset -ga _AI_SUGGEST_AWS_ECS_RUN_TASK_FLAGS=(
+typeset -ga _LUMEN_AWS_ECS_RUN_TASK_FLAGS=(
   $'--cluster\t<cluster>\tCluster to run the task in'
   $'--task-definition\t<td>\tTask definition to run'
 )
 
-typeset -ga _AI_SUGGEST_AWS_EKS_DESCRIBE_CLUSTER_FLAGS=(
+typeset -ga _LUMEN_AWS_EKS_DESCRIBE_CLUSTER_FLAGS=(
   $'--name\t<name>\tCluster to describe'
 )
-typeset -ga _AI_SUGGEST_AWS_EKS_UPDATE_KUBECONFIG_FLAGS=(
+typeset -ga _LUMEN_AWS_EKS_UPDATE_KUBECONFIG_FLAGS=(
   $'--name\t<name>\tCluster to update kubeconfig for'
 )
-typeset -ga _AI_SUGGEST_AWS_EKS_CREATE_CLUSTER_FLAGS=(
+typeset -ga _LUMEN_AWS_EKS_CREATE_CLUSTER_FLAGS=(
   $'--name\t<name>\tName for the new cluster'
 )
 
-typeset -ga _AI_SUGGEST_AWS_SSM_START_SESSION_FLAGS=(
+typeset -ga _LUMEN_AWS_SSM_START_SESSION_FLAGS=(
   $'--target\t<instance-id>\tInstance to start the session on'
 )
-typeset -ga _AI_SUGGEST_AWS_SSM_GET_PARAMETER_FLAGS=(
+typeset -ga _LUMEN_AWS_SSM_GET_PARAMETER_FLAGS=(
   $'--name\t<name>\tParameter to read'
 )
-typeset -ga _AI_SUGGEST_AWS_SSM_PUT_PARAMETER_FLAGS=(
+typeset -ga _LUMEN_AWS_SSM_PUT_PARAMETER_FLAGS=(
   $'--name\t<name>\tParameter to create or update'
   $'--value\t<value>\tValue to store'
 )
-typeset -ga _AI_SUGGEST_AWS_SSM_SEND_COMMAND_FLAGS=(
+typeset -ga _LUMEN_AWS_SSM_SEND_COMMAND_FLAGS=(
   $'--document-name\t<doc>\tSSM document to run'
   $'--targets\t<targets>\tTarget instance(s)'
 )
 
-typeset -ga _AI_SUGGEST_TERRAFORM_STATE_SUBCMDS=(
+typeset -ga _LUMEN_TERRAFORM_STATE_SUBCMDS=(
   $'list\t[address]\tList resources in the state'
   $'show\t<address>\tShow attributes of a resource in the state'
   $'mv\t<src> <dst>\tMove an item in the state'
@@ -1461,7 +1461,7 @@ typeset -ga _AI_SUGGEST_TERRAFORM_STATE_SUBCMDS=(
   $'replace-provider\t<from> <to>\tReplace a provider in the state'
 )
 
-typeset -ga _AI_SUGGEST_TERRAFORM_WORKSPACE_SUBCMDS=(
+typeset -ga _LUMEN_TERRAFORM_WORKSPACE_SUBCMDS=(
   $'list\t\tList workspaces'
   $'new\t<name>\tCreate a new workspace'
   $'select\t<name>\tSelect a workspace'
@@ -1469,14 +1469,14 @@ typeset -ga _AI_SUGGEST_TERRAFORM_WORKSPACE_SUBCMDS=(
   $'show\t\tShow the current workspace name'
 )
 
-typeset -ga _AI_SUGGEST_HELM_REPO_SUBCMDS=(
+typeset -ga _LUMEN_HELM_REPO_SUBCMDS=(
   $'add\t<name> <url>\tAdd a chart repository'
   $'update\t\tUpdate information of available charts'
   $'list\t\tList chart repositories'
   $'remove\t<name>\tRemove a chart repository'
 )
 
-typeset -ga _AI_SUGGEST_GH_PR_SUBCMDS=(
+typeset -ga _LUMEN_GH_PR_SUBCMDS=(
   $'create\t\tCreate a pull request'
   $'list\t\tList pull requests'
   $'view\t[number]\tView a pull request'
@@ -1488,7 +1488,7 @@ typeset -ga _AI_SUGGEST_GH_PR_SUBCMDS=(
   $'status\t\tShow status of relevant pull requests'
 )
 
-typeset -ga _AI_SUGGEST_GH_ISSUE_SUBCMDS=(
+typeset -ga _LUMEN_GH_ISSUE_SUBCMDS=(
   $'create\t\tCreate an issue'
   $'list\t\tList issues'
   $'view\t<number>\tView an issue'
@@ -1497,7 +1497,7 @@ typeset -ga _AI_SUGGEST_GH_ISSUE_SUBCMDS=(
   $'comment\t<number>\tAdd a comment to an issue'
 )
 
-typeset -ga _AI_SUGGEST_GH_REPO_SUBCMDS=(
+typeset -ga _LUMEN_GH_REPO_SUBCMDS=(
   $'clone\t<repo>\tClone a repository'
   $'create\t[name]\tCreate a new repository'
   $'view\t[repo]\tView a repository'
@@ -1505,7 +1505,7 @@ typeset -ga _AI_SUGGEST_GH_REPO_SUBCMDS=(
   $'list\t[owner]\tList repositories'
 )
 
-typeset -ga _AI_SUGGEST_GH_RUN_SUBCMDS=(
+typeset -ga _LUMEN_GH_RUN_SUBCMDS=(
   $'list\t\tList recent workflow runs'
   $'view\t[run-id]\tView a workflow run'
   $'watch\t[run-id]\tWatch a run until it completes'
@@ -1513,7 +1513,7 @@ typeset -ga _AI_SUGGEST_GH_RUN_SUBCMDS=(
   $'cancel\t<run-id>\tCancel a workflow run'
 )
 
-typeset -ga _AI_SUGGEST_GLAB_MR_SUBCMDS=(
+typeset -ga _LUMEN_GLAB_MR_SUBCMDS=(
   $'create\t\tCreate a merge request'
   $'list\t\tList merge requests'
   $'view\t[id]\tView a merge request'
@@ -1525,7 +1525,7 @@ typeset -ga _AI_SUGGEST_GLAB_MR_SUBCMDS=(
   $'update\t[id]\tUpdate a merge request'
 )
 
-typeset -ga _AI_SUGGEST_GLAB_CI_SUBCMDS=(
+typeset -ga _LUMEN_GLAB_CI_SUBCMDS=(
   $'status\t\tShow CI/CD pipeline status for the current branch'
   $'view\t[id]\tView a pipeline'
   $'trace\t[job-id]\tTrace/follow a CI/CD job log'
@@ -1533,7 +1533,7 @@ typeset -ga _AI_SUGGEST_GLAB_CI_SUBCMDS=(
   $'run\t\tCreate/run a new pipeline'
 )
 
-typeset -ga _AI_SUGGEST_GCLOUD_COMPUTE_SUBCMDS=(
+typeset -ga _LUMEN_GCLOUD_COMPUTE_SUBCMDS=(
   $'instances\t[list|create|delete|describe]\tManage VM instances'
   $'ssh\t<instance>\tSSH into a VM instance'
   $'scp\t<src> <dst>\tCopy files to/from a VM instance'
@@ -1542,7 +1542,7 @@ typeset -ga _AI_SUGGEST_GCLOUD_COMPUTE_SUBCMDS=(
   $'disks\t[list|create|delete]\tManage persistent disks'
 )
 
-typeset -ga _AI_SUGGEST_GCLOUD_CONTAINER_SUBCMDS=(
+typeset -ga _LUMEN_GCLOUD_CONTAINER_SUBCMDS=(
   $'clusters\t[list|create|delete|get-credentials]\tManage GKE clusters'
   $'images\t[list|delete]\tManage container images'
   $'node-pools\t[list|create|delete]\tManage GKE node pools'
@@ -1550,29 +1550,29 @@ typeset -ga _AI_SUGGEST_GCLOUD_CONTAINER_SUBCMDS=(
 
 # On-screen row/column the cursor is at, so the box lines up under wherever
 # you're actually typing instead of always sitting at the terminal's left
-# margin (col), and so the native overlay (see _ai_suggest_overlay_show) can
+# margin (col), and so the native overlay (see _lumen_overlay_show) can
 # be positioned against the real cursor (row). Refreshed once per new prompt
-# (see _ai_suggest_line_init) rather than every keystroke: the prompt's
+# (see _lumen_line_init) rather than every keystroke: the prompt's
 # start position doesn't change while editing a single line, only when a
 # new one is drawn, so re-querying per-keystroke would just be repeated
 # syscall overhead for the same answer.
-typeset -gi _AI_SUGGEST_PROMPT_ROW=1
-typeset -gi _AI_SUGGEST_PROMPT_COL=1
+typeset -gi _LUMEN_PROMPT_ROW=1
+typeset -gi _LUMEN_PROMPT_COL=1
 
 # Asks the terminal where the cursor currently is via a DSR (Device Status
 # Report) query (\e[6n) and reads back its \e[<row>;<col>R reply on the same
 # stream zle reads keystrokes from. Safe to do a blocking read here: zsh's
 # event loop is single-threaded/cooperative, so zle's own read loop is not
 # concurrently competing for input while this widget function is running —
-# there's no race to lose. Leaves _AI_SUGGEST_PROMPT_ROW/COL at 1 (today's
+# there's no race to lose. Leaves _LUMEN_PROMPT_ROW/COL at 1 (today's
 # top-left-margin behavior) if anything goes wrong: terminal doesn't support
 # DSR, output is piped/captured, or the reply doesn't arrive within the
 # timeout — this is a cosmetic nicety for the ANSI box and a required input
 # for the native overlay, but never something worth blocking or erroring
 # over either way.
-_ai_suggest_query_cursor_pos() {
-  _AI_SUGGEST_PROMPT_ROW=1
-  _AI_SUGGEST_PROMPT_COL=1
+_lumen_query_cursor_pos() {
+  _LUMEN_PROMPT_ROW=1
+  _LUMEN_PROMPT_COL=1
   [[ -t 1 ]] || return
   local reply char
   print -n $'\e[6n' > /dev/tty 2>/dev/null || return
@@ -1590,8 +1590,8 @@ _ai_suggest_query_cursor_pos() {
   local col=${reply#*;}
   [[ $row == <-> ]] || return
   [[ $col == <-> ]] || return
-  (( row >= 1 )) && _AI_SUGGEST_PROMPT_ROW=$row
-  (( col >= 1 )) && _AI_SUGGEST_PROMPT_COL=$col
+  (( row >= 1 )) && _LUMEN_PROMPT_ROW=$row
+  (( col >= 1 )) && _LUMEN_PROMPT_COL=$col
 }
 
 # --- native overlay (Kiro CLI/Fig-style floating panel) ---------------------
@@ -1610,8 +1610,8 @@ _ai_suggest_query_cursor_pos() {
 # frontmost terminal can't be positioned against (see
 # Lumen/Sources/Lumen/TerminalPositioner.swift),
 # nothing shows for that keystroke — never an error, never a block.
-_ai_suggest_overlay_supported() {
-  (( AI_SUGGEST_OVERLAY ))
+_lumen_overlay_supported() {
+  (( LUMEN_OVERLAY ))
 }
 
 # Minimal JSON string escaping — only what can actually appear in a
@@ -1619,7 +1619,7 @@ _ai_suggest_overlay_supported() {
 # Static-table entries and directory/branch names are hand-written or
 # filesystem/git-sourced ASCII with none of these in practice, but escaping
 # is cheap enough to just always do rather than assume.
-_ai_suggest_json_escape() {
+_lumen_json_escape() {
   local s=$1
   s=${s//\\/\\\\}
   s=${s//\"/\\\"}
@@ -1629,17 +1629,17 @@ _ai_suggest_json_escape() {
 }
 
 # Builds a JSON array literal from "$@", each element escaped and quoted.
-_ai_suggest_json_str_array() {
+_lumen_json_str_array() {
   local -a parts
   local item
   for item in "$@"; do
-    parts+=("\"$(_ai_suggest_json_escape "$item")\"")
+    parts+=("\"$(_lumen_json_escape "$item")\"")
   done
   print -rn -- "[${(j:,:)parts}]"
 }
 
 # Throttles overlay-socket sends to at most one per
-# _AI_SUGGEST_OVERLAY_MIN_INTERVAL — NOT a performance tweak. Root-caused
+# _LUMEN_OVERLAY_MIN_INTERVAL — NOT a performance tweak. Root-caused
 # 2026-08-01: connecting+closing this Unix socket on every single keystroke
 # (a fast typing burst easily fires 15-20 sends within a few hundred ms)
 # corrupts the shell's own terminal I/O state badly enough that the NEXT
@@ -1652,9 +1652,9 @@ _ai_suggest_json_str_array() {
 # triggering a send) is still enough to trip it and corrupt the interactive
 # shell before that very command is even submitted — reproduced 2026-08-02:
 # `git push` on a branch with no upstream printed nothing (not even the
-# `128 err` status segment's `fatal:` line), consistent with `_ai_suggest_
+# `128 err` status segment's `fatal:` line), consistent with `_lumen_
 # overlay_send`'s own zsocket call (not the command that ran after it)
-# having wedged the shell's tty state first. `_ai_suggest_overlay_send`
+# having wedged the shell's tty state first. `_lumen_overlay_send`
 # below now runs the whole zsocket lifecycle in a forked, disowned subshell
 # (`&!`) instead of the interactive shell's own process — `fork()` gives
 # the child its own copy of the fd table, so whatever zsocket does to it
@@ -1663,19 +1663,19 @@ _ai_suggest_json_str_array() {
 # within what a human can perceive while typing (>=80ms
 # apart is faster than typical keystroke spacing), so this is invisible in
 # normal use — a send that lands inside the window is never just dropped,
-# though: see _ai_suggest_overlay_schedule_flush below for what happens to
+# though: see _lumen_overlay_schedule_flush below for what happens to
 # it instead.
 zmodload zsh/datetime 2>/dev/null
-typeset -gF _AI_SUGGEST_LAST_OVERLAY_SEND=0
-typeset -gF _AI_SUGGEST_OVERLAY_MIN_INTERVAL=0.08
+typeset -gF _LUMEN_LAST_OVERLAY_SEND=0
+typeset -gF _LUMEN_OVERLAY_MIN_INTERVAL=0.08
 # Holds the most recent payload a throttled call couldn't send yet, and the
 # fd of the in-flight timer counting down to when it can. Together these
 # turn the throttle above into a trailing-flush debounce instead of a hard
 # drop: a burst of keystrokes inside one window (fast typing, held
 # Backspace) still ends with the panel showing its correct, final state,
 # not frozen on whichever mid-burst prefix happened to win the throttle.
-typeset -g _AI_SUGGEST_OVERLAY_PENDING_PAYLOAD=""
-typeset -gi _AI_SUGGEST_OVERLAY_FLUSH_FD=-1
+typeset -g _LUMEN_OVERLAY_PENDING_PAYLOAD=""
+typeset -gi _LUMEN_OVERLAY_FLUSH_FD=-1
 
 # Fire-and-forget send of a JSON payload to the overlay companion app.
 # zsocket (zsh/net/socket) connecting to a path with nothing listening —
@@ -1685,74 +1685,74 @@ typeset -gi _AI_SUGGEST_OVERLAY_FLUSH_FD=-1
 # swallowed on purpose: the companion app not running is an expected,
 # common state (e.g. user hasn't launched it), not a failure worth surfacing
 # in the middle of typing.
-_ai_suggest_overlay_send() {
+_lumen_overlay_send() {
   local payload=$1
   # force=1 bypasses the throttle below — for a discrete, one-shot action
   # (Escape/Ctrl-G dismiss, accepting a candidate, Ctrl-Space trigger, shell
   # exit) rather than the rapid-fire-keystrokes case the throttle exists
-  # for (see the big comment above _AI_SUGGEST_OVERLAY_MIN_INTERVAL). Without
+  # for (see the big comment above _LUMEN_OVERLAY_MIN_INTERVAL). Without
   # this, a hide sent within 80ms of the show that preceded it — e.g.
   # pressing Escape right after typing, the common case — would go through
   # the same debounce path as a throttled show, leaving the panel visibly
   # stuck open until the scheduled flush (or a later keystroke) catches up.
   local -i force=${2:-0}
-  if (( ! force )) && (( EPOCHREALTIME - _AI_SUGGEST_LAST_OVERLAY_SEND < _AI_SUGGEST_OVERLAY_MIN_INTERVAL )); then
+  if (( ! force )) && (( EPOCHREALTIME - _LUMEN_LAST_OVERLAY_SEND < _LUMEN_OVERLAY_MIN_INTERVAL )); then
     # Trailing-flush debounce, not a hard drop: remember this payload —
     # overwriting whatever an earlier keystroke in the same burst queued,
     # since only the newest state matters — and make sure a flush is
     # scheduled for the moment the throttle window clears. That's what
     # keeps a burst that ends mid-window (fast typing, held Backspace) from
     # leaving the panel frozen on a stale, in-between suggestion.
-    _AI_SUGGEST_OVERLAY_PENDING_PAYLOAD=$payload
-    _ai_suggest_overlay_schedule_flush
+    _LUMEN_OVERLAY_PENDING_PAYLOAD=$payload
+    _lumen_overlay_schedule_flush
     return
   fi
-  _ai_suggest_overlay_send_now "$payload"
+  _lumen_overlay_send_now "$payload"
 }
 
 # Does the actual zsocket send, bypassing the throttle entirely — called
 # either directly (send allowed right now) or later, from the flush
 # handler below (send was queued and the window has since cleared).
-_ai_suggest_overlay_send_now() {
+_lumen_overlay_send_now() {
   local payload=$1
-  _AI_SUGGEST_LAST_OVERLAY_SEND=$EPOCHREALTIME
+  _LUMEN_LAST_OVERLAY_SEND=$EPOCHREALTIME
   # This send supersedes anything still queued from an earlier, throttled
   # call (including the case where this very call *is* that queued
   # payload) — clear it so a stale flush can't re-fire after a force=1
   # send (e.g. Escape) has already put the panel in its final state.
-  _AI_SUGGEST_OVERLAY_PENDING_PAYLOAD=""
+  _LUMEN_OVERLAY_PENDING_PAYLOAD=""
   # Forked off (`&!`: background + disown, no job-control notification) so
   # zsocket's connect/write/close cycle runs against a *copy* of the fd
   # table made by fork(), not the interactive shell's own — see this
   # function's section doc comment above for why that isolation matters.
   (
     zmodload zsh/net/socket 2>/dev/null || exit
-    zsocket $AI_SUGGEST_OVERLAY_SOCK 2>/dev/null || exit
+    zsocket $LUMEN_OVERLAY_SOCK 2>/dev/null || exit
     print -u $REPLY -r -- "$payload" 2>/dev/null
     exec {REPLY}>&- 2>/dev/null
   ) &!
 }
 
-# Arranges for _AI_SUGGEST_OVERLAY_PENDING_PAYLOAD to actually get sent once
+# Arranges for _LUMEN_OVERLAY_PENDING_PAYLOAD to actually get sent once
 # the current throttle window ends, instead of sitting there unsent until
-# some later keystroke happens to call _ai_suggest_overlay_send again (which
+# some later keystroke happens to call _lumen_overlay_send again (which
 # may never come — the user may just pause to read what's on screen). Uses
 # `zle -F`, the same mechanism async-completion plugins use, to register a
 # handler that zle's own idle loop invokes once a backgrounded timer fd
 # becomes readable — this wakes the panel up while the shell is sitting at
 # the prompt waiting for the next key, without blocking that wait itself.
-# A no-op if a flush is already scheduled: _AI_SUGGEST_OVERLAY_PENDING_PAYLOAD
+# A no-op if a flush is already scheduled: _LUMEN_OVERLAY_PENDING_PAYLOAD
 # is updated in place by the caller, so the one flush already in flight
 # picks up whatever's newest when it fires — at most one extra background
 # process per throttle window, not one per dropped keystroke.
-_ai_suggest_overlay_schedule_flush() {
-  (( _AI_SUGGEST_OVERLAY_FLUSH_FD >= 0 )) && return
-  local -F remaining=$(( _AI_SUGGEST_OVERLAY_MIN_INTERVAL - (EPOCHREALTIME - _AI_SUGGEST_LAST_OVERLAY_SEND) ))
+_lumen_overlay_schedule_flush() {
+  (( _LUMEN_OVERLAY_FLUSH_FD >= 0 )) && return
+  local -F remaining=$(( _LUMEN_OVERLAY_MIN_INTERVAL - (EPOCHREALTIME - _LUMEN_LAST_OVERLAY_SEND) ))
   local -i centis
   # zselect's timeout is in centiseconds; round up by 1 so the flush never
   # fires a hair before the throttle window it's waiting out actually ends.
   (( centis = remaining > 0 ? remaining * 100 + 1 : 1 ))
-  exec {_AI_SUGGEST_OVERLAY_FLUSH_FD}< <(
+  exec {_LUMEN_OVERLAY_FLUSH_FD}< <(
     # zselect (zsh/zselect) is a builtin sub-second sleep — no watched fds,
     # just the timeout — so this doesn't need to fork/exec an external
     # `sleep` binary on top of the subshell fork already happening here. If
@@ -1762,35 +1762,35 @@ _ai_suggest_overlay_schedule_flush() {
     zselect -t $centis 2>/dev/null
     print -n x
   )
-  zle -F $_AI_SUGGEST_OVERLAY_FLUSH_FD _ai_suggest_overlay_flush_handler
+  zle -F $_LUMEN_OVERLAY_FLUSH_FD _lumen_overlay_flush_handler
 }
 
-# zle -F callback for _ai_suggest_overlay_schedule_flush: the throttle
+# zle -F callback for _lumen_overlay_schedule_flush: the throttle
 # window has cleared, so send whatever's currently pending — the newest
 # state at the time this fires, not necessarily the payload that triggered
 # the scheduling — and deregister.
-_ai_suggest_overlay_flush_handler() {
+_lumen_overlay_flush_handler() {
   local -i fd=$1
   zle -F $fd
   exec {fd}<&-
-  _AI_SUGGEST_OVERLAY_FLUSH_FD=-1
-  (( ${#_AI_SUGGEST_OVERLAY_PENDING_PAYLOAD} )) && _ai_suggest_overlay_send_now "$_AI_SUGGEST_OVERLAY_PENDING_PAYLOAD"
+  _LUMEN_OVERLAY_FLUSH_FD=-1
+  (( ${#_LUMEN_OVERLAY_PENDING_PAYLOAD} )) && _lumen_overlay_send_now "$_LUMEN_OVERLAY_PENDING_PAYLOAD"
 }
 
-# Sends the current _AI_SUGGEST_CANDIDATES/etc + cursor position so the
+# Sends the current _LUMEN_CANDIDATES/etc + cursor position so the
 # companion app can render (or reposition) the floating panel.
-_ai_suggest_overlay_show() {
+_lumen_overlay_show() {
   local -a label_parts
   local i lbl hint_text
-  for (( i = 1; i <= ${#_AI_SUGGEST_CANDIDATES}; i++ )); do
-    lbl=${_AI_SUGGEST_LABELS[$i]:-${_AI_SUGGEST_CANDIDATES[$i]%% }}
-    hint_text=${_AI_SUGGEST_HINTS[$i]:-}
+  for (( i = 1; i <= ${#_LUMEN_CANDIDATES}; i++ )); do
+    lbl=${_LUMEN_LABELS[$i]:-${_LUMEN_CANDIDATES[$i]%% }}
+    hint_text=${_LUMEN_HINTS[$i]:-}
     [[ -n $hint_text ]] && lbl="${lbl% }${lbl:+ }${hint_text}"
     label_parts+=("$lbl")
   done
 
-  # _AI_SUGGEST_PROMPT_ROW/COL are only refreshed once per new prompt (a
-  # real DSR query, see _ai_suggest_query_cursor_pos) — re-querying the
+  # _LUMEN_PROMPT_ROW/COL are only refreshed once per new prompt (a
+  # real DSR query, see _lumen_query_cursor_pos) — re-querying the
   # terminal on every keystroke would mean a round-trip escape-sequence
   # read in the hot path, exactly the kind of latency risk this plugin
   # otherwise avoids. Instead, the LIVE column is derived locally: zsh
@@ -1802,42 +1802,42 @@ _ai_suggest_overlay_show() {
   # horizontally as you type, matching Kiro CLI, instead of staying
   # anchored where the prompt started.
   local -i cols=${COLUMNS:-80}
-  local -i offset=$(( _AI_SUGGEST_PROMPT_COL - 1 + CURSOR ))
-  local -i live_row=$(( _AI_SUGGEST_PROMPT_ROW + offset / cols ))
+  local -i offset=$(( _LUMEN_PROMPT_COL - 1 + CURSOR ))
+  local -i live_row=$(( _LUMEN_PROMPT_ROW + offset / cols ))
   local -i live_col=$(( offset % cols + 1 ))
 
   local payload="{"
-  payload+="\"candidates\":$(_ai_suggest_json_str_array "${_AI_SUGGEST_CANDIDATES[@]}"),"
-  payload+="\"descriptions\":$(_ai_suggest_json_str_array "${_AI_SUGGEST_DESCRIPTIONS[@]}"),"
-  payload+="\"labels\":$(_ai_suggest_json_str_array "${label_parts[@]}"),"
-  payload+="\"icons\":$(_ai_suggest_json_str_array "${_AI_SUGGEST_ICONS[@]}"),"
-  payload+="\"selectedIndex\":$(( _AI_SUGGEST_INDEX - 1 )),"
+  payload+="\"candidates\":$(_lumen_json_str_array "${_LUMEN_CANDIDATES[@]}"),"
+  payload+="\"descriptions\":$(_lumen_json_str_array "${_LUMEN_DESCRIPTIONS[@]}"),"
+  payload+="\"labels\":$(_lumen_json_str_array "${label_parts[@]}"),"
+  payload+="\"icons\":$(_lumen_json_str_array "${_LUMEN_ICONS[@]}"),"
+  payload+="\"selectedIndex\":$(( _LUMEN_INDEX - 1 )),"
   payload+="\"cursorRow\":$live_row,"
   payload+="\"cursorCol\":$live_col,"
   payload+="\"columns\":${cols},"
   payload+="\"lines\":${LINES:-30}"
   payload+="}"
-  _ai_suggest_overlay_send "$payload"
+  _lumen_overlay_send "$payload"
 }
 
-_ai_suggest_overlay_hide() {
+_lumen_overlay_hide() {
   local -i force=${1:-0}
-  _ai_suggest_overlay_send '{"hide":true}' $force
+  _lumen_overlay_send '{"hide":true}' $force
 }
 
-_ai_suggest_present_candidates() {
-  _ai_suggest_overlay_supported && _ai_suggest_overlay_show
+_lumen_present_candidates() {
+  _lumen_overlay_supported && _lumen_overlay_show
 }
 
 # Resets the candidate arrays WITHOUT telling the overlay to hide — see
-# _ai_suggest_clear_display's comment for why the two are kept apart.
-_ai_suggest_reset_candidates() {
-  _AI_SUGGEST_CANDIDATES=()
-  _AI_SUGGEST_DESCRIPTIONS=()
-  _AI_SUGGEST_HINTS=()
-  _AI_SUGGEST_LABELS=()
-  _AI_SUGGEST_ICONS=()
-  _AI_SUGGEST_INDEX=0
+# _lumen_clear_display's comment for why the two are kept apart.
+_lumen_reset_candidates() {
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  _LUMEN_INDEX=0
 }
 
 # Actually tells the overlay to hide (if something was showing) and resets
@@ -1845,26 +1845,26 @@ _ai_suggest_reset_candidates() {
 # showing within the same keystroke/action — e.g. Ctrl-G dismiss, a fresh
 # prompt line, or "the buffer no longer matches anything." Callers that
 # immediately re-suggest afterward (a keystroke, accepting a candidate)
-# must NOT go through here first: _ai_suggest_overlay_send throttles sends
-# under _AI_SUGGEST_OVERLAY_MIN_INTERVAL apart, and a hide here followed
+# must NOT go through here first: _lumen_overlay_send throttles sends
+# under _LUMEN_OVERLAY_MIN_INTERVAL apart, and a hide here followed
 # microseconds later by a show would mean the hide always goes through
 # (force=1) but the show *always* hits the throttle — not just
 # occasionally, every single time, since the two calls land far closer
 # together than any human keystroke ever could. The show is no longer
 # lost outright (it gets queued and flushed once the window clears, see
-# _ai_suggest_overlay_schedule_flush), but it's still needless churn and a
+# _lumen_overlay_schedule_flush), but it's still needless churn and a
 # real, if brief, moment where the panel visibly disappears mid-typing.
-# See _ai_suggest_suggest_now/_ai_suggest_trigger/_ai_suggest_accept,
-# which use _ai_suggest_reset_candidates instead and only call
-# _ai_suggest_overlay_hide directly, on its own, when they've already
+# See _lumen_suggest_now/_lumen_trigger/_lumen_accept,
+# which use _lumen_reset_candidates instead and only call
+# _lumen_overlay_hide directly, on its own, when they've already
 # determined nothing else will be shown this round.
-_ai_suggest_clear_display() {
+_lumen_clear_display() {
   # force=1: every caller of this function is a discrete, one-shot action
   # (Escape/Ctrl-G dismiss, accept-line, a fresh prompt) — never the
-  # rapid-keystrokes case _AI_SUGGEST_OVERLAY_MIN_INTERVAL guards against —
+  # rapid-keystrokes case _LUMEN_OVERLAY_MIN_INTERVAL guards against —
   # so the hide must never get silently dropped by that throttle.
-  (( ${#_AI_SUGGEST_CANDIDATES} > 0 )) && _ai_suggest_overlay_hide 1
-  _ai_suggest_reset_candidates
+  (( ${#_LUMEN_CANDIDATES} > 0 )) && _lumen_overlay_hide 1
+  _lumen_reset_candidates
 }
 
 # Maps a tool name (as typed, so "k"/"tf" included) to the icon identifier
@@ -1878,7 +1878,7 @@ _ai_suggest_clear_display() {
 # original plain "$" badge — for any tool without a specific glyph, so
 # adding a new *_SUBCMDS table later doesn't require touching this list to
 # stay visually correct, just look a little more generic until it's added.
-_ai_suggest_tool_icon_kind() {
+_lumen_tool_icon_kind() {
   case "$1" in
     git) print -n git ;;
     docker) print -n docker ;;
@@ -1933,65 +1933,65 @@ _ai_suggest_tool_icon_kind() {
 }
 
 # Matches $BUFFER against a known "<tool> <partial-subcommand>" shape and,
-# if it's a tool we have a static table for (see _AI_SUGGEST_GIT_SUBCMDS),
+# if it's a tool we have a static table for (see _LUMEN_GIT_SUBCMDS),
 # populates the candidate/description/hint arrays directly from it. Only
 # fires while still typing the subcommand itself (no space after it yet);
 # once a subcommand is chosen, its own arguments are free-form and this
 # table has nothing useful to say about them (git's checkout/switch/merge/
-# rebase/branch are the exception — see _ai_suggest_git_branch_match, which
+# rebase/branch are the exception — see _lumen_git_branch_match, which
 # picks up exactly where this backs off).
-_ai_suggest_static_match() {
+_lumen_static_match() {
   local tool="${BUFFER%% *}"
   [[ "$BUFFER" == "$tool" || "$BUFFER" == "$tool "* ]] || return 1
 
   local -a table
   case "$tool" in
-    git) table=("${_AI_SUGGEST_GIT_SUBCMDS[@]}") ;;
-    kubectl|k) table=("${_AI_SUGGEST_KUBECTL_SUBCMDS[@]}") ;;
-    npm) table=("${_AI_SUGGEST_NPM_SUBCMDS[@]}") ;;
-    docker) table=("${_AI_SUGGEST_DOCKER_SUBCMDS[@]}") ;;
-    aws) table=("${_AI_SUGGEST_AWS_SUBCMDS[@]}") ;;
-    terraform|tf) table=("${_AI_SUGGEST_TERRAFORM_SUBCMDS[@]}") ;;
-    helm) table=("${_AI_SUGGEST_HELM_SUBCMDS[@]}") ;;
-    gh) table=("${_AI_SUGGEST_GH_SUBCMDS[@]}") ;;
-    glab) table=("${_AI_SUGGEST_GLAB_SUBCMDS[@]}") ;;
-    yarn) table=("${_AI_SUGGEST_YARN_SUBCMDS[@]}") ;;
-    pnpm) table=("${_AI_SUGGEST_PNPM_SUBCMDS[@]}") ;;
-    gcloud) table=("${_AI_SUGGEST_GCLOUD_SUBCMDS[@]}") ;;
-    az) table=("${_AI_SUGGEST_AZ_SUBCMDS[@]}") ;;
-    kafka-topics.sh|kafka-topics) table=("${_AI_SUGGEST_KAFKA_TOPICS_SUBCMDS[@]}") ;;
-    kafka-console-producer.sh|kafka-console-producer) table=("${_AI_SUGGEST_KAFKA_CONSOLE_PRODUCER_SUBCMDS[@]}") ;;
-    kafka-console-consumer.sh|kafka-console-consumer) table=("${_AI_SUGGEST_KAFKA_CONSOLE_CONSUMER_SUBCMDS[@]}") ;;
-    kafka-consumer-groups.sh|kafka-consumer-groups) table=("${_AI_SUGGEST_KAFKA_CONSUMER_GROUPS_SUBCMDS[@]}") ;;
-    rabbitmqctl) table=("${_AI_SUGGEST_RABBITMQCTL_SUBCMDS[@]}") ;;
-    cargo) table=("${_AI_SUGGEST_CARGO_SUBCMDS[@]}") ;;
-    go) table=("${_AI_SUGGEST_GO_SUBCMDS[@]}") ;;
-    pip|pip3) table=("${_AI_SUGGEST_PIP_SUBCMDS[@]}") ;;
-    poetry) table=("${_AI_SUGGEST_POETRY_SUBCMDS[@]}") ;;
-    mvn) table=("${_AI_SUGGEST_MVN_SUBCMDS[@]}") ;;
-    gradle) table=("${_AI_SUGGEST_GRADLE_SUBCMDS[@]}") ;;
-    dotnet) table=("${_AI_SUGGEST_DOTNET_SUBCMDS[@]}") ;;
-    bundle) table=("${_AI_SUGGEST_BUNDLE_SUBCMDS[@]}") ;;
-    gem) table=("${_AI_SUGGEST_GEM_SUBCMDS[@]}") ;;
-    brew) table=("${_AI_SUGGEST_BREW_SUBCMDS[@]}") ;;
-    docker-compose) table=("${_AI_SUGGEST_DOCKER_COMPOSE_SUBCMDS[@]}") ;;
-    vagrant) table=("${_AI_SUGGEST_VAGRANT_SUBCMDS[@]}") ;;
-    pulumi) table=("${_AI_SUGGEST_PULUMI_SUBCMDS[@]}") ;;
-    heroku) table=("${_AI_SUGGEST_HEROKU_SUBCMDS[@]}") ;;
-    vercel) table=("${_AI_SUGGEST_VERCEL_SUBCMDS[@]}") ;;
-    netlify) table=("${_AI_SUGGEST_NETLIFY_SUBCMDS[@]}") ;;
-    firebase) table=("${_AI_SUGGEST_FIREBASE_SUBCMDS[@]}") ;;
-    flyctl|fly) table=("${_AI_SUGGEST_FLYCTL_SUBCMDS[@]}") ;;
-    doctl) table=("${_AI_SUGGEST_DOCTL_SUBCMDS[@]}") ;;
-    turbo) table=("${_AI_SUGGEST_TURBO_SUBCMDS[@]}") ;;
-    nx) table=("${_AI_SUGGEST_NX_SUBCMDS[@]}") ;;
-    tmux) table=("${_AI_SUGGEST_TMUX_SUBCMDS[@]}") ;;
-    systemctl) table=("${_AI_SUGGEST_SYSTEMCTL_SUBCMDS[@]}") ;;
-    nvm) table=("${_AI_SUGGEST_NVM_SUBCMDS[@]}") ;;
-    pyenv) table=("${_AI_SUGGEST_PYENV_SUBCMDS[@]}") ;;
-    rbenv) table=("${_AI_SUGGEST_RBENV_SUBCMDS[@]}") ;;
-    npx) table=("${_AI_SUGGEST_NPX_SUBCMDS[@]}") ;;
-    minikube) table=("${_AI_SUGGEST_MINIKUBE_SUBCMDS[@]}") ;;
+    git) table=("${_LUMEN_GIT_SUBCMDS[@]}") ;;
+    kubectl|k) table=("${_LUMEN_KUBECTL_SUBCMDS[@]}") ;;
+    npm) table=("${_LUMEN_NPM_SUBCMDS[@]}") ;;
+    docker) table=("${_LUMEN_DOCKER_SUBCMDS[@]}") ;;
+    aws) table=("${_LUMEN_AWS_SUBCMDS[@]}") ;;
+    terraform|tf) table=("${_LUMEN_TERRAFORM_SUBCMDS[@]}") ;;
+    helm) table=("${_LUMEN_HELM_SUBCMDS[@]}") ;;
+    gh) table=("${_LUMEN_GH_SUBCMDS[@]}") ;;
+    glab) table=("${_LUMEN_GLAB_SUBCMDS[@]}") ;;
+    yarn) table=("${_LUMEN_YARN_SUBCMDS[@]}") ;;
+    pnpm) table=("${_LUMEN_PNPM_SUBCMDS[@]}") ;;
+    gcloud) table=("${_LUMEN_GCLOUD_SUBCMDS[@]}") ;;
+    az) table=("${_LUMEN_AZ_SUBCMDS[@]}") ;;
+    kafka-topics.sh|kafka-topics) table=("${_LUMEN_KAFKA_TOPICS_SUBCMDS[@]}") ;;
+    kafka-console-producer.sh|kafka-console-producer) table=("${_LUMEN_KAFKA_CONSOLE_PRODUCER_SUBCMDS[@]}") ;;
+    kafka-console-consumer.sh|kafka-console-consumer) table=("${_LUMEN_KAFKA_CONSOLE_CONSUMER_SUBCMDS[@]}") ;;
+    kafka-consumer-groups.sh|kafka-consumer-groups) table=("${_LUMEN_KAFKA_CONSUMER_GROUPS_SUBCMDS[@]}") ;;
+    rabbitmqctl) table=("${_LUMEN_RABBITMQCTL_SUBCMDS[@]}") ;;
+    cargo) table=("${_LUMEN_CARGO_SUBCMDS[@]}") ;;
+    go) table=("${_LUMEN_GO_SUBCMDS[@]}") ;;
+    pip|pip3) table=("${_LUMEN_PIP_SUBCMDS[@]}") ;;
+    poetry) table=("${_LUMEN_POETRY_SUBCMDS[@]}") ;;
+    mvn) table=("${_LUMEN_MVN_SUBCMDS[@]}") ;;
+    gradle) table=("${_LUMEN_GRADLE_SUBCMDS[@]}") ;;
+    dotnet) table=("${_LUMEN_DOTNET_SUBCMDS[@]}") ;;
+    bundle) table=("${_LUMEN_BUNDLE_SUBCMDS[@]}") ;;
+    gem) table=("${_LUMEN_GEM_SUBCMDS[@]}") ;;
+    brew) table=("${_LUMEN_BREW_SUBCMDS[@]}") ;;
+    docker-compose) table=("${_LUMEN_DOCKER_COMPOSE_SUBCMDS[@]}") ;;
+    vagrant) table=("${_LUMEN_VAGRANT_SUBCMDS[@]}") ;;
+    pulumi) table=("${_LUMEN_PULUMI_SUBCMDS[@]}") ;;
+    heroku) table=("${_LUMEN_HEROKU_SUBCMDS[@]}") ;;
+    vercel) table=("${_LUMEN_VERCEL_SUBCMDS[@]}") ;;
+    netlify) table=("${_LUMEN_NETLIFY_SUBCMDS[@]}") ;;
+    firebase) table=("${_LUMEN_FIREBASE_SUBCMDS[@]}") ;;
+    flyctl|fly) table=("${_LUMEN_FLYCTL_SUBCMDS[@]}") ;;
+    doctl) table=("${_LUMEN_DOCTL_SUBCMDS[@]}") ;;
+    turbo) table=("${_LUMEN_TURBO_SUBCMDS[@]}") ;;
+    nx) table=("${_LUMEN_NX_SUBCMDS[@]}") ;;
+    tmux) table=("${_LUMEN_TMUX_SUBCMDS[@]}") ;;
+    systemctl) table=("${_LUMEN_SYSTEMCTL_SUBCMDS[@]}") ;;
+    nvm) table=("${_LUMEN_NVM_SUBCMDS[@]}") ;;
+    pyenv) table=("${_LUMEN_PYENV_SUBCMDS[@]}") ;;
+    rbenv) table=("${_LUMEN_RBENV_SUBCMDS[@]}") ;;
+    npx) table=("${_LUMEN_NPX_SUBCMDS[@]}") ;;
+    minikube) table=("${_LUMEN_MINIKUBE_SUBCMDS[@]}") ;;
     *) return 1 ;;
   esac
 
@@ -1999,7 +1999,7 @@ _ai_suggest_static_match() {
   rest="${rest## }"
   # Already past the subcommand (it has its own argument being typed) —
   # this table doesn't cover per-subcommand arguments, so back off (see
-  # _ai_suggest_git_branch_match for the git-branch-argument case).
+  # _lumen_git_branch_match for the git-branch-argument case).
   [[ "$rest" == *' '* ]] && return 1
 
   # Typing "-" before ever picking a subcommand (e.g. "docker -", "git -")
@@ -2016,30 +2016,30 @@ _ai_suggest_static_match() {
     kafka-console-consumer.sh|kafka-console-consumer|kafka-consumer-groups.sh|kafka-consumer-groups)
       ;;
     *)
-      [[ "$rest" == -* ]] && table=("${_AI_SUGGEST_GENERIC_FLAGS[@]}")
+      [[ "$rest" == -* ]] && table=("${_LUMEN_GENERIC_FLAGS[@]}")
       ;;
   esac
 
   local entry name hint desc
   local -a parts
-  local icon_kind=$(_ai_suggest_tool_icon_kind "$tool")
-  _AI_SUGGEST_CANDIDATES=()
-  _AI_SUGGEST_DESCRIPTIONS=()
-  _AI_SUGGEST_HINTS=()
-  _AI_SUGGEST_LABELS=()
-  _AI_SUGGEST_ICONS=()
+  local icon_kind=$(_lumen_tool_icon_kind "$tool")
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
   for entry in "${table[@]}"; do
     parts=("${(@ps:\t:)entry}")
     name=$parts[1]
     [[ "$name" == "$rest"* ]] || continue
-    _AI_SUGGEST_CANDIDATES+=("$tool $name ")
-    _AI_SUGGEST_LABELS+=("$name")
-    _AI_SUGGEST_HINTS+=("${parts[2]:-}")
-    _AI_SUGGEST_DESCRIPTIONS+=("${parts[3]:-}")
-    _AI_SUGGEST_ICONS+=("$icon_kind")
-    (( ${#_AI_SUGGEST_CANDIDATES} >= _AI_SUGGEST_MAX_CANDIDATES )) && break
+    _LUMEN_CANDIDATES+=("$tool $name ")
+    _LUMEN_LABELS+=("$name")
+    _LUMEN_HINTS+=("${parts[2]:-}")
+    _LUMEN_DESCRIPTIONS+=("${parts[3]:-}")
+    _LUMEN_ICONS+=("$icon_kind")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
   done
-  (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
 }
 
 # Suggests directories under whatever path is being typed after `cd`, e.g.
@@ -2050,7 +2050,7 @@ _ai_suggest_static_match() {
 # below) — a path is one argument being built up incrementally, so accepting
 # "Documents/" should leave the cursor ready to keep typing the next segment
 # (or press Tab again to drill further), not start a new word.
-_ai_suggest_cd_match() {
+_lumen_cd_match() {
   local tool="${BUFFER%% *}"
   [[ "$tool" == "cd" ]] || return 1
   [[ "$BUFFER" == "$tool" || "$BUFFER" == "$tool "* ]] || return 1
@@ -2072,30 +2072,30 @@ _ai_suggest_cd_match() {
   (( ${#matches} == 0 )) && return 1
 
   local dir label
-  _AI_SUGGEST_CANDIDATES=()
-  _AI_SUGGEST_DESCRIPTIONS=()
-  _AI_SUGGEST_HINTS=()
-  _AI_SUGGEST_LABELS=()
-  _AI_SUGGEST_ICONS=()
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
   for dir in "${matches[@]}"; do
     label="${dir%/}/"
-    _AI_SUGGEST_CANDIDATES+=("$tool ${dir%/}/")
-    _AI_SUGGEST_LABELS+=("$label")
-    _AI_SUGGEST_HINTS+=("")
-    _AI_SUGGEST_DESCRIPTIONS+=("Change directory")
-    _AI_SUGGEST_ICONS+=("dir")
-    (( ${#_AI_SUGGEST_CANDIDATES} >= _AI_SUGGEST_MAX_CANDIDATES )) && break
+    _LUMEN_CANDIDATES+=("$tool ${dir%/}/")
+    _LUMEN_LABELS+=("$label")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("Change directory")
+    _LUMEN_ICONS+=("dir")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
   done
-  (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
 }
 
 # Suggests local branch names once a git subcommand that takes one has been
 # typed (checkout/switch/merge/rebase/branch) — the counterpart to
-# _AI_SUGGEST_GIT_SUBCMDS for the *next* word instead of the subcommand
+# _LUMEN_GIT_SUBCMDS for the *next* word instead of the subcommand
 # itself. Runs `git for-each-ref` fresh on every call rather than caching:
 # it's a local-refs-only read (no network), cheap enough per keystroke, and
 # means a branch created a second ago still shows up.
-_ai_suggest_git_branch_match() {
+_lumen_git_branch_match() {
   [[ "$BUFFER" == git\ * ]] || return 1
   local rest="${BUFFER#git }"
   rest="${rest## }"
@@ -2122,21 +2122,21 @@ _ai_suggest_git_branch_match() {
   (( ${#branches} == 0 )) && return 1
 
   local br
-  _AI_SUGGEST_CANDIDATES=()
-  _AI_SUGGEST_DESCRIPTIONS=()
-  _AI_SUGGEST_HINTS=()
-  _AI_SUGGEST_LABELS=()
-  _AI_SUGGEST_ICONS=()
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
   for br in "${branches[@]}"; do
     [[ "$br" == "$partial"* ]] || continue
-    _AI_SUGGEST_CANDIDATES+=("git $subcmd $br ")
-    _AI_SUGGEST_LABELS+=("$br")
-    _AI_SUGGEST_HINTS+=("")
-    _AI_SUGGEST_DESCRIPTIONS+=("Local branch")
-    _AI_SUGGEST_ICONS+=("branch")
-    (( ${#_AI_SUGGEST_CANDIDATES} >= _AI_SUGGEST_MAX_CANDIDATES )) && break
+    _LUMEN_CANDIDATES+=("git $subcmd $br ")
+    _LUMEN_LABELS+=("$br")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("Local branch")
+    _LUMEN_ICONS+=("branch")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
   done
-  (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
 }
 
 # Shared by every JSON-based project-file matcher below (package.json's
@@ -2144,7 +2144,7 @@ _ai_suggest_git_branch_match() {
 # file $1 and prints "name<TAB>value" pairs for each key found inside the
 # first top-level object under the JSON key named $2, one per line, in
 # file order (current directory only — no upward search, same "just cwd"
-# scope as _ai_suggest_cd_match). A crude, line-based parse rather than a
+# scope as _lumen_cd_match). A crude, line-based parse rather than a
 # real JSON parser: assumes the standard single-key-per-line formatting
 # every real tool that WRITES these files actually produces, and that the
 # block's closing brace is the first "}" line after the key — good enough
@@ -2155,7 +2155,7 @@ _ai_suggest_git_branch_match() {
 # for one script) still prints, just with an empty value — a usable
 # candidate, only the description preview is missing. Prints nothing and
 # returns 1 if the file doesn't exist or has no such block.
-_ai_suggest_json_kv_block() {
+_lumen_json_kv_block() {
   local file=$1 key=$2
   [[ -f $file ]] || return 1
   local line
@@ -2180,10 +2180,10 @@ _ai_suggest_json_kv_block() {
 # Matches "<tool> <partial>" (bare, yarn/pnpm only — see below) or "<tool>
 # run <partial>" (npm/yarn/pnpm) against real script names read live from
 # ./package.json, so e.g. a repo with a custom "start" script (not one of
-# the generic guesses in _AI_SUGGEST_{NPM,YARN,PNPM}_SUBCMDS) suggests
+# the generic guesses in _LUMEN_{NPM,YARN,PNPM}_SUBCMDS) suggests
 # correctly, description showing the actual command it runs. Takes
-# priority over _ai_suggest_nested_match/_ai_suggest_static_match (tried
-# first in _ai_suggest_static_or_dynamic_match) so real project data wins
+# priority over _lumen_nested_match/_lumen_static_match (tried
+# first in _lumen_static_or_dynamic_match) so real project data wins
 # over the generic hand-picked guesses whenever it's available, but backs
 # off (returns 1) the moment there's no package.json or nothing matches,
 # letting those static tables handle it — this only ever ADDS coverage,
@@ -2193,11 +2193,11 @@ _ai_suggest_json_kv_block() {
 # npm specifically requires the explicit "run" for arbitrary scripts —
 # bare `npm <script>` only works for a handful of reserved names (start/
 # test/stop/restart), which are exactly the ones already hand-picked into
-# _AI_SUGGEST_NPM_SUBCMDS, so this only completes after "npm run " to
+# _LUMEN_NPM_SUBCMDS, so this only completes after "npm run " to
 # avoid suggesting a command that would actually fail to run. yarn and
 # pnpm both support invoking a script directly OR via "run", so this
 # completes either shape for those two.
-_ai_suggest_package_script_match() {
+_lumen_package_script_match() {
   local tool="${BUFFER%% *}"
   case "$tool" in
     npm|yarn|pnpm) ;;
@@ -2218,28 +2218,28 @@ _ai_suggest_package_script_match() {
   [[ "$partial" == *' '* ]] && return 1
 
   local -a script_lines
-  script_lines=(${(f)"$(_ai_suggest_json_kv_block package.json scripts)"})
+  script_lines=(${(f)"$(_lumen_json_kv_block package.json scripts)"})
   (( ${#script_lines} > 0 )) || return 1
 
-  local icon_kind=$(_ai_suggest_tool_icon_kind "$tool")
+  local icon_kind=$(_lumen_tool_icon_kind "$tool")
   local entry name cmd
-  _AI_SUGGEST_CANDIDATES=()
-  _AI_SUGGEST_DESCRIPTIONS=()
-  _AI_SUGGEST_HINTS=()
-  _AI_SUGGEST_LABELS=()
-  _AI_SUGGEST_ICONS=()
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
   for entry in "${script_lines[@]}"; do
     name="${entry%%$'\t'*}"
     cmd="${entry#*$'\t'}"
     [[ "$name" == "$partial"* ]] || continue
-    _AI_SUGGEST_CANDIDATES+=("$tool $prefix$name ")
-    _AI_SUGGEST_LABELS+=("$name")
-    _AI_SUGGEST_HINTS+=("")
-    _AI_SUGGEST_DESCRIPTIONS+=("${cmd:-package.json script}")
-    _AI_SUGGEST_ICONS+=("$icon_kind")
-    (( ${#_AI_SUGGEST_CANDIDATES} >= _AI_SUGGEST_MAX_CANDIDATES )) && break
+    _LUMEN_CANDIDATES+=("$tool $prefix$name ")
+    _LUMEN_LABELS+=("$name")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("${cmd:-package.json script}")
+    _LUMEN_ICONS+=("$icon_kind")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
   done
-  (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
 }
 
 # Reads target names out of ./Makefile (falling back to ./makefile, then
@@ -2253,7 +2253,7 @@ _ai_suggest_package_script_match() {
 # character — this means a real target declared alongside one in a
 # `.PHONY: build test` line still gets picked up from its own actual
 # `build:`/`test:` definition line elsewhere in the file.
-_ai_suggest_makefile_targets() {
+_lumen_makefile_targets() {
   local file
   for file in Makefile makefile GNUmakefile; do
     [[ -f $file ]] && break
@@ -2276,7 +2276,7 @@ _ai_suggest_makefile_targets() {
 # npm/yarn/pnpm, there's no meaningful generic guess for what a
 # project's targets are called), so this is its only source of
 # completions. Backs off with nothing when there's no Makefile here.
-_ai_suggest_make_match() {
+_lumen_make_match() {
   local tool="${BUFFER%% *}"
   [[ "$tool" == make ]] || return 1
   [[ "$BUFFER" == "$tool" || "$BUFFER" == "$tool "* ]] || return 1
@@ -2285,26 +2285,26 @@ _ai_suggest_make_match() {
   [[ "$partial" == *' '* ]] && return 1
 
   local -a targets
-  targets=(${(f)"$(_ai_suggest_makefile_targets)"})
+  targets=(${(f)"$(_lumen_makefile_targets)"})
   (( ${#targets} > 0 )) || return 1
 
-  local icon_kind=$(_ai_suggest_tool_icon_kind make)
+  local icon_kind=$(_lumen_tool_icon_kind make)
   local name
-  _AI_SUGGEST_CANDIDATES=()
-  _AI_SUGGEST_DESCRIPTIONS=()
-  _AI_SUGGEST_HINTS=()
-  _AI_SUGGEST_LABELS=()
-  _AI_SUGGEST_ICONS=()
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
   for name in "${targets[@]}"; do
     [[ "$name" == "$partial"* ]] || continue
-    _AI_SUGGEST_CANDIDATES+=("make $name ")
-    _AI_SUGGEST_LABELS+=("$name")
-    _AI_SUGGEST_HINTS+=("")
-    _AI_SUGGEST_DESCRIPTIONS+=("Makefile target")
-    _AI_SUGGEST_ICONS+=("$icon_kind")
-    (( ${#_AI_SUGGEST_CANDIDATES} >= _AI_SUGGEST_MAX_CANDIDATES )) && break
+    _LUMEN_CANDIDATES+=("make $name ")
+    _LUMEN_LABELS+=("$name")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("Makefile target")
+    _LUMEN_ICONS+=("$icon_kind")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
   done
-  (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
 }
 
 # Reads recipe names out of ./justfile (falling back to ./Justfile — Just
@@ -2314,7 +2314,7 @@ _ai_suggest_make_match() {
 # immediately followed by "=" (":=" is Just's variable-assignment
 # operator, not a recipe) — recipe bodies are always indented and never
 # match this.
-_ai_suggest_justfile_recipes() {
+_lumen_justfile_recipes() {
   local file
   for file in justfile Justfile; do
     [[ -f $file ]] && break
@@ -2333,10 +2333,10 @@ _ai_suggest_justfile_recipes() {
 }
 
 # Matches "just <partial>" against real recipe names read live from
-# ./justfile — same reasoning as _ai_suggest_make_match: no meaningful
+# ./justfile — same reasoning as _lumen_make_match: no meaningful
 # generic guess exists for a project's own recipe names, so this is
 # Just's only source of completions.
-_ai_suggest_just_match() {
+_lumen_just_match() {
   local tool="${BUFFER%% *}"
   [[ "$tool" == just ]] || return 1
   [[ "$BUFFER" == "$tool" || "$BUFFER" == "$tool "* ]] || return 1
@@ -2345,69 +2345,69 @@ _ai_suggest_just_match() {
   [[ "$partial" == *' '* ]] && return 1
 
   local -a recipes
-  recipes=(${(f)"$(_ai_suggest_justfile_recipes)"})
+  recipes=(${(f)"$(_lumen_justfile_recipes)"})
   (( ${#recipes} > 0 )) || return 1
 
-  local icon_kind=$(_ai_suggest_tool_icon_kind just)
+  local icon_kind=$(_lumen_tool_icon_kind just)
   local name
-  _AI_SUGGEST_CANDIDATES=()
-  _AI_SUGGEST_DESCRIPTIONS=()
-  _AI_SUGGEST_HINTS=()
-  _AI_SUGGEST_LABELS=()
-  _AI_SUGGEST_ICONS=()
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
   for name in "${recipes[@]}"; do
     [[ "$name" == "$partial"* ]] || continue
-    _AI_SUGGEST_CANDIDATES+=("just $name ")
-    _AI_SUGGEST_LABELS+=("$name")
-    _AI_SUGGEST_HINTS+=("")
-    _AI_SUGGEST_DESCRIPTIONS+=("Just recipe")
-    _AI_SUGGEST_ICONS+=("$icon_kind")
-    (( ${#_AI_SUGGEST_CANDIDATES} >= _AI_SUGGEST_MAX_CANDIDATES )) && break
+    _LUMEN_CANDIDATES+=("just $name ")
+    _LUMEN_LABELS+=("$name")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("Just recipe")
+    _LUMEN_ICONS+=("$icon_kind")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
   done
-  (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
 }
 
 # Matches "composer run-script <partial>" against real script names read
 # live from ./composer.json's "scripts" object — the PHP-ecosystem
-# equivalent of _ai_suggest_package_script_match. Unlike npm/yarn/pnpm,
+# equivalent of _lumen_package_script_match. Unlike npm/yarn/pnpm,
 # Composer has no bare "composer <script>" invocation form at all, so
 # this only ever completes after the explicit "run-script".
-_ai_suggest_composer_match() {
+_lumen_composer_match() {
   [[ "$BUFFER" == composer\ run-script\ * ]] || return 1
   local partial="${BUFFER#composer run-script }"
   [[ "$partial" == *' '* ]] && return 1
 
   local -a script_lines
-  script_lines=(${(f)"$(_ai_suggest_json_kv_block composer.json scripts)"})
+  script_lines=(${(f)"$(_lumen_json_kv_block composer.json scripts)"})
   (( ${#script_lines} > 0 )) || return 1
 
-  local icon_kind=$(_ai_suggest_tool_icon_kind composer)
+  local icon_kind=$(_lumen_tool_icon_kind composer)
   local entry name cmd
-  _AI_SUGGEST_CANDIDATES=()
-  _AI_SUGGEST_DESCRIPTIONS=()
-  _AI_SUGGEST_HINTS=()
-  _AI_SUGGEST_LABELS=()
-  _AI_SUGGEST_ICONS=()
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
   for entry in "${script_lines[@]}"; do
     name="${entry%%$'\t'*}"
     cmd="${entry#*$'\t'}"
     [[ "$name" == "$partial"* ]] || continue
-    _AI_SUGGEST_CANDIDATES+=("composer run-script $name ")
-    _AI_SUGGEST_LABELS+=("$name")
-    _AI_SUGGEST_HINTS+=("")
-    _AI_SUGGEST_DESCRIPTIONS+=("${cmd:-Composer script}")
-    _AI_SUGGEST_ICONS+=("$icon_kind")
-    (( ${#_AI_SUGGEST_CANDIDATES} >= _AI_SUGGEST_MAX_CANDIDATES )) && break
+    _LUMEN_CANDIDATES+=("composer run-script $name ")
+    _LUMEN_LABELS+=("$name")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("${cmd:-Composer script}")
+    _LUMEN_ICONS+=("$icon_kind")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
   done
-  (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
 }
 
 # Matches "deno task <partial>" against real task names read live from
 # ./deno.json's (or ./deno.jsonc's) "tasks" object — the Deno-ecosystem
-# equivalent of _ai_suggest_package_script_match. Deno reserves its own
+# equivalent of _lumen_package_script_match. Deno reserves its own
 # top-level subcommands (run/test/fmt/lint/task/...), so — like npm —
 # there's no bare "deno <task>" form; this only completes after "task".
-_ai_suggest_deno_task_match() {
+_lumen_deno_task_match() {
   [[ "$BUFFER" == deno\ task\ * ]] || return 1
   local partial="${BUFFER#deno task }"
   [[ "$partial" == *' '* ]] && return 1
@@ -2415,32 +2415,32 @@ _ai_suggest_deno_task_match() {
   local file=deno.json
   [[ -f $file ]] || file=deno.jsonc
   local -a task_lines
-  task_lines=(${(f)"$(_ai_suggest_json_kv_block "$file" tasks)"})
+  task_lines=(${(f)"$(_lumen_json_kv_block "$file" tasks)"})
   (( ${#task_lines} > 0 )) || return 1
 
-  local icon_kind=$(_ai_suggest_tool_icon_kind deno)
+  local icon_kind=$(_lumen_tool_icon_kind deno)
   local entry name cmd
-  _AI_SUGGEST_CANDIDATES=()
-  _AI_SUGGEST_DESCRIPTIONS=()
-  _AI_SUGGEST_HINTS=()
-  _AI_SUGGEST_LABELS=()
-  _AI_SUGGEST_ICONS=()
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
   for entry in "${task_lines[@]}"; do
     name="${entry%%$'\t'*}"
     cmd="${entry#*$'\t'}"
     [[ "$name" == "$partial"* ]] || continue
-    _AI_SUGGEST_CANDIDATES+=("deno task $name ")
-    _AI_SUGGEST_LABELS+=("$name")
-    _AI_SUGGEST_HINTS+=("")
-    _AI_SUGGEST_DESCRIPTIONS+=("${cmd:-Deno task}")
-    _AI_SUGGEST_ICONS+=("$icon_kind")
-    (( ${#_AI_SUGGEST_CANDIDATES} >= _AI_SUGGEST_MAX_CANDIDATES )) && break
+    _LUMEN_CANDIDATES+=("deno task $name ")
+    _LUMEN_LABELS+=("$name")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("${cmd:-Deno task}")
+    _LUMEN_ICONS+=("$icon_kind")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
   done
-  (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
 }
 
 # Matches "<tool> <subcmd> [<subcmd2> ...] <partial>" against a nested
-# static table one (or more) levels deeper than _ai_suggest_static_match: the
+# static table one (or more) levels deeper than _lumen_static_match: the
 # sub-subcommands of a subcommand that is itself a management command (e.g.
 # "docker image" -> ls/build/rm/..., "git stash" -> push/pop/list/...), or
 # the flags of a specific — possibly nested — subcommand once the word being
@@ -2454,7 +2454,7 @@ _ai_suggest_deno_task_match() {
 # for it (docker's `run` doesn't have its own sub-subcommands, most
 # subcommands don't have a hand-picked flag table) just means no table
 # exists at that name, so this backs off same as any other non-match.
-_ai_suggest_nested_match() {
+_lumen_nested_match() {
   local tool="${BUFFER%% *}"
   [[ "$BUFFER" == "$tool "* ]] || return 1
 
@@ -2474,7 +2474,7 @@ _ai_suggest_nested_match() {
   fi
   # Need the tool plus at least one already-typed (complete) subcommand word
   # beyond it — a bare "<tool> <partial>" with nothing finished past the
-  # tool yet is level 1, already handled by _ai_suggest_static_match.
+  # tool yet is level 1, already handled by _lumen_static_match.
   (( ${#words} >= 2 )) || return 1
   [[ "$partial" == *' '* ]] && return 1
 
@@ -2495,10 +2495,10 @@ _ai_suggest_nested_match() {
   # at this path at all.
   local table_var
   if [[ "$partial" == -* ]]; then
-    table_var="_AI_SUGGEST_${key}_FLAGS"
-    (( ${+parameters[$table_var]} )) || table_var="_AI_SUGGEST_GENERIC_FLAGS"
+    table_var="_LUMEN_${key}_FLAGS"
+    (( ${+parameters[$table_var]} )) || table_var="_LUMEN_GENERIC_FLAGS"
   else
-    table_var="_AI_SUGGEST_${key}_SUBCMDS"
+    table_var="_LUMEN_${key}_SUBCMDS"
     # A "leaf" command with only a *_FLAGS table and no sub-subcommands of
     # its own (docker ps/images/run/exec/logs, git log/branch/checkout/
     # diff, kubectl get/exec, ...) has nothing under *_SUBCMDS at all —
@@ -2509,105 +2509,122 @@ _ai_suggest_nested_match() {
     # back to the flags table here means "docker images " now offers
     # -a/-q/--filter right away, same as "docker images -" already did.
     if (( ! ${+parameters[$table_var]} )); then
-      table_var="_AI_SUGGEST_${key}_FLAGS"
-      (( ${+parameters[$table_var]} )) || table_var="_AI_SUGGEST_GENERIC_FLAGS"
+      table_var="_LUMEN_${key}_FLAGS"
+      (( ${+parameters[$table_var]} )) || table_var="_LUMEN_GENERIC_FLAGS"
     fi
   fi
   # Flags and sub-subcommands both belong to the same tool, so they get the
-  # same glyph — see _ai_suggest_tool_icon_kind.
-  local icon_kind=$(_ai_suggest_tool_icon_kind "$tool_canon")
+  # same glyph — see _lumen_tool_icon_kind.
+  local icon_kind=$(_lumen_tool_icon_kind "$tool_canon")
   (( ${+parameters[$table_var]} )) || return 1
   local -a table=("${(@P)table_var}")
   (( ${#table} > 0 )) || return 1
 
   local entry name
   local -a parts
-  _AI_SUGGEST_CANDIDATES=()
-  _AI_SUGGEST_DESCRIPTIONS=()
-  _AI_SUGGEST_HINTS=()
-  _AI_SUGGEST_LABELS=()
-  _AI_SUGGEST_ICONS=()
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
   for entry in "${table[@]}"; do
     parts=("${(@ps:\t:)entry}")
     name=$parts[1]
     [[ "$name" == "$partial"* ]] || continue
-    _AI_SUGGEST_CANDIDATES+=("$tool ${(j: :)path} $name ")
-    _AI_SUGGEST_LABELS+=("$name")
-    _AI_SUGGEST_HINTS+=("${parts[2]:-}")
-    _AI_SUGGEST_DESCRIPTIONS+=("${parts[3]:-}")
-    _AI_SUGGEST_ICONS+=("$icon_kind")
-    (( ${#_AI_SUGGEST_CANDIDATES} >= _AI_SUGGEST_MAX_CANDIDATES )) && break
+    _LUMEN_CANDIDATES+=("$tool ${(j: :)path} $name ")
+    _LUMEN_LABELS+=("$name")
+    _LUMEN_HINTS+=("${parts[2]:-}")
+    _LUMEN_DESCRIPTIONS+=("${parts[3]:-}")
+    _LUMEN_ICONS+=("$icon_kind")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
   done
-  (( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
 }
 
 # Tries every no-AI-round-trip match source in order, cheapest/most-specific
 # first, and stops at the first one that produces candidates. Shared entry
-# point for both the automatic (_ai_suggest_suggest_now) and manual
-# (_ai_suggest_trigger) paths so they never drift out of sync on what counts
+# point for both the automatic (_lumen_suggest_now) and manual
+# (_lumen_trigger) paths so they never drift out of sync on what counts
 # as a "static" match.
-_ai_suggest_static_or_dynamic_match() {
-  _ai_suggest_cd_match && return 0
-  _ai_suggest_git_branch_match && return 0
-  _ai_suggest_package_script_match && return 0
-  _ai_suggest_make_match && return 0
-  _ai_suggest_just_match && return 0
-  _ai_suggest_composer_match && return 0
-  _ai_suggest_deno_task_match && return 0
-  _ai_suggest_nested_match && return 0
-  _ai_suggest_static_match
+_lumen_static_or_dynamic_match() {
+  _lumen_cd_match && return 0
+  _lumen_git_branch_match && return 0
+  _lumen_package_script_match && return 0
+  _lumen_make_match && return 0
+  _lumen_just_match && return 0
+  _lumen_composer_match && return 0
+  _lumen_deno_task_match && return 0
+  _lumen_nested_match && return 0
+  _lumen_static_match
 }
 
 # Looks for a suggestion for the CURRENT buffer and renders it. Shared by
 # every caller that just changed BUFFER and wants suggestions re-evaluated
-# for the new state — a keystroke (_ai_suggest_edit_wrapper) or accepting a
-# candidate (_ai_suggest_accept, so picking "git add " immediately offers
+# for the new state — a keystroke (_lumen_edit_wrapper) or accepting a
+# candidate (_lumen_accept, so picking "git add " immediately offers
 # what typically follows it, chaining word-by-word instead of going silent
 # until the next keystroke).
-_ai_suggest_suggest_now() {
+_lumen_suggest_now() {
   # Whether the overlay currently has something on screen that this call
   # needs to account for — reset the local arrays now (not through
-  # _ai_suggest_clear_display: see its comment for why sending hide here,
+  # _lumen_clear_display: see its comment for why sending hide here,
   # right before this same call likely sends a fresh show, would get that
   # show silently dropped by the overlay's send throttle).
-  local -i had_candidates=$(( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
-  _ai_suggest_reset_candidates
+  local -i had_candidates=$(( ${#_LUMEN_CANDIDATES} > 0 ))
+  _lumen_reset_candidates
 
   # Explicit `return 0`, not bare `return`: a zle widget function that ends
-  # with non-zero status makes zle beep, and _ai_suggest_auto_enabled
+  # with non-zero status makes zle beep, and _lumen_auto_enabled
   # returns non-zero precisely when suggestions are toggled off — bare
   # `return` here would carry that failure status out and ring the
   # terminal bell on every single keystroke while suggestions are disabled.
-  if ! _ai_suggest_auto_enabled; then
-    (( had_candidates )) && _ai_suggest_overlay_hide
+  if ! _lumen_auto_enabled; then
+    (( had_candidates )) && _lumen_overlay_hide
     return 0
   fi
 
   # Known, exact data (cd targets, git branches, tool subcommands) beats
   # everything else — no guess, no round-trip — so it both answers
   # correctly and skips the AI call entirely for this buffer.
-  if _ai_suggest_static_or_dynamic_match; then
-    _AI_SUGGEST_INDEX=1
-    _ai_suggest_present_candidates
+  if _lumen_static_or_dynamic_match; then
+    _LUMEN_INDEX=1
+    _lumen_present_candidates
   elif (( had_candidates )); then
     # Buffer no longer matches anything (e.g. backspaced past a known
     # prefix) — nothing will replace what was showing, so this is the one
     # case within this call where actually hiding is correct.
-    _ai_suggest_overlay_hide
+    _lumen_overlay_hide
   fi
 }
 
 # Wraps every buffer-editing widget: runs whatever was bound to $WIDGET
 # before we took it over (another plugin's customization, e.g. zsh's own
-# `url-quote-magic` on self-insert — see _ai_suggest_wrap_widget), falling
+# `url-quote-magic` on self-insert — see _lumen_wrap_widget), falling
 # back to the plain builtin (`zle .$WIDGET`) when nothing else had claimed
 # it, then re-evaluates suggestions for the resulting buffer.
-_ai_suggest_edit_wrapper() {
+# Set for the duration of a `bracketed-paste` dispatch (see
+# _lumen_edit_wrapper) — including the nested self-insert calls that
+# happen *inside* it, not just the outer call itself. Needed because
+# bracketed-paste handlers (confirmed for oh-my-zsh's bundled
+# bracketed-paste-magic via /tmp/lumen-paste-debug.log, 2026-08-13:
+# one `bracketed-paste` dispatch immediately followed by dozens of
+# individual `self-insert` calls, one per pasted character) commonly read
+# the whole paste up front, then loop over it *in memory*, replaying it as
+# a run of ordinary self-insert dispatches — purely so other plugins
+# (syntax highlighting, etc.) still see every character go through the
+# normal path. Each of those nested calls has $WIDGET==self-insert like
+# any real keystroke, and crucially $PENDING==0 throughout (there's
+# nothing left to read from the terminal — the whole paste was already
+# consumed before the loop started), so neither of those alone can tell a
+# paste-replay character apart from a real one. This flag can.
+typeset -gi _LUMEN_IN_PASTE=0
+
+_lumen_edit_wrapper() {
   # Backspacing the trailing space that just triggered a follow-up
   # suggestion (e.g. "git commit " -> "-m") should close that suggestion,
   # not re-show one — without this check, deleting back to "git commit"
   # re-matches the top-level "commit" entry against itself (same reason
-  # _ai_suggest_accept_line has to guard against that self-match; see its
+  # _lumen_accept_line has to guard against that self-match; see its
   # comment) and the panel looks like it never closed, just swapped back to
   # the previous suggestion instead of following the character you deleted.
   local -i deleted_trailing_space=0
@@ -2615,11 +2632,19 @@ _ai_suggest_edit_wrapper() {
     deleted_trailing_space=1
   fi
 
-  if (( $+_AI_SUGGEST_ORIG_WIDGET[$WIDGET] )); then
-    _ai_suggest_call_orig_widget $WIDGET
+  local -i is_paste_dispatch=0
+  if [[ $WIDGET == bracketed-paste ]]; then
+    is_paste_dispatch=1
+    _LUMEN_IN_PASTE=1
+  fi
+
+  if (( $+_LUMEN_ORIG_WIDGET[$WIDGET] )); then
+    _lumen_call_orig_widget $WIDGET
   else
     zle .$WIDGET
   fi
+
+  (( is_paste_dispatch )) && _LUMEN_IN_PASTE=0
 
   # A paste (bracketed-paste — terminals send the whole blob as one event,
   # not a run of individual keystrokes) drops in a complete command someone
@@ -2631,90 +2656,98 @@ _ai_suggest_edit_wrapper() {
   # per-character events to re-evaluate on. So: run the real paste (still
   # inserts the text normally) but always clear rather than suggest.
   if [[ $WIDGET == bracketed-paste ]] || (( deleted_trailing_space )); then
-    _ai_suggest_clear_display
+    _lumen_clear_display
+  elif (( _LUMEN_IN_PASTE )); then
+    # One of the nested self-insert replay calls described above — see
+    # the comment on _LUMEN_IN_PASTE. Re-matching/re-rendering for
+    # every one of these about-to-be-superseded intermediate states is
+    # exactly what produces the paste flicker; skip them. The outer
+    # bracketed-paste branch above already clears the display once the
+    # whole paste is done.
+    :
   else
-    _ai_suggest_suggest_now
+    _lumen_suggest_now
   fi
 }
 
 # --- the manual, immediate trigger ------------------------------------------
 
-_ai_suggest_trigger() {
-  local -i had_candidates=$(( ${#_AI_SUGGEST_CANDIDATES} > 0 ))
-  _ai_suggest_reset_candidates
+_lumen_trigger() {
+  local -i had_candidates=$(( ${#_LUMEN_CANDIDATES} > 0 ))
+  _lumen_reset_candidates
 
   if [[ -z $BUFFER ]]; then
-    (( had_candidates )) && _ai_suggest_overlay_hide 1
-    zle -M "ai-suggest: command line is empty"
+    (( had_candidates )) && _lumen_overlay_hide 1
+    zle -M "lumen: command line is empty"
     return
   fi
 
-  if _ai_suggest_static_or_dynamic_match; then
-    _AI_SUGGEST_INDEX=1
-    _ai_suggest_present_candidates
+  if _lumen_static_or_dynamic_match; then
+    _LUMEN_INDEX=1
+    _lumen_present_candidates
     return
   fi
 
-  (( had_candidates )) && _ai_suggest_overlay_hide 1
-  zle -M "ai-suggest: no suggestions for this command"
+  (( had_candidates )) && _lumen_overlay_hide 1
+  zle -M "lumen: no suggestions for this command"
   return 1
 }
 
 # --- selection widgets --------------------------------------------------------
 
-_ai_suggest_accept() {
-  if (( ${#_AI_SUGGEST_CANDIDATES} > 0 )); then
+_lumen_accept() {
+  if (( ${#_LUMEN_CANDIDATES} > 0 )); then
     # Capture the chosen candidate before resetting the arrays.
-    local chosen=$_AI_SUGGEST_CANDIDATES[$_AI_SUGGEST_INDEX]
-    _ai_suggest_reset_candidates
+    local chosen=$_LUMEN_CANDIDATES[$_LUMEN_INDEX]
+    _lumen_reset_candidates
     # Candidates carry their own trailing separator baked in — a space for
     # every matcher except `cd`, which appends "/" instead (see e.g.
-    # _ai_suggest_static_match's "$tool $name " vs the cd matcher's
+    # _lumen_static_match's "$tool $name " vs the cd matcher's
     # "$tool ${dir%/}/"). Stripping just the space here means accepting
     # inserts only the word itself, cursor right after it — not "word " —
     # so the next suggestion (e.g. "commit" -> "-m") only appears once you
     # actually type a space yourself (self-insert already re-evaluates
-    # suggestions on every keystroke, see _ai_suggest_edit_wrapper), instead
+    # suggestions on every keystroke, see _lumen_edit_wrapper), instead
     # of popping up immediately on accept the way it used to.
     BUFFER=${chosen% }
     CURSOR=${#BUFFER}
-    _ai_suggest_overlay_hide 1
+    _lumen_overlay_hide 1
   else
     zle .expand-or-complete
   fi
 }
 
-_ai_suggest_forward_char() {
-  if (( ${#_AI_SUGGEST_CANDIDATES} > 0 )) && (( CURSOR == ${#BUFFER} )); then
-    _ai_suggest_accept
-  elif (( $+_AI_SUGGEST_ORIG_WIDGET[forward-char] )); then
-    _ai_suggest_call_orig_widget forward-char
+_lumen_forward_char() {
+  if (( ${#_LUMEN_CANDIDATES} > 0 )) && (( CURSOR == ${#BUFFER} )); then
+    _lumen_accept
+  elif (( $+_LUMEN_ORIG_WIDGET[forward-char] )); then
+    _lumen_call_orig_widget forward-char
   else
     zle .forward-char
   fi
 }
 
-_ai_suggest_next() {
-  if (( ${#_AI_SUGGEST_CANDIDATES} > 1 )); then
-    (( _AI_SUGGEST_INDEX = _AI_SUGGEST_INDEX % ${#_AI_SUGGEST_CANDIDATES} + 1 ))
-    _ai_suggest_present_candidates
+_lumen_next() {
+  if (( ${#_LUMEN_CANDIDATES} > 1 )); then
+    (( _LUMEN_INDEX = _LUMEN_INDEX % ${#_LUMEN_CANDIDATES} + 1 ))
+    _lumen_present_candidates
   else
     zle .down-line-or-history
   fi
 }
 
-_ai_suggest_prev() {
-  if (( ${#_AI_SUGGEST_CANDIDATES} > 1 )); then
-    (( _AI_SUGGEST_INDEX = (_AI_SUGGEST_INDEX - 2 + ${#_AI_SUGGEST_CANDIDATES}) % ${#_AI_SUGGEST_CANDIDATES} + 1 ))
-    _ai_suggest_present_candidates
+_lumen_prev() {
+  if (( ${#_LUMEN_CANDIDATES} > 1 )); then
+    (( _LUMEN_INDEX = (_LUMEN_INDEX - 2 + ${#_LUMEN_CANDIDATES}) % ${#_LUMEN_CANDIDATES} + 1 ))
+    _lumen_present_candidates
   else
     zle .up-line-or-history
   fi
 }
 
-_ai_suggest_dismiss() {
-  if (( ${#_AI_SUGGEST_CANDIDATES} > 0 )); then
-    _ai_suggest_clear_display
+_lumen_dismiss() {
+  if (( ${#_LUMEN_CANDIDATES} > 0 )); then
+    _lumen_clear_display
   else
     zle .send-break
   fi
@@ -2728,12 +2761,12 @@ _ai_suggest_dismiss() {
 # keypress) — but Escape gets pressed on reflex far more often, "just in
 # case something is showing," and beeping every single one of those times
 # reads as broken rather than as the same expected zsh convention.
-_ai_suggest_dismiss_escape() {
-  (( ${#_AI_SUGGEST_CANDIDATES} > 0 )) && _ai_suggest_clear_display
+_lumen_dismiss_escape() {
+  (( ${#_LUMEN_CANDIDATES} > 0 )) && _lumen_clear_display
   true
 }
 
-_ai_suggest_accept_line() {
+_lumen_accept_line() {
   # A suggestion is showing AND accepting it would actually change BUFFER:
   # Enter accepts it (like Tab) instead of running the line — same as
   # picking it and pressing Enter again to actually run it, so an
@@ -2746,50 +2779,50 @@ _ai_suggest_accept_line() {
   # this check, Enter would "accept" a no-op (re-insert the exact same
   # text) instead of running the command, so finishing a known subcommand
   # and pressing Enter would silently need a second Enter to do anything.
-  if (( ${#_AI_SUGGEST_CANDIDATES} > 0 )) \
-     && [[ "${_AI_SUGGEST_CANDIDATES[$_AI_SUGGEST_INDEX]% }" != "$BUFFER" ]]; then
-    _ai_suggest_accept
+  if (( ${#_LUMEN_CANDIDATES} > 0 )) \
+     && [[ "${_LUMEN_CANDIDATES[$_LUMEN_INDEX]% }" != "$BUFFER" ]]; then
+    _lumen_accept
     return
   fi
-  _ai_suggest_clear_display
-  if (( $+_AI_SUGGEST_ORIG_WIDGET[accept-line] )); then
-    _ai_suggest_call_orig_widget accept-line
+  _lumen_clear_display
+  if (( $+_LUMEN_ORIG_WIDGET[accept-line] )); then
+    _lumen_call_orig_widget accept-line
   else
     zle .accept-line
   fi
 }
 
-_ai_suggest_line_init() {
-  _ai_suggest_clear_display
-  _ai_suggest_call_orig_widget zle-line-init
-  _ai_suggest_query_cursor_pos
+_lumen_line_init() {
+  _lumen_clear_display
+  _lumen_call_orig_widget zle-line-init
+  _lumen_query_cursor_pos
 }
 
 # --- registration --------------------------------------------------------
 
-zle -N _ai_suggest_trigger
-zle -N _ai_suggest_accept
-zle -N _ai_suggest_next
-zle -N _ai_suggest_prev
-zle -N _ai_suggest_dismiss
-zle -N _ai_suggest_dismiss_escape
+zle -N _lumen_trigger
+zle -N _lumen_accept
+zle -N _lumen_next
+zle -N _lumen_prev
+zle -N _lumen_dismiss
+zle -N _lumen_dismiss_escape
 # These three (unlike the ones above) are well-known widget names other
 # plugins/frameworks may already have bound — go through
-# _ai_suggest_wrap_widget so anything already there (Powerlevel10k's
+# _lumen_wrap_widget so anything already there (Powerlevel10k's
 # zle-line-init, etc.) keeps running instead of being silently replaced.
-_ai_suggest_wrap_widget forward-char _ai_suggest_forward_char
-_ai_suggest_wrap_widget accept-line _ai_suggest_accept_line
-_ai_suggest_wrap_widget zle-line-init _ai_suggest_line_init
+_lumen_wrap_widget forward-char _lumen_forward_char
+_lumen_wrap_widget accept-line _lumen_accept_line
+_lumen_wrap_widget zle-line-init _lumen_line_init
 
-bindkey "$AI_SUGGEST_KEY" _ai_suggest_trigger
-bindkey '^I' _ai_suggest_accept  # Tab
-# forward-char (not _ai_suggest_forward_char) is the correct widget name
-# here: _ai_suggest_wrap_widget above registers our implementation UNDER
-# the name "forward-char" itself (zle -N forward-char _ai_suggest_forward_char),
+bindkey "$LUMEN_KEY" _lumen_trigger
+bindkey '^I' _lumen_accept  # Tab
+# forward-char (not _lumen_forward_char) is the correct widget name
+# here: _lumen_wrap_widget above registers our implementation UNDER
+# the name "forward-char" itself (zle -N forward-char _lumen_forward_char),
 # the same way it takes over accept-line/zle-line-init below — it does not
-# also create a separate widget literally named "_ai_suggest_forward_char".
+# also create a separate widget literally named "_lumen_forward_char".
 # Binding directly to that nonexistent name is exactly what previously
-# made Right-arrow/Ctrl-F fail with "No such widget `_ai_suggest_forward_char'".
+# made Right-arrow/Ctrl-F fail with "No such widget `_lumen_forward_char'".
 bindkey '^[[C' forward-char  # Right arrow, normal cursor-key mode (xterm)
 bindkey '^[OC' forward-char  # Right arrow, application cursor-key mode
 bindkey '^F' forward-char
@@ -2803,11 +2836,11 @@ bindkey '^F' forward-char
 # the arrow keys wouldn't cycle them at all (just beep, same as normal
 # history search beeping with nothing left to search). Bind both forms to
 # be correct regardless of which mode the terminal happens to be in.
-bindkey '^[[A' _ai_suggest_prev  # Up arrow, normal cursor-key mode
-bindkey '^[OA' _ai_suggest_prev  # Up arrow, application cursor-key mode
-bindkey '^[[B' _ai_suggest_next  # Down arrow, normal cursor-key mode
-bindkey '^[OB' _ai_suggest_next  # Down arrow, application cursor-key mode
-bindkey '^G' _ai_suggest_dismiss
+bindkey '^[[A' _lumen_prev  # Up arrow, normal cursor-key mode
+bindkey '^[OA' _lumen_prev  # Up arrow, application cursor-key mode
+bindkey '^[[B' _lumen_next  # Down arrow, normal cursor-key mode
+bindkey '^[OB' _lumen_next  # Down arrow, application cursor-key mode
+bindkey '^G' _lumen_dismiss
 # Plain Escape is "undefined-key" (a no-op/beep) by default in zsh's emacs
 # keymap — it's otherwise only ever a PREFIX for longer sequences like
 # arrow keys (\e[A, \e[B, ...), never bound to a standalone action of its
@@ -2817,48 +2850,48 @@ bindkey '^G' _ai_suggest_dismiss
 # bare Escape binding elsewhere (e.g. vi-mode setups) — a real arrow-key
 # press still resolves to its own longer binding, not this one.
 #
-# Bound to _ai_suggest_dismiss_escape (not the plain _ai_suggest_dismiss
+# Bound to _lumen_dismiss_escape (not the plain _lumen_dismiss
 # Ctrl-G uses) so pressing Escape with nothing showing is a silent no-op
 # instead of send-break's beep — see that function's comment.
-bindkey '^[' _ai_suggest_dismiss_escape
+bindkey '^[' _lumen_dismiss_escape
 
-if (( AI_SUGGEST_AUTO )); then
-  local -a _ai_suggest_watched_widgets
-  _ai_suggest_watched_widgets=(
+if (( LUMEN_AUTO )); then
+  local -a _lumen_watched_widgets
+  _lumen_watched_widgets=(
     self-insert backward-delete-char delete-char
     backward-kill-word kill-word kill-line backward-kill-line
     # The physical spacebar is bound to zsh's own `magic-space` widget by
     # default (history "!"-expansion on space), NOT `self-insert` — so
     # without watching it too, pressing space would insert the space
-    # (magic-space still runs, chained via _AI_SUGGEST_ORIG_WIDGET below)
+    # (magic-space still runs, chained via _LUMEN_ORIG_WIDGET below)
     # but never re-trigger suggestions, leaving chained follow-ups (e.g.
     # "commit" -> "-m") silent until some other, self-insert-bound key
     # was pressed.
     magic-space
-    # Terminal pastes arrive as this one widget (see _ai_suggest_edit_
+    # Terminal pastes arrive as this one widget (see _lumen_edit_
     # wrapper's bracketed-paste case) rather than a run of self-insert
     # calls — has to be watched separately or a paste leaves whatever was
     # already showing stuck on screen with no further event to clear it.
     bracketed-paste
   )
   local _w
-  for _w in $_ai_suggest_watched_widgets; do
-    _ai_suggest_wrap_widget $_w _ai_suggest_edit_wrapper
+  for _w in $_lumen_watched_widgets; do
+    _lumen_wrap_widget $_w _lumen_edit_wrapper
   done
-  unset _w _ai_suggest_watched_widgets
+  unset _w _lumen_watched_widgets
 fi
 
 # Makes sure the overlay panel doesn't linger on screen once this shell
 # session is gone — the normal `exit`/`accept-line` path already hides
-# before running the command (see _ai_suggest_accept_line), but that
+# before running the command (see _lumen_accept_line), but that
 # doesn't cover Ctrl-D on an empty line or the parent terminal window
 # closing (which delivers SIGHUP; zsh's default handling for that still
 # runs zshexit, same as a graceful `exit`). Registered via add-zsh-hook
 # rather than defining zshexit() directly so this doesn't clobber a
 # zshexit function/hook some other plugin or the user's own .zshrc may
 # already have.
-_ai_suggest_on_shell_exit() {
-  (( ${#_AI_SUGGEST_CANDIDATES} > 0 )) && _ai_suggest_overlay_hide 1
+_lumen_on_shell_exit() {
+  (( ${#_LUMEN_CANDIDATES} > 0 )) && _lumen_overlay_hide 1
 }
 autoload -Uz add-zsh-hook
-add-zsh-hook zshexit _ai_suggest_on_shell_exit
+add-zsh-hook zshexit _lumen_on_shell_exit

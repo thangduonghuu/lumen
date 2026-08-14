@@ -3,11 +3,11 @@ import ApplicationServices
 import CoreGraphics
 import SwiftUI
 
-/// Row icon kind, mirrored from the zsh plugin's _AI_SUGGEST_ICONS —
+/// Row icon kind, mirrored from the zsh plugin's _LUMEN_ICONS —
 /// "dir"/"branch" from the cd/git-branch matchers, or one of
-/// _ai_suggest_tool_icon_kind's per-tool identifiers for everything from a
-/// static/nested subcommand table (see _ai_suggest_overlay_show in
-/// ai-suggest.plugin.zsh). Falls back to `.command` for anything empty or
+/// _lumen_tool_icon_kind's per-tool identifiers for everything from a
+/// static/nested subcommand table (see _lumen_overlay_show in
+/// lumen.plugin.zsh). Falls back to `.command` for anything empty or
 /// unrecognized, so an older shell-side build without the "icons" field, or
 /// a tool this build doesn't have a specific glyph for yet, still renders
 /// (as the original plain "$" badge) instead of crashing the JSON parse.
@@ -175,11 +175,11 @@ final class OverlayController {
     /// this app to the zsh plugin (OverlayServer is fire-and-forget,
     /// shell -> app only — see its header comment), and the plugin's Tab
     /// widget only ever accepts whatever candidate it currently considers
-    /// selected (`_AI_SUGGEST_CANDIDATES[$_AI_SUGGEST_INDEX]`). So a click
+    /// selected (`_LUMEN_CANDIDATES[$_LUMEN_INDEX]`). So a click
     /// is turned into the same real keystrokes Up/Down/Tab navigation
     /// already sends — Down/Up-arrow `delta` times to walk the shell's own
     /// selection over to `idx` (its modulo-wrapping cycle logic, see
-    /// _ai_suggest_move in ai-suggest.plugin.zsh, makes this exact), then
+    /// _lumen_move in lumen.plugin.zsh, makes this exact), then
     /// Tab to accept — posted straight to the anchored terminal's pid via
     /// Quartz Event Services rather than needing the terminal to be key/
     /// frontmost (`.nonactivatingPanel` means clicking this panel doesn't
@@ -256,7 +256,18 @@ struct OverlayContentView: View {
         VStack(alignment: .leading, spacing: 2) {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: rowSpacing) {
+                    // Not Lazy: the panel's width is derived from a single
+                    // hosting.fittingSize() measurement taken right after
+                    // this view is attached (see OverlayPanel.show), before
+                    // the ScrollView has scrolled or otherwise triggered a
+                    // lazy stack to instantiate every row. A LazyVStack only
+                    // measures the rows it's already materialized at that
+                    // point (usually just the selected one), so the panel
+                    // locked in that narrow width and every longer label got
+                    // truncated by SwiftUI's default Text clipping. The list
+                    // is capped at a handful of directory candidates, so
+                    // eager layout here is cheap.
+                    VStack(alignment: .leading, spacing: rowSpacing) {
                         ForEach(Array(state.candidates.enumerated()), id: \.offset) { idx, candidate in
                             let selected = idx == state.selectedIndex
                             HStack(spacing: 8) {
@@ -285,8 +296,8 @@ struct OverlayContentView: View {
                     }
                 }
                 .frame(maxHeight: maxListHeight)
-                // Keyboard-driven selection (see _ai_suggest_move in
-                // ai-suggest.plugin.zsh) can move selectedIndex outside the
+                // Keyboard-driven selection (see _lumen_move in
+                // lumen.plugin.zsh) can move selectedIndex outside the
                 // currently scrolled-to viewport; follow it so Down/Up
                 // arrows past the visible rows keep the selection in view
                 // the same way mouse-scrolling does.

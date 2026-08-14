@@ -10,7 +10,7 @@ import Foundation
 /// to-file gives full-fidelity diagnostics regardless of launch method.
 func debugLog(_ message: String) {
     let line = "\(Date()) \(message)\n"
-    let path = "/tmp/ai-suggest-overlay-debug.log"
+    let path = "/tmp/lumen-overlay-debug.log"
     if let data = line.data(using: .utf8) {
         if let handle = FileHandle(forWritingAtPath: path) {
             handle.seekToEndOfFile()
@@ -23,7 +23,7 @@ func debugLog(_ message: String) {
 }
 
 /// Fine-tuning knobs for TerminalPositioner, overridable at runtime from
-/// ~/.config/ai-suggest/overlay_position.json without rebuilding the app.
+/// ~/.config/lumen/overlay_position.json without rebuilding the app.
 /// This exists specifically because iterating on these constants by editing
 /// Swift source means: rebuild -> re-sign (new ad-hoc hash) -> Accessibility
 /// permission gets invalidated -> remove+re-add in System Settings -> native
@@ -67,7 +67,7 @@ struct PositionerConfig: Decodable {
 
     static let shared: PositionerConfig = {
         let path = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/ai-suggest/overlay_position.json")
+            .appendingPathComponent(".config/lumen/overlay_position.json")
         guard let data = try? Data(contentsOf: path) else {
             debugLog("Lumen: no overlay_position.json at \(path.path), using built-in defaults")
             return PositionerConfig()
@@ -174,6 +174,7 @@ enum TerminalPositioner {
             return nil
         }
         guard let mainScreenHeight = NSScreen.screens.first?.frame.height else { return nil }
+        enableManualAccessibilityIfNeeded(pid: app.processIdentifier)
 
         // PRIMARY: ask the focused element directly where its text cursor
         // actually renders (AXBoundsForRange on AXSelectedTextRange) — the
@@ -216,6 +217,43 @@ enum TerminalPositioner {
                 return result
             }
             debugLog("Lumen: overlay position: caret bounds for \(app.localizedName ?? "?") "
+                + "rect=\(rect) resolved off-screen, falling back to frame-based computation")
+        }
+
+        // SECONDARY, STILL CARET-BASED: VS Code's integrated terminal (and
+        // presumably any other xterm.js-based Electron terminal) never
+        // answers kAXFocusedUIElementAttribute at all — at the app level OR
+        // system-wide (confirmed 2026-08-13) — so the PRIMARY path above
+        // never even gets an element to ask. But xterm.js always keeps a
+        // tiny hidden <textarea> positioned exactly over the current cursor
+        // cell (standard technique for IME composition input), and once
+        // Chromium's accessibility tree is active (see
+        // enableManualAccessibilityIfNeeded) that textarea shows up as a
+        // real AXTextField with its own AXSelectedTextRange — confirmed via
+        // dumpAXTreeForFrontmostApp on VS Code: a character-cell-sized
+        // (7x15pt) AXTextField sitting right at the real cursor position,
+        // many levels below the window under a "Terminal Section" group.
+        // There's no focus signal to find it by, so search for it
+        // structurally instead: a text field whose size actually looks like
+        // one terminal character cell (reusing the same plausibility range
+        // the frame-based fallback below uses) with a real selected-text
+        // range. Once found, it's fed straight back into the exact same
+        // AXBoundsForRange caret-reading code the PRIMARY path already
+        // trusts — no new position math needed.
+        if let window = focusedWindow(pid: app.processIdentifier),
+           let caretField = findTerminalCaretTextField(window, depth: 0, maxDepth: 40),
+           let rect = caretRect(for: caretField) {
+            let result = ScreenAnchor(
+                x: rect.minX,
+                cellTopY: mainScreenHeight - rect.minY,
+                cellBottomY: mainScreenHeight - rect.maxY
+            )
+            if isOnSomeScreen(result) {
+                debugLog("Lumen: overlay position: using xterm.js caret textfield for "
+                    + "\(app.localizedName ?? "?") rect=\(rect) -> \(result)")
+                return result
+            }
+            debugLog("Lumen: overlay position: xterm.js caret textfield for \(app.localizedName ?? "?") "
                 + "rect=\(rect) resolved off-screen, falling back to frame-based computation")
         }
 
@@ -395,6 +433,66 @@ enum TerminalPositioner {
         return rect
     }
 
+    /// Chromium/Electron apps (VS Code among them) don't populate a full
+    /// accessibility tree by default — Chromium only turns it on once it
+    /// detects an actual assistive-technology client, which normally
+    /// happens via VoiceOver's own internal handshake. Without that, every
+    /// AX query against the app's controls answers kAXErrorNoValue, at
+    /// both the per-app AND system-wide level (confirmed 2026-08-13: VS
+    /// Code's terminal returned -25212 from both `focusedElement`'s
+    /// app-level query and its system-wide fallback). Setting this
+    /// boolean attribute on the app's own AXUIElement is Chromium's
+    /// documented opt-in for external AX clients that aren't VoiceOver —
+    /// it forces the same full accessibility tree VoiceOver's handshake
+    /// would trigger. Safe/cheap to call on every lookup: non-Chromium
+    /// apps that don't recognize the attribute just return an error here,
+    /// which is intentionally ignored. Tree population can lag the set by
+    /// a frame or two on a cold app, so the very first query right after
+    /// launch/focus may still miss — self-corrects on the next keystroke.
+    private static func enableManualAccessibilityIfNeeded(pid: pid_t) {
+        let appElement = AXUIElementCreateApplication(pid)
+        let error = AXUIElementSetAttributeValue(appElement, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        if error != .success {
+            debugLog("Lumen: AXManualAccessibility set error=\(error.rawValue) (expected/harmless for non-Chromium apps)")
+        }
+    }
+
+    /// Depth-first search for xterm.js's hidden cursor-tracking textarea —
+    /// see the SECONDARY block in `anchor(for:)` for why this exists. Not
+    /// findable by role/description alone (VS Code doesn't mark it in any
+    /// AX-visible way beyond its own accessibility-help text, which isn't
+    /// guaranteed stable across VS Code versions), so this identifies it
+    /// structurally instead: an AXTextField sized like one real character
+    /// cell (reusing `cellWidthRange`/`cellHeightRange`, the same
+    /// plausibility bounds the frame-based fallback trusts) that actually
+    /// has a selected text range to read bounds from. Returns on the first
+    /// match (there's normally only one live cursor on screen at a time).
+    /// Skips descending into the menu bar for the same reason
+    /// `dumpAXTree`'s diagnostic does — it's deep, irrelevant, and not
+    /// where a terminal's content would ever be.
+    private static func findTerminalCaretTextField(_ element: AXUIElement, depth: Int, maxDepth: Int) -> AXUIElement? {
+        guard depth <= maxDepth else { return nil }
+        let role = stringAttribute(element, kAXRoleAttribute)
+
+        if role == (kAXTextFieldRole as String),
+           let size = attribute(element, kAXSizeAttribute, as: CGSize.self, axType: .cgSize),
+           cellWidthRange.contains(size.width), cellHeightRange.contains(size.height),
+           attribute(element, kAXSelectedTextRangeAttribute, as: CFRange.self, axType: .cfRange) != nil {
+            return element
+        }
+        guard role != (kAXMenuBarRole as String) else { return nil }
+
+        var childrenRef: CFTypeRef?
+        _ = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef)
+        guard let children = childrenRef as? [AXUIElement] else { return nil }
+        for child in children {
+            if let found = findTerminalCaretTextField(child, depth: depth + 1, maxDepth: maxDepth) {
+                return found
+            }
+        }
+        return nil
+    }
+
     /// The specific focused control/pane within the app, if it exposes one
     /// distinct from its window — e.g. the specific split pane you're
     /// typing in, for terminals that support splitting one window into
@@ -404,8 +502,25 @@ enum TerminalPositioner {
     private static func focusedElement(pid: pid_t) -> AXUIElement? {
         let appElement = AXUIElementCreateApplication(pid)
         var elementRef: CFTypeRef?
-        let error = AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &elementRef)
+        var error = AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &elementRef)
         debugLog("Lumen: kAXFocusedUIElementAttribute error=\(error.rawValue)")
+
+        // Electron/Chromium apps (VS Code's integrated terminal among them)
+        // routinely answer kAXErrorNoValue here — their AXApplication root
+        // element doesn't forward "what's focused" the way native AppKit
+        // apps do, even though the OS itself knows perfectly well what has
+        // keyboard focus. The system-wide element tracks that directly
+        // (the same source macOS's own IME/spell-check candidate windows
+        // read from) and isn't dependent on the target app implementing
+        // this attribute at its root — falling back to it here is what
+        // lets VS Code's terminal pane resolve instead of silently
+        // dropping to the whole-window fallback below.
+        if error != .success || elementRef == nil {
+            let systemWide = AXUIElementCreateSystemWide()
+            error = AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &elementRef)
+            debugLog("Lumen: kAXFocusedUIElementAttribute (system-wide) error=\(error.rawValue)")
+        }
+
         guard error == .success, let elementRef else { return nil }
         // swiftlint:disable:next force_cast
         let element = elementRef as! AXUIElement
@@ -483,7 +598,7 @@ enum TerminalPositioner {
         debugLog("Lumen: [ax-dump] === \(app.localizedName ?? "?") "
             + "(\(app.bundleIdentifier ?? "?")) pid=\(app.processIdentifier) ===")
         let appElement = AXUIElementCreateApplication(app.processIdentifier)
-        dumpAXTree(appElement, depth: 0, maxDepth: 10, maxChildrenPerNode: 40)
+        dumpAXTree(appElement, depth: 0, maxDepth: 40, maxChildrenPerNode: 20)
         debugLog("Lumen: [ax-dump] === done ===")
     }
 
@@ -492,6 +607,13 @@ enum TerminalPositioner {
         let indent = String(repeating: "  ", count: depth)
 
         let role = stringAttribute(element, kAXRoleAttribute)
+        // The macOS menu bar's own AX subtree (File/Edit/... and every
+        // submenu under it) is huge, deeply nested, and has nothing to do
+        // with the app's actual window content — it drowned out the one
+        // thing this diagnostic exists to find (2026-08-13: a 517-line dump
+        // was ~95% AXMenuBarItem/AXMenuItem noise). Skip descending into it
+        // entirely; the row itself still gets logged so its presence isn't
+        // silently hidden.
         let subrole = stringAttribute(element, kAXSubroleAttribute)
         let description = stringAttribute(element, kAXDescriptionAttribute)
         let position = attribute(element, kAXPositionAttribute, as: CGPoint.self, axType: .cgPoint)
@@ -505,6 +627,8 @@ enum TerminalPositioner {
             + "pos=\(position.map { "\($0)" } ?? "-") size=\(size.map { "\($0)" } ?? "-") "
             + "desc=\(description ?? "-") hasSelectedTextRange=\(hasSelectedTextRange) "
             + "value=\(valuePreview ?? "-")")
+
+        guard role != kAXMenuBarRole as String else { return }
 
         var childrenRef: CFTypeRef?
         _ = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef)
