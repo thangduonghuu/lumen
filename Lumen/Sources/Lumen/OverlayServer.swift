@@ -1,8 +1,8 @@
 import Foundation
 
-/// Unix domain socket server the ai-suggest zsh plugin talks to
+/// Unix domain socket server the lumen zsh plugin talks to
 /// (fire-and-forget, one JSON message per connection — see
-/// _ai_suggest_overlay_send in ai-suggest.plugin.zsh) to show, update, or
+/// _lumen_overlay_send in lumen.plugin.zsh) to show, update, or
 /// hide the native suggestion panel.
 ///
 /// Uses raw POSIX sockets rather than Network.framework: a plain
@@ -54,7 +54,7 @@ final class OverlayServer {
         listenFD = fd
         running = true
 
-        DispatchQueue(label: "ai-suggest.overlay-server").async { [weak self] in
+        DispatchQueue(label: "lumen.overlay-server").async { [weak self] in
             self?.acceptLoop()
         }
     }

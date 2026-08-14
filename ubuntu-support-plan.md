@@ -8,7 +8,7 @@ out what it would take to support Ubuntu.
 ```
 Zsh (ZLE) --keystroke/Ctrl-Space--> deterministic matchers (in-plugin)
                                               |
-                                   Unix socket (~/.cache/ai-suggest/overlay.sock)
+                                   Unix socket (~/.cache/lumen/overlay.sock)
                                               |
                                    Lumen.app (NSPanel overlay, positioned via
                                    macOS Accessibility API / AXUIElement)
@@ -17,7 +17,7 @@ Zsh (ZLE) --keystroke/Ctrl-Space--> deterministic matchers (in-plugin)
 Key fact that shapes this whole plan: the Rust daemon
 (`ai-shell-suggest/src/`) is **parked** — it is not wired into the live
 path (see README, "Parked: the Rust daemon"). All suggestion logic lives
-in the 2,864-line zsh plugin itself (`ai-suggest.plugin.zsh`), built on
+in the 2,864-line zsh plugin itself (`lumen.plugin.zsh`), built on
 `zle`/`bindkey` (31/11 uses respectively). That plugin, not the Rust code,
 is the real "brain" of the product.
 
@@ -30,7 +30,7 @@ just work.
 | Component | macOS-specific dependency | Ubuntu story |
 | --- | --- | --- |
 | Shell integration | zsh's `zle` line-editor widgets, `bindkey` | **No change needed.** Zsh and ZLE are identical on Linux — the 2,864-line plugin runs as-is. |
-| IPC | Unix domain socket (`~/.cache/ai-suggest/overlay.sock`) | **No change needed.** AF_UNIX sockets are native POSIX on Linux; the wire protocol (JSON over the socket) is already OS-agnostic. Only the Swift *server* side (see below) needs a rebuild for Linux, not a redesign. |
+| IPC | Unix domain socket (`~/.cache/lumen/overlay.sock`) | **No change needed.** AF_UNIX sockets are native POSIX on Linux; the wire protocol (JSON over the socket) is already OS-agnostic. Only the Swift *server* side (see below) needs a rebuild for Linux, not a redesign. |
 | Context collection (`collector.rs`) | None — pure Rust, shells out to `git` | **No change needed.** Already portable. |
 | Overlay app process itself | `AppKit` / `SwiftUI` (`NSPanel`, `MenuBarExtra`, `.regularMaterial`) | **Rewrite.** AppKit/SwiftUI don't exist on Linux. Swift itself runs fine on Linux, but the UI layer needs a Linux toolkit — GTK4 is the natural choice on Ubuntu/GNOME (via `gtk-rs` if rewritten in Rust, or a Swift GTK binding if staying in Swift). |
 | Cursor positioning | `ApplicationServices` / `AXUIElement*` (Accessibility API) in `TerminalPositioner.swift` | **Rewrite.** Linux analogue is AT-SPI2 (accessibility-over-D-Bus), which GTK terminals (GNOME Terminal, etc.) expose reasonably well but coverage varies by terminal emulator, same class of problem the README already documents for macOS AX support. |
@@ -108,8 +108,8 @@ need different detection logic.
 Both cases should degrade the same way the macOS app already does when
 not running: fail silently *after* one clear warning, never block
 installation, and never spam a warning on every keystroke. Add an env
-var alongside the existing `AI_SUGGEST_OVERLAY` (e.g.
-`AI_SUGGEST_OVERLAY_WARN=0`) so a user who knows their setup can suppress
+var alongside the existing `LUMEN_OVERLAY` (e.g.
+`LUMEN_OVERLAY_WARN=0`) so a user who knows their setup can suppress
 the warning.
 
 ## 5. Recommendation

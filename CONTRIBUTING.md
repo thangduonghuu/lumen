@@ -38,7 +38,7 @@ cd lumen
 ### 2. Point your shell at your working copy
 
 ```sh
-echo 'source '"$(pwd)"'/ai-shell-suggest/shell/zsh/ai-suggest.plugin.zsh' >> ~/.zshrc
+echo 'source '"$(pwd)"'/ai-shell-suggest/shell/zsh/lumen.plugin.zsh' >> ~/.zshrc
 source ~/.zshrc
 ```
 
@@ -59,7 +59,7 @@ above doesn't work as expected.
 
 ### Editing the Zsh plugin
 
-`ai-shell-suggest/shell/zsh/ai-suggest.plugin.zsh` is a single file with
+`ai-shell-suggest/shell/zsh/lumen.plugin.zsh` is a single file with
 no build step. Edit it, then reload it in any open terminal:
 
 ```sh
@@ -151,5 +151,5 @@ line short and in the imperative mood.
 Use [GitHub Issues](https://github.com/thangduonghuu/lumen/issues).
 For bugs, include your macOS version, the terminal app you're using, and
 (if the panel isn't rendering) the relevant lines from
-`/tmp/ai-suggest-overlay-debug.log` — see the README's
+`/tmp/lumen-overlay-debug.log` — see the README's
 [Troubleshooting](README.md#troubleshooting) section.
