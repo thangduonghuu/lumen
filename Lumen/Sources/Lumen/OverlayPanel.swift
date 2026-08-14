@@ -256,7 +256,18 @@ struct OverlayContentView: View {
         VStack(alignment: .leading, spacing: 2) {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: rowSpacing) {
+                    // Not Lazy: the panel's width is derived from a single
+                    // hosting.fittingSize() measurement taken right after
+                    // this view is attached (see OverlayPanel.show), before
+                    // the ScrollView has scrolled or otherwise triggered a
+                    // lazy stack to instantiate every row. A LazyVStack only
+                    // measures the rows it's already materialized at that
+                    // point (usually just the selected one), so the panel
+                    // locked in that narrow width and every longer label got
+                    // truncated by SwiftUI's default Text clipping. The list
+                    // is capped at a handful of directory candidates, so
+                    // eager layout here is cheap.
+                    VStack(alignment: .leading, spacing: rowSpacing) {
                         ForEach(Array(state.candidates.enumerated()), id: \.offset) { idx, candidate in
                             let selected = idx == state.selectedIndex
                             HStack(spacing: 8) {
