@@ -1,5 +1,5 @@
 # Rust
-ai-shell-suggest/target/
+daemon/target/
 
 # Swift
 Lumen/.build/

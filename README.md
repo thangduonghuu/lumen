@@ -62,7 +62,7 @@ and never wrong about what a tool's own subcommands or your own
 branches/directories actually are.
 
 This is a repo with two pieces working together, documented below in one
-place: the Zsh plugin (`ai-shell-suggest/shell/zsh/`) and the menu bar
+place: the Zsh plugin (`shell/zsh/`) and the menu bar
 overlay app (`Lumen/`, Swift).
 
 ## Features
@@ -141,7 +141,7 @@ Zsh (ZLE)  --keystroke or Ctrl-Space-->  deterministic matchers (per-tool subcom
 Lumen.app  --shared state file (~/.cache/lumen/enabled)-->  Zsh plugin
 ```
 
-- **`ai-shell-suggest/shell/zsh/lumen.plugin.zsh`**: ZLE integration
+- **`shell/zsh/lumen.plugin.zsh`**: ZLE integration
   and the only place suggestions are computed. Every buffer-editing
   keystroke re-evaluates the matchers (`LUMEN_AUTO=1`, the default);
   Ctrl-Space asks immediately regardless. Matches are sent fire-and-forget
@@ -156,9 +156,9 @@ Lumen.app  --shared state file (~/.cache/lumen/enabled)-->  Zsh plugin
 
 | Path | Description |
 | --- | --- |
-| [`ai-shell-suggest/shell/zsh/`](ai-shell-suggest/shell/zsh/) | The Zsh plugin — this is the active suggestion engine. |
+| [`shell/zsh/`](shell/zsh/) | The Zsh plugin — this is the active suggestion engine. |
 | [`Lumen/`](Lumen/) | SwiftUI menu bar app that draws the floating panel and toggles automatic suggestions. Builds to `Lumen.app`. |
-| [`ai-shell-suggest/src/`](ai-shell-suggest/src/) | A Rust daemon/client for AI-generated suggestions (Ollama/Anthropic). Not wired into the live path — see [Parked: the Rust daemon](#parked-the-rust-daemon). |
+| [`daemon/src/`](daemon/src/) | A Rust daemon/client for AI-generated suggestions (Ollama/Anthropic). Not wired into the live path — see [Parked: the Rust daemon](#parked-the-rust-daemon). |
 | [`assets/`](assets/) | Shared repo assets — logo (also the basis for `Lumen.app`'s icon) and the [screenshots](#screenshots) above. |
 
 ## Requirements
@@ -173,7 +173,7 @@ Lumen.app  --shared state file (~/.cache/lumen/enabled)-->  Zsh plugin
 ### 1. Add the Zsh plugin to your shell
 
 ```sh
-echo 'source /path/to/Lumen/ai-shell-suggest/shell/zsh/lumen.plugin.zsh' >> ~/.zshrc
+echo 'source /path/to/Lumen/shell/zsh/lumen.plugin.zsh' >> ~/.zshrc
 ```
 
 Open a new terminal tab (or `source ~/.zshrc`) to pick it up. At this
@@ -408,8 +408,8 @@ specific app.
 
 ## Parked: the Rust daemon
 
-An earlier version of this project (see `goal-ai-shell-suggest.md`) routed
-suggestions through a Rust daemon/client (`ai-shell-suggest/src/`) that
+An earlier version of this project routed
+suggestions through a Rust daemon/client (`daemon/src/`) that
 called out to Ollama or Anthropic for AI-generated completions. That path
 is no longer wired into the Zsh plugin — the deterministic matchers above
 cover the common cases (tool subcommands, paths, branches) instantly and
