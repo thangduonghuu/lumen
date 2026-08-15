@@ -3093,6 +3093,254 @@ _lumen_deno_task_match() {
   (( ${#_LUMEN_CANDIDATES} > 0 ))
 }
 
+# Matches "rake <partial>" against real task names read live from `rake -T`
+# — the Ruby-ecosystem equivalent of _lumen_make_match, but shelling out
+# instead of parsing the project file directly: a Rakefile is arbitrary
+# Ruby code (define_task, loops, conditionals, imported .rake files from
+# other gems), not a declarative format like package.json/Makefile, so
+# there's no reliable way to read task names off the file itself — `rake
+# -T`'s "rake <name>[params]  # description" listing is rake's own answer,
+# already resolved. Requires an actual Rakefile in the directory before
+# even trying, both to back off fast in a non-Ruby project and to avoid
+# rake's own "No Rakefile found" error output.
+_lumen_rake_match() {
+  [[ "$BUFFER" == rake || "$BUFFER" == rake\ * ]] || return 1
+  local partial=""
+  [[ "$BUFFER" == rake\ * ]] && partial="${BUFFER#rake }"
+  [[ "$partial" == *' '* ]] && return 1
+  [[ "$partial" == -* ]] && return 1
+
+  [[ -f Rakefile || -f rakefile || -f Rakefile.rb ]] || return 1
+  command -v rake &>/dev/null || return 1
+
+  local -a lines
+  lines=(${(f)"$(command rake -T 2>/dev/null)"})
+  (( ${#lines} == 0 )) && return 1
+
+  local line name desc
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  for line in "${lines[@]}"; do
+    [[ "$line" == rake\ * ]] || continue
+    name="${line#rake }"
+    name="${name%% *}"
+    desc="${line#*# }"
+    [[ "$desc" == "$line" ]] && desc=""
+    [[ "$name" == "$partial"* ]] || continue
+    _LUMEN_CANDIDATES+=("rake $name ")
+    _LUMEN_LABELS+=("$name")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("${desc:-Rake task}")
+    _LUMEN_ICONS+=("cmd")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+
+# Prints the immediate child key names of the first top-level object found
+# under JSON key $2 in file $1, one per line — the same job as
+# _lumen_json_kv_block above, but for blocks whose values are themselves
+# objects rather than plain strings (turbo.json's "tasks"/"pipeline": each
+# task name maps to a config object like {"dependsOn": [...], "outputs":
+# [...]}, not a shell-command string). _lumen_json_kv_block's "stop at the
+# first line containing a '}'" rule can't be reused here — that first '}'
+# usually just closes the FIRST task's own config object, not the whole
+# block, which would silently cut off every task after it. This tracks
+# brace depth instead: only a key line seen while depth==1 (a direct child
+# of the block's own opening "{", not nested inside some task's config) is
+# a real task name.
+_lumen_json_object_keys_block() {
+  local file=$1 key=$2
+  [[ -f $file ]] || return 1
+  local line
+  local -i in_block=0 depth=0 found=0
+  while IFS= read -r line; do
+    if (( ! in_block )); then
+      if [[ "$line" == *"\"$key\""* ]]; then
+        in_block=1
+        depth=1
+      fi
+      continue
+    fi
+    if (( depth == 1 )) && [[ "$line" =~ '^[[:space:]]*"([^"]+)"[[:space:]]*:' ]]; then
+      print -r -- "${match[1]}"
+      found=1
+    fi
+    local -i opens=${#${(S)line//[^\{]/}} closes=${#${(S)line//[^\}]/}}
+    (( depth += opens - closes ))
+    (( depth <= 0 )) && break
+  done < "$file"
+  (( found ))
+}
+
+# Matches "turbo run <partial>" against real task names read live from
+# ./turbo.json's "tasks" object (Turborepo >=2.0) or, if that's not found,
+# its older "pipeline" object (<2.0) — replacing the static "<project>:
+# <target>" guess from _LUMEN_TURBO_SUBCMDS with the monorepo's actual
+# declared tasks.
+_lumen_turbo_task_match() {
+  [[ "$BUFFER" == turbo\ run\ * ]] || return 1
+  local partial="${BUFFER#turbo run }"
+  [[ "$partial" == *' '* ]] && return 1
+
+  [[ -f turbo.json ]] || return 1
+  local -a task_names
+  task_names=(${(f)"$(_lumen_json_object_keys_block turbo.json tasks)"})
+  (( ${#task_names} > 0 )) || task_names=(${(f)"$(_lumen_json_object_keys_block turbo.json pipeline)"})
+  (( ${#task_names} > 0 )) || return 1
+
+  local icon_kind=$(_lumen_tool_icon_kind turbo)
+  local name
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  for name in "${task_names[@]}"; do
+    [[ "$name" == "$partial"* ]] || continue
+    _LUMEN_CANDIDATES+=("turbo run $name ")
+    _LUMEN_LABELS+=("$name")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("Turborepo task")
+    _LUMEN_ICONS+=("$icon_kind")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+
+# Reads task names out of ./Taskfile.yml (falling back to Taskfile.yaml) —
+# go-task's project file, the cross-language answer to Makefile that a
+# growing number of Go/polyglot projects use instead. YAML has no braces to
+# depth-track like turbo.json above, so this tracks INDENTATION instead:
+# once the "tasks:" line is found, the first key line seen underneath it
+# fixes the expected indent for every sibling task name (however many
+# spaces that project's YAML actually uses), and only lines at exactly that
+# indent count as task names — a task's own nested "desc:"/"cmds:"
+# properties are indented further and so never match, and a line indented
+# LESS than that means the tasks: block has ended (back to a root-level
+# YAML key) and scanning stops.
+_lumen_taskfile_tasks() {
+  local file=Taskfile.yml
+  [[ -f $file ]] || file=Taskfile.yaml
+  [[ -f $file ]] || return 1
+  local line indent="" pattern
+  local -i in_block=0 found=0
+  while IFS= read -r line; do
+    if (( ! in_block )); then
+      [[ "$line" =~ '^tasks:[[:space:]]*$' ]] && in_block=1
+      continue
+    fi
+    [[ -z "${line//[[:space:]]/}" ]] && continue
+    if [[ -z "$indent" ]]; then
+      [[ "$line" =~ '^([[:space:]]+)[A-Za-z0-9_.:-]+:' ]] || break
+      indent="${match[1]}"
+    fi
+    [[ "$line" == "${indent}"* ]] || break
+    pattern="^${indent}([A-Za-z0-9_.:-]+):"
+    if [[ "$line" =~ $pattern ]]; then
+      print -r -- "${match[1]}"
+      found=1
+    fi
+  done < "$file"
+  (( found ))
+}
+
+# Matches "task <partial>" against real task names read live from
+# ./Taskfile.yml.
+_lumen_task_match() {
+  [[ "$BUFFER" == task || "$BUFFER" == task\ * ]] || return 1
+  local partial=""
+  [[ "$BUFFER" == task\ * ]] && partial="${BUFFER#task }"
+  [[ "$partial" == *' '* ]] && return 1
+  [[ "$partial" == -* ]] && return 1
+
+  local -a tasks
+  tasks=(${(f)"$(_lumen_taskfile_tasks)"})
+  (( ${#tasks} > 0 )) || return 1
+
+  local name
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  for name in "${tasks[@]}"; do
+    [[ "$name" == "$partial"* ]] || continue
+    _LUMEN_CANDIDATES+=("task $name ")
+    _LUMEN_LABELS+=("$name")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("Taskfile task")
+    _LUMEN_ICONS+=("cmd")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+
+# Prints "name<TAB>target" for each entry under pyproject.toml's
+# "[tool.poetry.scripts]" table — Poetry's equivalent of package.json's
+# "scripts" (console-script entry points, invoked via "poetry run <name>"),
+# TOML rather than JSON so it needs its own small parser: scan for the
+# "[tool.poetry.scripts]" header, then read "name = "target"" lines until
+# the next "[...]" table header or EOF.
+_lumen_poetry_script_names() {
+  local file=pyproject.toml
+  [[ -f $file ]] || return 1
+  local line
+  local -i in_block=0 found=0
+  while IFS= read -r line; do
+    if (( ! in_block )); then
+      [[ "$line" =~ '^\[tool\.poetry\.scripts\][[:space:]]*$' ]] && in_block=1
+      continue
+    fi
+    [[ "$line" == \[* ]] && break
+    if [[ "$line" =~ '^([A-Za-z0-9_.-]+)[[:space:]]*=[[:space:]]*"([^"]*)"' ]]; then
+      print -r -- "${match[1]}"$'\t'"${match[2]}"
+      found=1
+    elif [[ "$line" =~ "^([A-Za-z0-9_.-]+)[[:space:]]*=[[:space:]]*'([^']*)'" ]]; then
+      print -r -- "${match[1]}"$'\t'"${match[2]}"
+      found=1
+    fi
+  done < "$file"
+  (( found ))
+}
+
+# Matches "poetry run <partial>" against real script names read live from
+# ./pyproject.toml's "[tool.poetry.scripts]" table — the Python/Poetry
+# equivalent of _lumen_package_script_match, description showing the
+# module:function target each script points to.
+_lumen_poetry_script_match() {
+  [[ "$BUFFER" == poetry\ run\ * ]] || return 1
+  local partial="${BUFFER#poetry run }"
+  [[ "$partial" == *' '* ]] && return 1
+
+  local -a script_lines
+  script_lines=(${(f)"$(_lumen_poetry_script_names)"})
+  (( ${#script_lines} > 0 )) || return 1
+
+  local icon_kind=$(_lumen_tool_icon_kind poetry)
+  local entry name target
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  for entry in "${script_lines[@]}"; do
+    name="${entry%%$'\t'*}"
+    target="${entry#*$'\t'}"
+    [[ "$name" == "$partial"* ]] || continue
+    _LUMEN_CANDIDATES+=("poetry run $name ")
+    _LUMEN_LABELS+=("$name")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("${target:-Poetry script}")
+    _LUMEN_ICONS+=("$icon_kind")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+
 # Suggests real installed Node.js versions once "nvm use/uninstall" needs
 # one, replacing the static "<version>" placeholder from _LUMEN_NVM_SUBCMDS.
 # Unlike git/docker, nvm has no standalone binary — it's a shell function
@@ -3413,6 +3661,10 @@ _lumen_static_or_dynamic_match() {
   _lumen_just_match && return 0
   _lumen_composer_match && return 0
   _lumen_deno_task_match && return 0
+  _lumen_rake_match && return 0
+  _lumen_turbo_task_match && return 0
+  _lumen_task_match && return 0
+  _lumen_poetry_script_match && return 0
   _lumen_nested_match && return 0
   _lumen_static_match
 }
