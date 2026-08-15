@@ -14,6 +14,7 @@
 </p>
 
 <p align="center">
+  <a href="#quick-start">Quick start</a> ·
   <a href="#screenshots">Screenshots</a> ·
   <a href="#features">Features</a> ·
   <a href="#architecture">Architecture</a> ·
@@ -32,6 +33,34 @@
 <p align="center">
   <img src="assets/demo.gif" width="700" alt="Lumen suggesting a git branch after git checkout">
 </p>
+
+## Quick start
+
+Two commands and you're suggesting:
+
+```sh
+# 1. Wire the plugin into your shell (once — new tabs pick it up automatically after)
+echo 'source /path/to/Lumen/shell/zsh/lumen.plugin.zsh' >> ~/.zshrc && source ~/.zshrc
+
+# 2. Build and launch the menu bar app that actually draws the suggestions
+cd /path/to/Lumen/Lumen && ./build.sh && open Lumen.app
+```
+
+macOS will ask for Accessibility permission on first launch — grant it,
+then just start typing: `git che`, `docker ex`, `kubectl get`... For the
+full walkthrough (including what to do if that permission prompt gets
+missed), see [Installation](#installation).
+
+> **Why not just ask an AI?** Because your shell doesn't need to guess.
+> `git`'s subcommands aren't a moving target — they're fixed, known data.
+> Lumen looks them up locally instead of round-tripping to a model that
+> might hallucinate a flag that doesn't exist.
+>
+> | | Lumen | AI-based completion |
+> |---|---|---|
+> | Latency | Instant (local lookup) | A network round-trip, every time |
+> | Accuracy on real subcommands | Always correct | Can confidently invent flags |
+> | Your keystrokes | Never leave your machine | Sent to a cloud API |
 
 ## Screenshots
 
@@ -67,6 +96,8 @@ overlay app (`Lumen/`, Swift).
 
 ## Features
 
+### A panel that stays out of your way
+
 - **Inline, non-intrusive suggestions** — candidates render as a small
   floating card positioned against your terminal cursor; nothing appears
   unless you're actively typing or ask for it.
@@ -77,55 +108,64 @@ overlay app (`Lumen/`, Swift).
   instead of growing the panel indefinitely. Rows also respond to the
   mouse directly — hover to highlight, click to select and accept a
   candidate without stepping through it via Up/Down first.
-- **Broad tool coverage** — git, docker, kubectl, npm, yarn, pnpm, aws,
-  gcloud, az, terraform, helm, gh, glab, the Kafka CLI scripts, and
-  rabbitmqctl all resolve their subcommands from static tables. See
-  [Known-tool subcommand coverage](#known-tool-subcommand-coverage) for
-  the full list.
-- **Real per-tool brand icons** — each suggestion row shows the actual
-  logo of the tool it belongs to (official brand SVGs, not a generic
-  glyph), plus dedicated icons for directory (`cd`) and git-branch rows.
-- **Nested subcommands and flags** — for tools whose subcommand is itself a
-  management command, the next word resolves too (e.g. `docker image `
-  lists `ls`, `build`, `rm`, ...; `git stash ` lists `push`, `pop`, `list`,
-  ...), and once you start a flag (`-`) — or even just finish a leaf
-  subcommand and hit space — the flags for that specific (possibly nested)
-  subcommand show up (e.g. `docker ps -` lists `-a`, `-q`, `--filter`, ...).
-- **Generic flag fallback** — typing `-` anywhere a tool/subcommand doesn't
-  have its own hand-picked flag table falls back to common CLI conventions
-  (`-h`/`--help`, `--version`, `-v`/`--verbose`, `-q`/`--quiet`, `--debug`,
-  `-y`/`--yes`, `-f`/`--force`, `--dry-run`, `-o`/`--output`, `--no-color`,
-  `--json`, `--config`) instead of showing nothing.
-- **Case-insensitive directory completion after `cd`** — typing `cd p`
-  suggests `projects/`, `Pictures/`, and `Personal/` regardless of case;
-  accepting drills into that directory so you can keep Tab-ing deeper
-  without the panel immediately popping the next level on top of you.
-- **Git branch suggestions** — once you've typed `git checkout`, `switch`,
-  `merge`, `rebase`, or `branch`, the next word suggests your repo's local
-  branches (via `git for-each-ref`, read fresh every time).
-- **Real project-file task completion** — beyond the static per-tool
-  tables, several task runners get their suggestions read live from the
-  actual project file in your current directory, not a generic guess:
-  - **`package.json`** — `npm run `, `yarn `, `pnpm ` suggest your
-    project's real `scripts`, description showing the actual command.
-  - **`Makefile`** (or `makefile`/`GNUmakefile`) — `make ` suggests real
-    targets.
-  - **`justfile`** (or `Justfile`) — `just ` suggests real recipes.
-  - **`composer.json`** — `composer run-script ` suggests real PHP
-    scripts.
-  - **`deno.json`/`deno.jsonc`** — `deno task ` suggests real Deno tasks.
-
-  A custom script/target/recipe name (`deploy:prod`, `lint:fix`, whatever
-  your project actually calls it) suggests correctly even though it isn't
-  one of the hand-picked generic guesses. Falls back cleanly to the
-  static tables (or nothing) when the relevant project file isn't present
-  — this only ever adds coverage, never removes anything.
 - **Suggestion chaining** — accepting a suggestion immediately shows what
   typically comes next (e.g. picking `git add ` immediately offers file
   paths), instead of going silent until your next keystroke.
 - **Menu bar control** — toggle automatic suggestions on/off from the menu
   bar; the state syncs to every open shell. Manual Ctrl-Space always works
   regardless of the toggle.
+
+### Deep tool coverage, not just top-level guesses
+
+- **Dozens of CLIs covered** — git, docker, kubectl, npm/yarn/pnpm,
+  aws, gcloud, az, terraform, helm, gh, glab, and many more resolve their
+  subcommands from static tables. See [Known-tool subcommand
+  coverage](#known-tool-subcommand-coverage) for the full breakdown.
+- **Nested subcommands and flags** — for tools whose subcommand is itself a
+  management command, the next word resolves too (e.g. `docker image `
+  lists `ls`, `build`, `rm`, ...; `git stash ` lists `push`, `pop`, `list`,
+  ...), and once you start a flag (`-`) — or even just finish a leaf
+  subcommand and hit space — the flags for that specific (possibly nested)
+  subcommand show up, **including the ones you actually reach for under
+  pressure**: `git push --force-with-lease`, `git reset --hard`,
+  `docker rm -f`, `kubectl delete --grace-period=0`,
+  `terraform apply -auto-approve`.
+- **Generic flag fallback** — typing `-` anywhere a tool/subcommand doesn't
+  have its own hand-picked flag table falls back to common CLI conventions
+  (`-h`/`--help`, `--version`, `-v`/`--verbose`, `-q`/`--quiet`, `--debug`,
+  `-y`/`--yes`, `-f`/`--force`, `--dry-run`, `-o`/`--output`, `--no-color`,
+  `--json`, `--config`) instead of showing nothing.
+- **Real per-tool brand icons** — each suggestion row shows the actual
+  logo of the tool it belongs to (official brand SVGs, not a generic
+  glyph), plus dedicated icons for directory (`cd`) and git-branch rows.
+
+### Reads what's actually on your machine — never a guess
+
+- **Case-insensitive directory completion after `cd`** — typing `cd p`
+  suggests `projects/`, `Pictures/`, and `Personal/` regardless of case;
+  accepting drills into that directory so you can keep Tab-ing deeper
+  without the panel immediately popping the next level on top of you.
+- **Live git state** — real local branches after `checkout`/`switch`/
+  `merge`/`rebase`/`branch`; real remotes after `remote show`/`rename`/...;
+  real stash entries after `stash apply`/`show`/`drop`; real staged files
+  after `restore --staged`. All read fresh every time (`git for-each-ref`,
+  `git remote`, `git stash list`, `git diff --cached`), never cached.
+- **Live docker state** — real container/image/network/volume names for
+  `exec`, `logs`, `rm`, `stop`, `start`, `network connect`, `volume rm`,
+  and friends, straight from `docker ps`/`docker images`/`docker network
+  ls`/`docker volume ls`.
+- **Real project-file task completion** — script/task names read live from
+  the actual project file in your current directory, not a generic guess:
+  `package.json` (`npm run`/`yarn`/`pnpm`), `Makefile`, `Justfile`,
+  `composer.json`, Deno's `deno.json(c)`, Ruby's `Rakefile` (via `rake
+  -T`), go-task's `Taskfile.yml`, Turborepo's `turbo.json`, and Poetry's
+  `pyproject.toml`. A custom name like `deploy:prod` or `lint:fix`
+  suggests correctly even though it isn't a hand-picked generic guess —
+  falls back cleanly to the static tables (or nothing) when the relevant
+  project file isn't present.
+- **Installed-version awareness** — real installed versions for `nvm use`/
+  `pyenv global`/`rbenv local` and friends, and real installed formulae for
+  `brew uninstall`/`info`/`link`.
 
 ## Architecture
 
@@ -215,7 +255,10 @@ cd /path/to/Lumen/Lumen
 ```
 
 This one script does everything needed to produce a working, launchable
-app — nothing else to run by hand:
+app — nothing else to run by hand.
+
+<details>
+<summary>What <code>build.sh</code> actually does (click to expand)</summary>
 
 1. `swift build -c release` — compiles the executable
 2. Packages it as a real `.app` bundle at `Lumen/Lumen.app` (`Contents/MacOS/Lumen`)
@@ -229,6 +272,8 @@ app — nothing else to run by hand:
 5. Re-signs the whole bundle with an ad-hoc code signature (`codesign
    --force --deep --sign -` — no paid Apple Developer ID needed for local
    use)
+
+</details>
 
 **c. Verify it built successfully:**
 
@@ -307,14 +352,14 @@ before sourcing the plugin in your `.zshrc`:
 | Variable | Default | What it does |
 |---|---|---|
 | `LUMEN_AUTO` | On | Suggestions appear automatically as you type. Set `LUMEN_AUTO=0` to turn this off — you'll then only get suggestions by pressing Ctrl-Space. |
-| `LUMEN_KEY` | Ctrl-Space | The keybinding that manually asks for a suggestion. To use a different key, set this to a [zsh key sequence](https://zsh.sourceforge.io/Doc/Release/Zsh-Line-Editor.html#Zle-Builtin-Commands) — e.g. `LUMEN_KEY='^X^X'` for Ctrl-X Ctrl-X. (The default's raw value is `^@`, zsh's own notation for "Control key + Space".) |
+| `LUMEN_KEY` | Ctrl-Space | The keybinding that manually asks for a suggestion. To rebind it, set this to `^` followed by a letter — zsh's shorthand for "Control key + that letter" (e.g. `^T` means Ctrl-T). Ctrl-Space itself has no letter, so zsh represents *that specific* combination as `^@` instead — that's the odd-looking value you'd see if you printed the default directly; you don't need to type `^@` yourself unless you're rebinding back to Ctrl-Space on purpose. |
 | `LUMEN_OVERLAY` | On | Shows the floating suggestion panel above your terminal. Set `LUMEN_OVERLAY=0` to turn it off completely — there's currently no other way suggestions are displayed, so this effectively disables Lumen. |
 
-Example — switch to manual-only mode with Ctrl-X Ctrl-X instead of Ctrl-Space:
+Example — switch to manual-only mode, rebound to Ctrl-T instead of Ctrl-Space:
 
 ```sh
 export LUMEN_AUTO=0
-export LUMEN_KEY='^X^X'
+export LUMEN_KEY='^T'
 ```
 
 ## Known-tool subcommand coverage
