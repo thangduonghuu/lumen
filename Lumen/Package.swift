@@ -8,6 +8,10 @@ let package = Package(
         .executableTarget(
             name: "Lumen",
             resources: [.copy("Resources")]
+        ),
+        .testTarget(
+            name: "LumenTests",
+            dependencies: ["Lumen"]
         )
     ]
 )

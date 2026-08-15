@@ -357,6 +357,11 @@ typeset -ga _LUMEN_YARN_SUBCMDS=(
   $'dlx\t<package>\tRun a package binary without installing it'
 )
 
+typeset -ga _LUMEN_YARN_ADD_FLAGS=(
+  $'-D\t\tSave as a devDependency'
+  $'--dev\t\tSave as a devDependency'
+)
+
 typeset -ga _LUMEN_PNPM_SUBCMDS=(
   $'add\t<package>\tAdd a dependency'
   $'remove\t<package>\tRemove a dependency'
@@ -373,6 +378,11 @@ typeset -ga _LUMEN_PNPM_SUBCMDS=(
   $'exec\t<cmd>\tExecute a shell command in scope of the project'
   $'dlx\t<package>\tRun a package binary without installing it'
   $'init\t\tCreate a new package.json'
+)
+
+typeset -ga _LUMEN_PNPM_ADD_FLAGS=(
+  $'-D\t\tSave as a devDependency'
+  $'--save-dev\t\tSave as a devDependency'
 )
 
 # GitLab's counterpart to gh — same shape, but "mr" (merge request) where
@@ -515,6 +525,12 @@ typeset -ga _LUMEN_CARGO_SUBCMDS=(
   $'search\t<query>\tSearch crates.io for crates'
   $'tree\t\tDisplay the dependency tree'
 )
+
+typeset -ga _LUMEN_CARGO_BUILD_FLAGS=(
+  $'--release\t\tBuild with optimizations, in release mode'
+)
+typeset -ga _LUMEN_CARGO_RUN_FLAGS=("${_LUMEN_CARGO_BUILD_FLAGS[@]}")
+typeset -ga _LUMEN_CARGO_TEST_FLAGS=("${_LUMEN_CARGO_BUILD_FLAGS[@]}")
 
 typeset -ga _LUMEN_GO_SUBCMDS=(
   $'build\t\tCompile packages and dependencies'
@@ -666,6 +682,11 @@ typeset -ga _LUMEN_VAGRANT_SUBCMDS=(
   $'plugin\t[install|list|uninstall]\tManage Vagrant plugins'
 )
 
+typeset -ga _LUMEN_VAGRANT_DESTROY_FLAGS=(
+  $'-f\t\tDestroy without confirmation'
+  $'--force\t\tDestroy without confirmation'
+)
+
 typeset -ga _LUMEN_PULUMI_SUBCMDS=(
   $'up\t\tCreate or update resources in a stack'
   $'destroy\t\tDestroy resources in a stack'
@@ -680,6 +701,11 @@ typeset -ga _LUMEN_PULUMI_SUBCMDS=(
   $'plugin\t[install|ls]\tManage plugins'
   $'whoami\t\tShow the current logged-in user'
 )
+
+typeset -ga _LUMEN_PULUMI_UP_FLAGS=(
+  $'--yes\t\tSkip the interactive approval prompt'
+)
+typeset -ga _LUMEN_PULUMI_DESTROY_FLAGS=("${_LUMEN_PULUMI_UP_FLAGS[@]}")
 
 typeset -ga _LUMEN_HEROKU_SUBCMDS=(
   $'apps\t\tList your Heroku apps'
@@ -841,6 +867,10 @@ typeset -ga _LUMEN_SYSTEMCTL_SUBCMDS=(
   $'is-enabled\t<unit>\tCheck whether a unit is enabled'
   $'list-units\t\tList loaded units'
   $'daemon-reload\t\tReload systemd manager configuration'
+)
+
+typeset -ga _LUMEN_SYSTEMCTL_ENABLE_FLAGS=(
+  $'--now\t\tAlso start the unit immediately, not just on the next boot'
 )
 
 typeset -ga _LUMEN_NVM_SUBCMDS=(
@@ -1011,6 +1041,16 @@ typeset -ga _LUMEN_DOCKER_RUN_FLAGS=(
   $'-e\t<key>=<value>\tSet an environment variable'
 )
 
+typeset -ga _LUMEN_DOCKER_RMI_FLAGS=(
+  $'-f\t\tForce removal, even if the image has multiple tags or is in use'
+  $'--force\t\tForce removal, even if the image has multiple tags or is in use'
+)
+
+typeset -ga _LUMEN_DOCKER_START_FLAGS=(
+  $'-a\t\tAttach to the container'"'"'s output'
+  $'-i\t\tAttach the container'"'"'s stdin, keeping it interactive'
+)
+
 typeset -ga _LUMEN_DOCKER_EXEC_FLAGS=(
   $'-it\t\tInteractive session with a tty attached'
   $'-d\t\tRun the command in the background'
@@ -1042,14 +1082,61 @@ typeset -ga _LUMEN_DOCKER_IMAGE_LOAD_FLAGS=(
 typeset -ga _LUMEN_DOCKER_CONTAINER_EXEC_FLAGS=("${_LUMEN_DOCKER_EXEC_FLAGS[@]}")
 typeset -ga _LUMEN_DOCKER_CONTAINER_LS_FLAGS=("${_LUMEN_DOCKER_PS_FLAGS[@]}")
 
+typeset -ga _LUMEN_DOCKER_IMAGE_RM_FLAGS=("${_LUMEN_DOCKER_RMI_FLAGS[@]}")
 typeset -ga _LUMEN_DOCKER_IMAGE_PRUNE_FLAGS=(
   $'-a\t\tRemove all unused images, not just dangling ones'
 )
 typeset -ga _LUMEN_DOCKER_SYSTEM_PRUNE_FLAGS=(
   $'-a\t\tRemove all unused images too, not just dangling ones'
 )
+typeset -ga _LUMEN_DOCKER_NETWORK_PRUNE_FLAGS=(
+  $'-f\t\tDon'"'"'t prompt for confirmation'
+  $'--force\t\tDon'"'"'t prompt for confirmation'
+)
+typeset -ga _LUMEN_DOCKER_VOLUME_PRUNE_FLAGS=("${_LUMEN_DOCKER_NETWORK_PRUNE_FLAGS[@]}")
 typeset -ga _LUMEN_DOCKER_COMPOSE_UP_FLAGS=(
   $'-d\t\tRun containers in the background'
+  $'--build\t\tBuild images before starting containers'
+  $'--force-recreate\t\tRecreate containers even if their configuration hasn'"'"'t changed'
+)
+
+typeset -ga _LUMEN_DOCKER_STOP_FLAGS=(
+  $'-t\t<seconds>\tSeconds to wait before killing the container (default 10)'
+  $'--time\t<seconds>\tSeconds to wait before killing the container (default 10)'
+)
+
+typeset -ga _LUMEN_DOCKER_RM_FLAGS=(
+  $'-f\t\tForce removal of a running container'
+  $'--force\t\tForce removal of a running container'
+  $'-v\t\tAlso remove anonymous volumes associated with the container'
+)
+typeset -ga _LUMEN_DOCKER_CONTAINER_RM_FLAGS=("${_LUMEN_DOCKER_RM_FLAGS[@]}")
+# "docker container <x>" is the modern long form of "docker <x>" for
+# run/logs/stop/start — same flags, so alias rather than duplicate.
+typeset -ga _LUMEN_DOCKER_CONTAINER_RUN_FLAGS=("${_LUMEN_DOCKER_RUN_FLAGS[@]}")
+typeset -ga _LUMEN_DOCKER_CONTAINER_LOGS_FLAGS=("${_LUMEN_DOCKER_LOGS_FLAGS[@]}")
+typeset -ga _LUMEN_DOCKER_CONTAINER_STOP_FLAGS=("${_LUMEN_DOCKER_STOP_FLAGS[@]}")
+typeset -ga _LUMEN_DOCKER_CONTAINER_START_FLAGS=("${_LUMEN_DOCKER_START_FLAGS[@]}")
+typeset -ga _LUMEN_DOCKER_CONTAINER_PRUNE_FLAGS=(
+  $'-f\t\tDon'"'"'t prompt for confirmation'
+  $'--force\t\tDon'"'"'t prompt for confirmation'
+)
+
+typeset -ga _LUMEN_DOCKER_COMPOSE_DOWN_FLAGS=(
+  $'-v\t\tAlso remove named volumes declared in the compose file'
+  $'--volumes\t\tAlso remove named volumes declared in the compose file'
+  $'--rmi\t<all|local>\tAlso remove images used by the services'
+)
+
+typeset -ga _LUMEN_DOCKER_COMPOSE_LOGS_FLAGS=(
+  $'-f\t\tFollow log output'
+  $'--follow\t\tFollow log output'
+  $'--tail\t<n>\tShow only the last n lines'
+)
+
+typeset -ga _LUMEN_DOCKER_COMPOSE_EXEC_FLAGS=("${_LUMEN_DOCKER_EXEC_FLAGS[@]}")
+typeset -ga _LUMEN_DOCKER_COMPOSE_BUILD_FLAGS=(
+  $'--no-cache\t\tBuild without using any cached layers'
 )
 
 typeset -ga _LUMEN_GIT_STASH_SUBCMDS=(
@@ -1117,11 +1204,109 @@ typeset -ga _LUMEN_GIT_DIFF_FLAGS=(
 # "commit" is picked, instead of looking like part of the subcommand name.
 typeset -ga _LUMEN_GIT_COMMIT_FLAGS=(
   $'-m\t<message>\tRecord changes with the given commit message'
+  $'-a\t\tStage all tracked, modified files before committing'
+  $'--amend\t\tReplace the tip of the current branch with a new commit'
+)
+
+typeset -ga _LUMEN_GIT_PUSH_FLAGS=(
+  $'--force-with-lease\t\tForce-push, but abort if the remote has commits you haven'"'"'t seen'
+  $'-f\t\tForce-push, overwriting the remote branch unconditionally'
+  $'--force\t\tForce-push, overwriting the remote branch unconditionally'
+  $'-u\t\tSet the upstream (tracking) branch for this push'
+  $'--set-upstream\t\tSet the upstream (tracking) branch for this push'
+  $'--tags\t\tPush tags along with commits'
+  $'--delete\t<branch>\tDelete a remote branch'
+)
+
+typeset -ga _LUMEN_GIT_REBASE_FLAGS=(
+  $'-i\t\tInteractively edit, squash, or reorder commits before replaying them'
+  $'--continue\t\tResume a rebase after resolving a conflict'
+  $'--abort\t\tCancel the rebase and restore the branch to its pre-rebase state'
+  $'--skip\t\tSkip the current commit and continue the rebase'
+  $'--onto\t<newbase>\tRebase onto a different base than the one rebase would pick'
+)
+
+typeset -ga _LUMEN_GIT_MERGE_FLAGS=(
+  $'--no-ff\t\tAlways create a merge commit, even if a fast-forward is possible'
+  $'--squash\t\tCombine all incoming commits into one set of pending changes'
+  $'--abort\t\tCancel the merge and restore the pre-merge state'
+  $'-m\t<message>\tSet the merge commit message'
+)
+
+typeset -ga _LUMEN_GIT_ADD_FLAGS=(
+  $'-p\t\tInteractively choose which hunks to stage'
+  $'-A\t\tStage all changes, including new and deleted files'
+  $'-u\t\tStage modified and deleted files, but not new ones'
+  $'-n\t\tShow what would be staged without staging it'
+)
+
+typeset -ga _LUMEN_GIT_PULL_FLAGS=(
+  $'--rebase\t\tRebase local commits on top of the fetched branch instead of merging'
+  $'--no-rebase\t\tMerge the fetched branch instead of rebasing'
+  $'--ff-only\t\tRefuse to pull unless it can fast-forward'
+)
+
+typeset -ga _LUMEN_GIT_FETCH_FLAGS=(
+  $'--all\t\tFetch all remotes'
+  $'--prune\t\tRemove remote-tracking branches that no longer exist on the remote'
+  $'--tags\t\tFetch all tags'
+)
+
+typeset -ga _LUMEN_GIT_TAG_FLAGS=(
+  $'-a\t<tagname>\tCreate an annotated tag'
+  $'-d\t<tagname>\tDelete a tag'
+  $'-l\t\tList tags'
+  $'-m\t<message>\tSet the annotated tag'"'"'s message'
+)
+
+typeset -ga _LUMEN_GIT_CHERRY_PICK_FLAGS=(
+  $'--continue\t\tResume after resolving a conflict'
+  $'--abort\t\tCancel the cherry-pick and restore the pre-cherry-pick state'
+  $'-x\t\tAppend a line noting which commit this was cherry-picked from'
+  $'-n\t\tApply the changes without committing'
+)
+
+typeset -ga _LUMEN_GIT_RESTORE_FLAGS=(
+  $'--staged\t\tUnstage: restore the index from HEAD, leaving the working tree alone'
+  $'--source\t<commit>\tRestore from a specific commit instead of the index'
+  $'-p\t\tInteractively choose which hunks to restore'
+)
+
+typeset -ga _LUMEN_GIT_SWITCH_FLAGS=(
+  $'-c\t<branch>\tCreate a new branch and switch to it'
+  $'--create\t<branch>\tCreate a new branch and switch to it'
+)
+
+typeset -ga _LUMEN_GIT_REVERT_FLAGS=(
+  $'-n\t\tApply the revert without committing'
+  $'--no-commit\t\tApply the revert without committing'
+  $'--continue\t\tResume after resolving a conflict'
+  $'--abort\t\tCancel the revert and restore the pre-revert state'
+)
+
+typeset -ga _LUMEN_GIT_RM_FLAGS=(
+  $'--cached\t\tUntrack the file, keeping it on disk'
+  $'-r\t\tRemove a directory recursively'
+)
+
+typeset -ga _LUMEN_GIT_CLONE_FLAGS=(
+  $'--depth\t<n>\tCreate a shallow clone with history truncated to n commits'
+  $'-b\t<branch>\tClone and check out a specific branch'
+  $'--branch\t<branch>\tClone and check out a specific branch'
+  $'--recurse-submodules\t\tAlso clone and initialize submodules'
 )
 
 typeset -ga _LUMEN_GIT_CLEAN_FLAGS=(
   $'-f\t\tForce the removal'
   $'-d\t\tAlso remove untracked directories'
+)
+
+typeset -ga _LUMEN_GIT_RESET_FLAGS=(
+  $'--soft\t\tMove HEAD only; keep the index and working tree unchanged'
+  $'--mixed\t\tMove HEAD and reset the index; keep the working tree unchanged (default)'
+  $'--hard\t\tMove HEAD and reset the index AND working tree, discarding local changes'
+  $'--merge\t\tReset the index and HEAD, but keep uncommitted changes not touched by the reset'
+  $'--keep\t\tLike --merge, but abort if the reset would touch uncommitted changes'
 )
 
 typeset -ga _LUMEN_NPM_CACHE_SUBCMDS=(
@@ -1156,6 +1341,10 @@ typeset -ga _LUMEN_KUBECTL_ROLLOUT_SUBCMDS=(
   $'resume\t<resource>\tResume a paused rollout'
 )
 
+typeset -ga _LUMEN_KUBECTL_ROLLOUT_UNDO_FLAGS=(
+  $'--to-revision\t<n>\tRoll back to a specific revision instead of the previous one'
+)
+
 typeset -ga _LUMEN_KUBECTL_GET_FLAGS=(
   $'-o\t<format>\tOutput format (json|yaml|wide|...)'
   $'-n\t<namespace>\tNamespace to query'
@@ -1178,6 +1367,33 @@ typeset -ga _LUMEN_KUBECTL_CREATE_FLAGS=(
 
 typeset -ga _LUMEN_KUBECTL_SCALE_FLAGS=(
   $'--replicas\t<n>\tSet the desired number of replicas'
+)
+
+typeset -ga _LUMEN_KUBECTL_DELETE_FLAGS=(
+  $'--force\t\tSkip graceful termination (use with --grace-period=0 on a stuck pod)'
+  $'--grace-period\t<seconds>\tSeconds to allow for graceful termination; 0 forces immediate deletion'
+  $'-n\t<namespace>\tNamespace of the resource'
+  $'--all\t\tDelete all resources of the given type in the namespace'
+)
+
+typeset -ga _LUMEN_KUBECTL_LOGS_FLAGS=(
+  $'-f\t\tStream logs continuously'
+  $'--follow\t\tStream logs continuously'
+  $'--previous\t\tShow logs from the previous (crashed/restarted) instance of the container'
+  $'--tail\t<n>\tShow only the last n lines'
+  $'-n\t<namespace>\tNamespace of the pod'
+  $'-c\t<container>\tContainer within the pod, if it has more than one'
+)
+
+typeset -ga _LUMEN_KUBECTL_RUN_FLAGS=(
+  $'-it\t\tAttach an interactive TTY to the container'
+  $'--rm\t\tDelete the pod once it exits'
+  $'--image\t<image>\tImage to run'
+  $'-n\t<namespace>\tNamespace to run the pod in'
+)
+
+typeset -ga _LUMEN_KUBECTL_PORT_FORWARD_FLAGS=(
+  $'-n\t<namespace>\tNamespace of the target pod'
 )
 
 # Last-resort fallback when typing "-" at a position with no hand-picked
@@ -1221,6 +1437,12 @@ typeset -ga _LUMEN_AWS_S3_SUBCMDS=(
   $'mb\t<s3://bucket>\tCreate a bucket'
   $'rb\t<s3://bucket>\tRemove a bucket'
   $'presign\t<s3-path>\tGenerate a presigned URL'
+)
+
+typeset -ga _LUMEN_AWS_S3_SYNC_FLAGS=(
+  $'--delete\t\tRemove destination files that don'"'"'t exist in the source (destructive)'
+  $'--exclude\t<pattern>\tExclude files matching a pattern'
+  $'--dryrun\t\tShow what would be synced without transferring anything'
 )
 
 typeset -ga _LUMEN_AWS_EC2_SUBCMDS=(
@@ -1469,12 +1691,46 @@ typeset -ga _LUMEN_TERRAFORM_WORKSPACE_SUBCMDS=(
   $'show\t\tShow the current workspace name'
 )
 
+typeset -ga _LUMEN_TERRAFORM_DESTROY_FLAGS=(
+  $'-auto-approve\t\tSkip the interactive approval prompt before destroying'
+  $'-target\t<address>\tOnly target a specific resource or module'
+)
+
+typeset -ga _LUMEN_TERRAFORM_APPLY_FLAGS=(
+  $'-auto-approve\t\tSkip the interactive approval prompt before applying'
+  $'-var\t<key=value>\tSet a value for an input variable'
+  $'-var-file\t<file>\tSet variable values from a file'
+  $'-target\t<address>\tOnly target a specific resource or module'
+)
+
+typeset -ga _LUMEN_TERRAFORM_PLAN_FLAGS=(
+  $'-var\t<key=value>\tSet a value for an input variable'
+  $'-var-file\t<file>\tSet variable values from a file'
+  $'-out\t<file>\tSave the generated plan to a file'
+  $'-target\t<address>\tOnly target a specific resource or module'
+)
+
+typeset -ga _LUMEN_TERRAFORM_INIT_FLAGS=(
+  $'-upgrade\t\tUpgrade provider/module versions to the latest allowed by the config'
+  $'-reconfigure\t\tReconfigure the backend, ignoring any saved configuration'
+)
+
 typeset -ga _LUMEN_HELM_REPO_SUBCMDS=(
   $'add\t<name> <url>\tAdd a chart repository'
   $'update\t\tUpdate information of available charts'
   $'list\t\tList chart repositories'
   $'remove\t<name>\tRemove a chart repository'
 )
+
+typeset -ga _LUMEN_HELM_INSTALL_FLAGS=(
+  $'-f\t<file>\tSet values from a YAML file'
+  $'--values\t<file>\tSet values from a YAML file'
+  $'--set\t<key=value>\tSet a value on the command line'
+  $'-n\t<namespace>\tNamespace to install into'
+  $'--namespace\t<namespace>\tNamespace to install into'
+  $'--dry-run\t\tSimulate the install without making changes'
+)
+typeset -ga _LUMEN_HELM_UPGRADE_FLAGS=("${_LUMEN_HELM_INSTALL_FLAGS[@]}")
 
 typeset -ga _LUMEN_GH_PR_SUBCMDS=(
   $'create\t\tCreate a pull request'
@@ -1488,6 +1744,20 @@ typeset -ga _LUMEN_GH_PR_SUBCMDS=(
   $'status\t\tShow status of relevant pull requests'
 )
 
+typeset -ga _LUMEN_GH_PR_CREATE_FLAGS=(
+  $'--title\t<text>\tTitle for the pull request'
+  $'--body\t<text>\tBody text for the pull request'
+  $'--draft\t\tCreate the pull request as a draft'
+  $'--base\t<branch>\tBranch to merge into'
+)
+
+typeset -ga _LUMEN_GH_PR_MERGE_FLAGS=(
+  $'--squash\t\tSquash all commits into one before merging'
+  $'--rebase\t\tRebase commits onto the base branch before merging'
+  $'--merge\t\tCreate a merge commit'
+  $'--delete-branch\t\tDelete the local and remote branch after merging'
+)
+
 typeset -ga _LUMEN_GH_ISSUE_SUBCMDS=(
   $'create\t\tCreate an issue'
   $'list\t\tList issues'
@@ -1495,6 +1765,11 @@ typeset -ga _LUMEN_GH_ISSUE_SUBCMDS=(
   $'close\t<number>\tClose an issue'
   $'reopen\t<number>\tReopen an issue'
   $'comment\t<number>\tAdd a comment to an issue'
+)
+
+typeset -ga _LUMEN_GH_ISSUE_CREATE_FLAGS=(
+  $'--title\t<text>\tTitle for the issue'
+  $'--body\t<text>\tBody text for the issue'
 )
 
 typeset -ga _LUMEN_GH_REPO_SUBCMDS=(
@@ -2139,6 +2414,138 @@ _lumen_git_branch_match() {
   (( ${#_LUMEN_CANDIDATES} > 0 ))
 }
 
+# Suggests real remote names once "git remote <subcmd>" needs one
+# (remove/rename/set-url/show/prune) — replaces the static "<name>"
+# placeholder from _LUMEN_GIT_REMOTE_SUBCMDS. "add" is deliberately excluded
+# since its argument is a name the user is choosing, not an existing one.
+# `git remote` (no args) is itself the local, no-network listing — it does
+# not contact the remote host, just reads .git/config.
+_lumen_git_remote_match() {
+  [[ "$BUFFER" == git\ remote\ * ]] || return 1
+  local rest="${BUFFER#git remote }"
+  rest="${rest## }"
+  local subcmd="${rest%% *}"
+  case "$subcmd" in
+    remove|rename|set-url|show|prune) ;;
+    *) return 1 ;;
+  esac
+  [[ "$rest" == "$subcmd" || "$rest" == "$subcmd "* ]] || return 1
+
+  local partial="${rest#$subcmd}"
+  partial="${partial## }"
+  [[ "$partial" == *' '* ]] && return 1
+  [[ "$partial" == -* ]] && return 1
+
+  git rev-parse --is-inside-work-tree &>/dev/null || return 1
+
+  local -a remotes
+  remotes=(${(f)"$(command git remote 2>/dev/null)"})
+  (( ${#remotes} == 0 )) && return 1
+
+  local r
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  for r in "${remotes[@]}"; do
+    [[ "$r" == "$partial"* ]] || continue
+    _LUMEN_CANDIDATES+=("git remote $subcmd $r ")
+    _LUMEN_LABELS+=("$r")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("Remote")
+    _LUMEN_ICONS+=("git")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+
+# Suggests real stash refs (stash@{0}, stash@{1}, ...) once "git stash
+# <subcmd>" needs one (apply/show/drop) — replaces the static "[stash]"
+# placeholder from _LUMEN_GIT_STASH_SUBCMDS. "pop" isn't included since that
+# table gives it no placeholder to begin with (defaults to the latest
+# stash). The "{"/"}" in a ref like "stash@{0}" are safe here — accepting a
+# candidate is a plain string assignment to BUFFER (see _lumen_accept), not
+# something the shell re-parses for globbing.
+_lumen_git_stash_match() {
+  [[ "$BUFFER" == git\ stash\ * ]] || return 1
+  local rest="${BUFFER#git stash }"
+  rest="${rest## }"
+  local subcmd="${rest%% *}"
+  case "$subcmd" in
+    apply|show|drop) ;;
+    *) return 1 ;;
+  esac
+  [[ "$rest" == "$subcmd" || "$rest" == "$subcmd "* ]] || return 1
+
+  local partial="${rest#$subcmd}"
+  partial="${partial## }"
+  [[ "$partial" == *' '* ]] && return 1
+  [[ "$partial" == -* ]] && return 1
+
+  git rev-parse --is-inside-work-tree &>/dev/null || return 1
+
+  local -a stashes
+  stashes=(${(f)"$(command git stash list --format='%gd' 2>/dev/null)"})
+  (( ${#stashes} == 0 )) && return 1
+
+  local s
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  for s in "${stashes[@]}"; do
+    [[ "$s" == "$partial"* ]] || continue
+    _LUMEN_CANDIDATES+=("git stash $subcmd $s ")
+    _LUMEN_LABELS+=("$s")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("Stash")
+    _LUMEN_ICONS+=("git")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+
+# Suggests real staged file paths once "git restore --staged" needs one,
+# replacing the placeholder from _LUMEN_GIT_RESTORE_FLAGS with the actual
+# files currently in the index — the "which files did I just add" list, via
+# `git diff --cached --name-only` (local, no-network, same as every other
+# git plumbing read this file already uses). Only completes a single
+# trailing file, same one-arg limitation as the other dynamic matchers
+# above (e.g. _lumen_git_branch_match) — a second already-typed filename
+# before the partial backs this off, same as everywhere else here.
+_lumen_git_restore_staged_match() {
+  [[ "$BUFFER" == git\ restore\ --staged\ * ]] || return 1
+  local partial="${BUFFER#git restore --staged }"
+  partial="${partial## }"
+  [[ "$partial" == *' '* ]] && return 1
+  [[ "$partial" == -* ]] && return 1
+
+  git rev-parse --is-inside-work-tree &>/dev/null || return 1
+
+  local -a files
+  files=(${(f)"$(command git diff --cached --name-only 2>/dev/null)"})
+  (( ${#files} == 0 )) && return 1
+
+  local f
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  for f in "${files[@]}"; do
+    [[ "$f" == "$partial"* ]] || continue
+    _LUMEN_CANDIDATES+=("git restore --staged $f ")
+    _LUMEN_LABELS+=("$f")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("Staged file")
+    _LUMEN_ICONS+=("git")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+
 # Suggests real container names once a docker subcommand that takes one has
 # been typed (exec/logs/stop/start/rm/restart/kill) — the docker
 # counterpart to _lumen_git_branch_match, replacing the static "<container>"
@@ -2185,6 +2592,151 @@ _lumen_docker_container_match() {
     _LUMEN_LABELS+=("$name")
     _LUMEN_HINTS+=("")
     _LUMEN_DESCRIPTIONS+=("${cstatus:-Container}")
+    _LUMEN_ICONS+=("docker")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+
+# Suggests real local image names (repository:tag) once a docker subcommand
+# that takes one has been typed (run/rmi/tag/push) — the image counterpart
+# to _lumen_docker_container_match above, replacing the static "<image>"
+# placeholder from _LUMEN_DOCKER_SUBCMDS. Skips dangling "<none>:<none>"
+# entries since they aren't addressable by that name (you'd need the image
+# ID instead, which this matcher doesn't cover). pull is deliberately left
+# to the static "<image>" hint rather than handled here — its argument is
+# whatever's in the remote registry, not something enumerable from local
+# images. Only completes the first word, same as the container matcher:
+# "tag <image> <tag>"'s second, free-form arg is unaffected.
+_lumen_docker_image_match() {
+  [[ "$BUFFER" == docker\ * ]] || return 1
+  local rest="${BUFFER#docker }"
+  rest="${rest## }"
+  local subcmd="${rest%% *}"
+  case "$subcmd" in
+    run|rmi|tag|push) ;;
+    *) return 1 ;;
+  esac
+  [[ "$rest" == "$subcmd" || "$rest" == "$subcmd "* ]] || return 1
+
+  local partial="${rest#$subcmd}"
+  partial="${partial## }"
+  [[ "$partial" == *' '* ]] && return 1
+  [[ "$partial" == -* ]] && return 1
+
+  command -v docker &>/dev/null || return 1
+
+  local -a lines
+  lines=(${(f)"$(command docker images --format '{{.Repository}}:{{.Tag}}'$'\t''{{.Size}}' 2>/dev/null)"})
+  (( ${#lines} == 0 )) && return 1
+
+  local entry name size
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  for entry in "${lines[@]}"; do
+    name="${entry%%$'\t'*}"
+    [[ "$name" == '<none>:<none>' ]] && continue
+    [[ "$name" == "$partial"* ]] || continue
+    size="${entry#*$'\t'}"
+    _LUMEN_CANDIDATES+=("docker $subcmd $name ")
+    _LUMEN_LABELS+=("$name")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("${size:-Image}")
+    _LUMEN_ICONS+=("docker")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+
+# Suggests real network names once "docker network <subcmd>" needs one
+# (rm/inspect/connect/disconnect) — the network counterpart to
+# _lumen_docker_container_match/_lumen_docker_image_match above, replacing
+# the static "<network>" placeholder from _LUMEN_DOCKER_NETWORK_SUBCMDS.
+# "create" is excluded (its argument is a new name, not an existing one).
+# Only completes the first word — "connect <network> <container>" and
+# "disconnect <network> <container>"'s second, free-form arg is unaffected.
+_lumen_docker_network_match() {
+  [[ "$BUFFER" == docker\ network\ * ]] || return 1
+  local rest="${BUFFER#docker network }"
+  rest="${rest## }"
+  local subcmd="${rest%% *}"
+  case "$subcmd" in
+    rm|inspect|connect|disconnect) ;;
+    *) return 1 ;;
+  esac
+  [[ "$rest" == "$subcmd" || "$rest" == "$subcmd "* ]] || return 1
+
+  local partial="${rest#$subcmd}"
+  partial="${partial## }"
+  [[ "$partial" == *' '* ]] && return 1
+  [[ "$partial" == -* ]] && return 1
+
+  command -v docker &>/dev/null || return 1
+
+  local -a networks
+  networks=(${(f)"$(command docker network ls --format '{{.Name}}' 2>/dev/null)"})
+  (( ${#networks} == 0 )) && return 1
+
+  local n
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  for n in "${networks[@]}"; do
+    [[ "$n" == "$partial"* ]] || continue
+    _LUMEN_CANDIDATES+=("docker network $subcmd $n ")
+    _LUMEN_LABELS+=("$n")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("Network")
+    _LUMEN_ICONS+=("docker")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+
+# Suggests real volume names once "docker volume <subcmd>" needs one
+# (rm/inspect) — the volume counterpart to _lumen_docker_network_match
+# above, replacing the static "<volume>" placeholder from
+# _LUMEN_DOCKER_VOLUME_SUBCMDS. "create" is excluded (its argument is a new
+# name, not an existing one).
+_lumen_docker_volume_match() {
+  [[ "$BUFFER" == docker\ volume\ * ]] || return 1
+  local rest="${BUFFER#docker volume }"
+  rest="${rest## }"
+  local subcmd="${rest%% *}"
+  case "$subcmd" in
+    rm|inspect) ;;
+    *) return 1 ;;
+  esac
+  [[ "$rest" == "$subcmd" || "$rest" == "$subcmd "* ]] || return 1
+
+  local partial="${rest#$subcmd}"
+  partial="${partial## }"
+  [[ "$partial" == *' '* ]] && return 1
+  [[ "$partial" == -* ]] && return 1
+
+  command -v docker &>/dev/null || return 1
+
+  local -a volumes
+  volumes=(${(f)"$(command docker volume ls --format '{{.Name}}' 2>/dev/null)"})
+  (( ${#volumes} == 0 )) && return 1
+
+  local v
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  for v in "${volumes[@]}"; do
+    [[ "$v" == "$partial"* ]] || continue
+    _LUMEN_CANDIDATES+=("docker volume $subcmd $v ")
+    _LUMEN_LABELS+=("$v")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("Volume")
     _LUMEN_ICONS+=("docker")
     (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
   done
@@ -2288,6 +2840,56 @@ _lumen_package_script_match() {
     _LUMEN_LABELS+=("$name")
     _LUMEN_HINTS+=("")
     _LUMEN_DESCRIPTIONS+=("${cmd:-package.json script}")
+    _LUMEN_ICONS+=("$icon_kind")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+
+# Matches "npm uninstall <partial>" / "yarn remove <partial>" / "pnpm
+# remove <partial>" against real dependency names read live from
+# ./package.json's "dependencies" and "devDependencies" blocks (reusing
+# _lumen_json_kv_block, same as the script matcher above) — replaces the
+# static "<package>" placeholder from _LUMEN_{NPM,YARN,PNPM}_SUBCMDS with
+# packages actually installed in this project, description showing the
+# version range from package.json. Each tool's uninstall subcommand name
+# differs (npm keeps "install"/"uninstall" as a pair; yarn/pnpm use
+# "remove"), so unlike the script matcher this hard-codes one subcommand
+# per tool rather than trying to unify them.
+_lumen_package_dep_match() {
+  local tool="${BUFFER%% *}"
+  local subcmd
+  case "$tool" in
+    npm) subcmd=uninstall ;;
+    yarn|pnpm) subcmd=remove ;;
+    *) return 1 ;;
+  esac
+  [[ "$BUFFER" == "$tool $subcmd" || "$BUFFER" == "$tool $subcmd "* ]] || return 1
+
+  local partial="${BUFFER#$tool $subcmd}"
+  partial="${partial## }"
+  [[ "$partial" == *' '* ]] && return 1
+  [[ "$partial" == -* ]] && return 1
+
+  local -a dep_lines
+  dep_lines=(${(f)"$(_lumen_json_kv_block package.json dependencies)"} ${(f)"$(_lumen_json_kv_block package.json devDependencies)"})
+  (( ${#dep_lines} > 0 )) || return 1
+
+  local icon_kind=$(_lumen_tool_icon_kind "$tool")
+  local entry name ver
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  for entry in "${dep_lines[@]}"; do
+    name="${entry%%$'\t'*}"
+    ver="${entry#*$'\t'}"
+    [[ "$name" == "$partial"* ]] || continue
+    _LUMEN_CANDIDATES+=("$tool $subcmd $name ")
+    _LUMEN_LABELS+=("$name")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("${ver:-Dependency}")
     _LUMEN_ICONS+=("$icon_kind")
     (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
   done
@@ -2491,6 +3093,446 @@ _lumen_deno_task_match() {
   (( ${#_LUMEN_CANDIDATES} > 0 ))
 }
 
+# Matches "rake <partial>" against real task names read live from `rake -T`
+# — the Ruby-ecosystem equivalent of _lumen_make_match, but shelling out
+# instead of parsing the project file directly: a Rakefile is arbitrary
+# Ruby code (define_task, loops, conditionals, imported .rake files from
+# other gems), not a declarative format like package.json/Makefile, so
+# there's no reliable way to read task names off the file itself — `rake
+# -T`'s "rake <name>[params]  # description" listing is rake's own answer,
+# already resolved. Requires an actual Rakefile in the directory before
+# even trying, both to back off fast in a non-Ruby project and to avoid
+# rake's own "No Rakefile found" error output.
+_lumen_rake_match() {
+  [[ "$BUFFER" == rake || "$BUFFER" == rake\ * ]] || return 1
+  local partial=""
+  [[ "$BUFFER" == rake\ * ]] && partial="${BUFFER#rake }"
+  [[ "$partial" == *' '* ]] && return 1
+  [[ "$partial" == -* ]] && return 1
+
+  [[ -f Rakefile || -f rakefile || -f Rakefile.rb ]] || return 1
+  command -v rake &>/dev/null || return 1
+
+  local -a lines
+  lines=(${(f)"$(command rake -T 2>/dev/null)"})
+  (( ${#lines} == 0 )) && return 1
+
+  local line name desc
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  for line in "${lines[@]}"; do
+    [[ "$line" == rake\ * ]] || continue
+    name="${line#rake }"
+    name="${name%% *}"
+    desc="${line#*# }"
+    [[ "$desc" == "$line" ]] && desc=""
+    [[ "$name" == "$partial"* ]] || continue
+    _LUMEN_CANDIDATES+=("rake $name ")
+    _LUMEN_LABELS+=("$name")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("${desc:-Rake task}")
+    _LUMEN_ICONS+=("cmd")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+
+# Prints the immediate child key names of the first top-level object found
+# under JSON key $2 in file $1, one per line — the same job as
+# _lumen_json_kv_block above, but for blocks whose values are themselves
+# objects rather than plain strings (turbo.json's "tasks"/"pipeline": each
+# task name maps to a config object like {"dependsOn": [...], "outputs":
+# [...]}, not a shell-command string). _lumen_json_kv_block's "stop at the
+# first line containing a '}'" rule can't be reused here — that first '}'
+# usually just closes the FIRST task's own config object, not the whole
+# block, which would silently cut off every task after it. This tracks
+# brace depth instead: only a key line seen while depth==1 (a direct child
+# of the block's own opening "{", not nested inside some task's config) is
+# a real task name.
+_lumen_json_object_keys_block() {
+  local file=$1 key=$2
+  [[ -f $file ]] || return 1
+  local line
+  local -i in_block=0 depth=0 found=0
+  while IFS= read -r line; do
+    if (( ! in_block )); then
+      if [[ "$line" == *"\"$key\""* ]]; then
+        in_block=1
+        depth=1
+      fi
+      continue
+    fi
+    if (( depth == 1 )) && [[ "$line" =~ '^[[:space:]]*"([^"]+)"[[:space:]]*:' ]]; then
+      print -r -- "${match[1]}"
+      found=1
+    fi
+    local -i opens=${#${(S)line//[^\{]/}} closes=${#${(S)line//[^\}]/}}
+    (( depth += opens - closes ))
+    (( depth <= 0 )) && break
+  done < "$file"
+  (( found ))
+}
+
+# Matches "turbo run <partial>" against real task names read live from
+# ./turbo.json's "tasks" object (Turborepo >=2.0) or, if that's not found,
+# its older "pipeline" object (<2.0) — replacing the static "<project>:
+# <target>" guess from _LUMEN_TURBO_SUBCMDS with the monorepo's actual
+# declared tasks.
+_lumen_turbo_task_match() {
+  [[ "$BUFFER" == turbo\ run\ * ]] || return 1
+  local partial="${BUFFER#turbo run }"
+  [[ "$partial" == *' '* ]] && return 1
+
+  [[ -f turbo.json ]] || return 1
+  local -a task_names
+  task_names=(${(f)"$(_lumen_json_object_keys_block turbo.json tasks)"})
+  (( ${#task_names} > 0 )) || task_names=(${(f)"$(_lumen_json_object_keys_block turbo.json pipeline)"})
+  (( ${#task_names} > 0 )) || return 1
+
+  local icon_kind=$(_lumen_tool_icon_kind turbo)
+  local name
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  for name in "${task_names[@]}"; do
+    [[ "$name" == "$partial"* ]] || continue
+    _LUMEN_CANDIDATES+=("turbo run $name ")
+    _LUMEN_LABELS+=("$name")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("Turborepo task")
+    _LUMEN_ICONS+=("$icon_kind")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+
+# Reads task names out of ./Taskfile.yml (falling back to Taskfile.yaml) —
+# go-task's project file, the cross-language answer to Makefile that a
+# growing number of Go/polyglot projects use instead. YAML has no braces to
+# depth-track like turbo.json above, so this tracks INDENTATION instead:
+# once the "tasks:" line is found, the first key line seen underneath it
+# fixes the expected indent for every sibling task name (however many
+# spaces that project's YAML actually uses), and only lines at exactly that
+# indent count as task names — a task's own nested "desc:"/"cmds:"
+# properties are indented further and so never match, and a line indented
+# LESS than that means the tasks: block has ended (back to a root-level
+# YAML key) and scanning stops.
+_lumen_taskfile_tasks() {
+  local file=Taskfile.yml
+  [[ -f $file ]] || file=Taskfile.yaml
+  [[ -f $file ]] || return 1
+  local line indent="" pattern
+  local -i in_block=0 found=0
+  while IFS= read -r line; do
+    if (( ! in_block )); then
+      [[ "$line" =~ '^tasks:[[:space:]]*$' ]] && in_block=1
+      continue
+    fi
+    [[ -z "${line//[[:space:]]/}" ]] && continue
+    if [[ -z "$indent" ]]; then
+      [[ "$line" =~ '^([[:space:]]+)[A-Za-z0-9_.:-]+:' ]] || break
+      indent="${match[1]}"
+    fi
+    [[ "$line" == "${indent}"* ]] || break
+    pattern="^${indent}([A-Za-z0-9_.:-]+):"
+    if [[ "$line" =~ $pattern ]]; then
+      print -r -- "${match[1]}"
+      found=1
+    fi
+  done < "$file"
+  (( found ))
+}
+
+# Matches "task <partial>" against real task names read live from
+# ./Taskfile.yml.
+_lumen_task_match() {
+  [[ "$BUFFER" == task || "$BUFFER" == task\ * ]] || return 1
+  local partial=""
+  [[ "$BUFFER" == task\ * ]] && partial="${BUFFER#task }"
+  [[ "$partial" == *' '* ]] && return 1
+  [[ "$partial" == -* ]] && return 1
+
+  local -a tasks
+  tasks=(${(f)"$(_lumen_taskfile_tasks)"})
+  (( ${#tasks} > 0 )) || return 1
+
+  local name
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  for name in "${tasks[@]}"; do
+    [[ "$name" == "$partial"* ]] || continue
+    _LUMEN_CANDIDATES+=("task $name ")
+    _LUMEN_LABELS+=("$name")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("Taskfile task")
+    _LUMEN_ICONS+=("cmd")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+
+# Prints "name<TAB>target" for each entry under pyproject.toml's
+# "[tool.poetry.scripts]" table — Poetry's equivalent of package.json's
+# "scripts" (console-script entry points, invoked via "poetry run <name>"),
+# TOML rather than JSON so it needs its own small parser: scan for the
+# "[tool.poetry.scripts]" header, then read "name = "target"" lines until
+# the next "[...]" table header or EOF.
+_lumen_poetry_script_names() {
+  local file=pyproject.toml
+  [[ -f $file ]] || return 1
+  local line
+  local -i in_block=0 found=0
+  while IFS= read -r line; do
+    if (( ! in_block )); then
+      [[ "$line" =~ '^\[tool\.poetry\.scripts\][[:space:]]*$' ]] && in_block=1
+      continue
+    fi
+    [[ "$line" == \[* ]] && break
+    if [[ "$line" =~ '^([A-Za-z0-9_.-]+)[[:space:]]*=[[:space:]]*"([^"]*)"' ]]; then
+      print -r -- "${match[1]}"$'\t'"${match[2]}"
+      found=1
+    elif [[ "$line" =~ "^([A-Za-z0-9_.-]+)[[:space:]]*=[[:space:]]*'([^']*)'" ]]; then
+      print -r -- "${match[1]}"$'\t'"${match[2]}"
+      found=1
+    fi
+  done < "$file"
+  (( found ))
+}
+
+# Matches "poetry run <partial>" against real script names read live from
+# ./pyproject.toml's "[tool.poetry.scripts]" table — the Python/Poetry
+# equivalent of _lumen_package_script_match, description showing the
+# module:function target each script points to.
+_lumen_poetry_script_match() {
+  [[ "$BUFFER" == poetry\ run\ * ]] || return 1
+  local partial="${BUFFER#poetry run }"
+  [[ "$partial" == *' '* ]] && return 1
+
+  local -a script_lines
+  script_lines=(${(f)"$(_lumen_poetry_script_names)"})
+  (( ${#script_lines} > 0 )) || return 1
+
+  local icon_kind=$(_lumen_tool_icon_kind poetry)
+  local entry name target
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  for entry in "${script_lines[@]}"; do
+    name="${entry%%$'\t'*}"
+    target="${entry#*$'\t'}"
+    [[ "$name" == "$partial"* ]] || continue
+    _LUMEN_CANDIDATES+=("poetry run $name ")
+    _LUMEN_LABELS+=("$name")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("${target:-Poetry script}")
+    _LUMEN_ICONS+=("$icon_kind")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+
+# Suggests real installed Node.js versions once "nvm use/uninstall" needs
+# one, replacing the static "<version>" placeholder from _LUMEN_NVM_SUBCMDS.
+# Unlike git/docker, nvm has no standalone binary — it's a shell function
+# loaded from nvm.sh — so this calls it directly (no "command" prefix,
+# which would just fail with "command not found"). `nvm ls --no-colors`'s
+# output mixes version lines with a current-version arrow, aliases, and
+# "N/A" — rather than parse that format, this just regex-extracts every
+# "vX.Y.Z" token and de-dupes (the "u" in "${(fu)...}"), which is what
+# every line with a real version in it contains regardless of the
+# surrounding decoration.
+_lumen_nvm_match() {
+  [[ "$BUFFER" == nvm\ * ]] || return 1
+  local rest="${BUFFER#nvm }"
+  rest="${rest## }"
+  local subcmd="${rest%% *}"
+  case "$subcmd" in
+    use|uninstall) ;;
+    *) return 1 ;;
+  esac
+  [[ "$rest" == "$subcmd" || "$rest" == "$subcmd "* ]] || return 1
+
+  local partial="${rest#$subcmd}"
+  partial="${partial## }"
+  [[ "$partial" == *' '* ]] && return 1
+  [[ "$partial" == -* ]] && return 1
+
+  (( ${+functions[nvm]} )) || command -v nvm &>/dev/null || return 1
+
+  local -a versions
+  versions=(${(fu)"$(nvm ls --no-colors 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+')"})
+  (( ${#versions} == 0 )) && return 1
+
+  local v icon_kind=$(_lumen_tool_icon_kind nvm)
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  for v in "${versions[@]}"; do
+    [[ "$v" == "$partial"* ]] || continue
+    _LUMEN_CANDIDATES+=("nvm $subcmd $v ")
+    _LUMEN_LABELS+=("$v")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("Installed Node.js version")
+    _LUMEN_ICONS+=("$icon_kind")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+
+# Shared by _lumen_pyenv_match/_lumen_rbenv_match below: both tools print
+# one clean version string per line via "versions --bare" (no decoration to
+# strip, unlike nvm above), so the two matchers only differ in which
+# binary/subcommand table they read from. $1 is the tool name (pyenv/
+# rbenv), used for both the binary to run and the icon lookup.
+_lumen_version_manager_match() {
+  local tool=$1
+  [[ "$BUFFER" == "$tool "* ]] || return 1
+  local rest="${BUFFER#$tool }"
+  rest="${rest## }"
+  local subcmd="${rest%% *}"
+  case "$subcmd" in
+    global|local|shell|uninstall) ;;
+    *) return 1 ;;
+  esac
+  [[ "$rest" == "$subcmd" || "$rest" == "$subcmd "* ]] || return 1
+
+  local partial="${rest#$subcmd}"
+  partial="${partial## }"
+  [[ "$partial" == *' '* ]] && return 1
+  [[ "$partial" == -* ]] && return 1
+
+  command -v "$tool" &>/dev/null || return 1
+
+  local -a versions
+  versions=(${(f)"$(command "$tool" versions --bare 2>/dev/null)"})
+  (( ${#versions} == 0 )) && return 1
+
+  local v icon_kind=$(_lumen_tool_icon_kind "$tool")
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  for v in "${versions[@]}"; do
+    [[ "$v" == "$partial"* ]] || continue
+    _LUMEN_CANDIDATES+=("$tool $subcmd $v ")
+    _LUMEN_LABELS+=("$v")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("Installed version")
+    _LUMEN_ICONS+=("$icon_kind")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+_lumen_pyenv_match() { _lumen_version_manager_match pyenv }
+_lumen_rbenv_match() { _lumen_version_manager_match rbenv }
+
+# Suggests real installed formula/cask names once a brew subcommand that
+# takes one has been typed (uninstall/info/link/unlink) — replaces the
+# static "<formula>" placeholder from _LUMEN_BREW_SUBCMDS. "install" and
+# "search" are deliberately excluded: their argument is any formula in the
+# whole Homebrew catalog, not something enumerable from local state, same
+# reasoning as leaving `docker pull`/`npx` alone.
+_lumen_brew_match() {
+  [[ "$BUFFER" == brew\ * ]] || return 1
+  local rest="${BUFFER#brew }"
+  rest="${rest## }"
+  local subcmd="${rest%% *}"
+  case "$subcmd" in
+    uninstall|info|link|unlink) ;;
+    *) return 1 ;;
+  esac
+  [[ "$rest" == "$subcmd" || "$rest" == "$subcmd "* ]] || return 1
+
+  local partial="${rest#$subcmd}"
+  partial="${partial## }"
+  [[ "$partial" == *' '* ]] && return 1
+  [[ "$partial" == -* ]] && return 1
+
+  command -v brew &>/dev/null || return 1
+
+  local -a formulas
+  formulas=(${(f)"$(command brew list --formula 2>/dev/null)"} ${(f)"$(command brew list --cask 2>/dev/null)"})
+  (( ${#formulas} == 0 )) && return 1
+
+  local f icon_kind=$(_lumen_tool_icon_kind brew)
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  for f in "${formulas[@]}"; do
+    [[ "$f" == "$partial"* ]] || continue
+    _LUMEN_CANDIDATES+=("brew $subcmd $f ")
+    _LUMEN_LABELS+=("$f")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("Installed formula")
+    _LUMEN_ICONS+=("$icon_kind")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+
+# Suggests real tmux session names once "-t" needs one after
+# attach/attach-session/kill-session/switch-client/switch — replaces the
+# static "<name>" placeholder from _LUMEN_TMUX_ATTACH_SESSION_FLAGS/
+# _LUMEN_TMUX_KILL_SESSION_FLAGS. Unlike the other matchers here, the
+# argument follows a flag rather than being positional, so this looks for
+# "-t" as the token immediately before the partial instead of stripping a
+# leading subcommand.
+_lumen_tmux_session_match() {
+  [[ "$BUFFER" == tmux\ * ]] || return 1
+  local rest="${BUFFER#tmux }"
+  rest="${rest## }"
+  local subcmd="${rest%% *}"
+  case "$subcmd" in
+    attach|attach-session|kill-session|switch-client|switch) ;;
+    *) return 1 ;;
+  esac
+
+  local after="${rest#$subcmd}"
+  after="${after## }"
+  [[ "$after" == "-t" || "$after" == -t\ * ]] || return 1
+  local partial="${after#-t}"
+  partial="${partial## }"
+  [[ "$partial" == *' '* ]] && return 1
+
+  command -v tmux &>/dev/null || return 1
+
+  local -a sessions
+  sessions=(${(f)"$(command tmux list-sessions -F '#S' 2>/dev/null)"})
+  (( ${#sessions} == 0 )) && return 1
+
+  local s icon_kind=$(_lumen_tool_icon_kind tmux)
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  for s in "${sessions[@]}"; do
+    [[ "$s" == "$partial"* ]] || continue
+    _LUMEN_CANDIDATES+=("tmux $subcmd -t $s ")
+    _LUMEN_LABELS+=("$s")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("tmux session")
+    _LUMEN_ICONS+=("$icon_kind")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+
 # Matches "<tool> <subcmd> [<subcmd2> ...] <partial>" against a nested
 # static table one (or more) levels deeper than _lumen_static_match: the
 # sub-subcommands of a subcommand that is itself a management command (e.g.
@@ -2511,7 +3553,7 @@ _lumen_nested_match() {
   [[ "$BUFFER" == "$tool "* ]] || return 1
 
   case "$tool" in
-    git|kubectl|k|npm|docker|aws|terraform|tf|helm|gh|glab|gcloud|tmux) ;;
+    git|kubectl|k|npm|docker|aws|terraform|tf|helm|gh|glab|gcloud|tmux|vagrant|cargo|yarn|pnpm|pulumi|systemctl) ;;
     *) return 1 ;;
   esac
 
@@ -2601,12 +3643,28 @@ _lumen_nested_match() {
 _lumen_static_or_dynamic_match() {
   _lumen_cd_match && return 0
   _lumen_git_branch_match && return 0
+  _lumen_git_remote_match && return 0
+  _lumen_git_stash_match && return 0
+  _lumen_git_restore_staged_match && return 0
   _lumen_docker_container_match && return 0
+  _lumen_docker_image_match && return 0
+  _lumen_docker_network_match && return 0
+  _lumen_docker_volume_match && return 0
   _lumen_package_script_match && return 0
+  _lumen_package_dep_match && return 0
+  _lumen_nvm_match && return 0
+  _lumen_pyenv_match && return 0
+  _lumen_rbenv_match && return 0
+  _lumen_brew_match && return 0
+  _lumen_tmux_session_match && return 0
   _lumen_make_match && return 0
   _lumen_just_match && return 0
   _lumen_composer_match && return 0
   _lumen_deno_task_match && return 0
+  _lumen_rake_match && return 0
+  _lumen_turbo_task_match && return 0
+  _lumen_task_match && return 0
+  _lumen_poetry_script_match && return 0
   _lumen_nested_match && return 0
   _lumen_static_match
 }
