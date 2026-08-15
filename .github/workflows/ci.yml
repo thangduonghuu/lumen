@@ -30,5 +30,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install zsh
+        run: command -v zsh >/dev/null || (sudo apt-get update && sudo apt-get install -y zsh)
+
       - name: zsh -n
         run: zsh -n shell/zsh/lumen.plugin.zsh
