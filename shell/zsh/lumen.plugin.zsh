@@ -2139,6 +2139,58 @@ _lumen_git_branch_match() {
   (( ${#_LUMEN_CANDIDATES} > 0 ))
 }
 
+# Suggests real container names once a docker subcommand that takes one has
+# been typed (exec/logs/stop/start/rm/restart/kill) — the docker
+# counterpart to _lumen_git_branch_match, replacing the static "<container>"
+# placeholder from _LUMEN_DOCKER_SUBCMDS with actual containers. Lists both
+# running and stopped containers (`docker ps -a`) rather than filtering per
+# subcommand (e.g. only-running for stop/exec) — same "don't guess state
+# semantics, just show what's there" approach as the branch matcher not
+# distinguishing current vs. other branches; the status text in the
+# description column is enough for the user to judge. Runs fresh on every
+# call, no caching, same reasoning as git for-each-ref above.
+_lumen_docker_container_match() {
+  [[ "$BUFFER" == docker\ * ]] || return 1
+  local rest="${BUFFER#docker }"
+  rest="${rest## }"
+  local subcmd="${rest%% *}"
+  case "$subcmd" in
+    exec|logs|stop|start|rm|restart|kill) ;;
+    *) return 1 ;;
+  esac
+  [[ "$rest" == "$subcmd" || "$rest" == "$subcmd "* ]] || return 1
+
+  local partial="${rest#$subcmd}"
+  partial="${partial## }"
+  [[ "$partial" == *' '* ]] && return 1
+  [[ "$partial" == -* ]] && return 1
+
+  command -v docker &>/dev/null || return 1
+
+  local -a lines
+  lines=(${(f)"$(command docker ps -a --format '{{.Names}}'$'\t''{{.Status}}' 2>/dev/null)"})
+  (( ${#lines} == 0 )) && return 1
+
+  local entry name cstatus
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  for entry in "${lines[@]}"; do
+    name="${entry%%$'\t'*}"
+    cstatus="${entry#*$'\t'}"
+    [[ "$name" == "$partial"* ]] || continue
+    _LUMEN_CANDIDATES+=("docker $subcmd $name ")
+    _LUMEN_LABELS+=("$name")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("${cstatus:-Container}")
+    _LUMEN_ICONS+=("docker")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+
 # Shared by every JSON-based project-file matcher below (package.json's
 # "scripts", composer.json's "scripts", deno.json(c)'s "tasks"): reads
 # file $1 and prints "name<TAB>value" pairs for each key found inside the
@@ -2549,6 +2601,7 @@ _lumen_nested_match() {
 _lumen_static_or_dynamic_match() {
   _lumen_cd_match && return 0
   _lumen_git_branch_match && return 0
+  _lumen_docker_container_match && return 0
   _lumen_package_script_match && return 0
   _lumen_make_match && return 0
   _lumen_just_match && return 0

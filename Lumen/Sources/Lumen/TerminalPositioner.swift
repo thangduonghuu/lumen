@@ -201,8 +201,19 @@ enum TerminalPositioner {
             // just under the tab bar) against the cursor's actual
             // known-near-top position — the un-flipped reading matches, the
             // flipped one doesn't.
+            //
+            // Bundle ID alone misses TermHub's own dev build: `tauri dev`
+            // runs the raw `target/debug/termhub` executable with no .app
+            // bundle/Info.plist, so NSRunningApplication.bundleIdentifier is
+            // nil and localizedName falls back to the executable's name,
+            // "termhub" (lowercase) instead of the shipped app's
+            // CFBundleDisplayName "TermHub" — confirmed 2026-08-15 via
+            // `lsappinfo list` showing that process with `bundleID=[ NULL ]`
+            // while frontmost. Matching on either catches both.
+            let isTermHub = app.bundleIdentifier == "com.termhub.app"
+                || app.localizedName?.lowercased() == "termhub"
             let result: ScreenAnchor
-            if app.bundleIdentifier == "com.termhub.app" {
+            if isTermHub {
                 result = ScreenAnchor(x: rect.minX, cellTopY: rect.maxY, cellBottomY: rect.minY)
             } else {
                 result = ScreenAnchor(
