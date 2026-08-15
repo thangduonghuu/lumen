@@ -14,6 +14,7 @@
 </p>
 
 <p align="center">
+  <a href="#overview">Overview</a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="#screenshots">Screenshots</a> ·
   <a href="#features">Features</a> ·
@@ -34,22 +35,51 @@
   <img src="assets/demo.gif" width="700" alt="Lumen suggesting a git branch after git checkout">
 </p>
 
+## Overview
+
+Lumen embeds Fig/Kiro-CLI-style command completion directly into an
+existing Zsh session — not a separate terminal emulator, and not an
+always-on background process. As you type (or on Ctrl-Space), the Zsh
+plugin matches the current buffer against known, hand-picked data — a
+tool's subcommands, directories under `cd`, or your repo's own git
+branches — and renders the result as a real floating panel via a
+companion macOS menu bar app, also called **Lumen**.
+
+There's no AI provider, no daemon, and no network round-trip anywhere in
+this path: every suggestion resolves synchronously from local data (a
+static table, a directory glob, or `git for-each-ref`), so it's instant
+and never wrong about what a tool's own subcommands or your own
+branches/directories actually are.
+
+Concretely, that means **two separate pieces working together**, both
+documented below in this one file:
+
+1. **The Zsh plugin** (`shell/zsh/`) — lives inside your shell and does
+   all the actual work: watches what you type and figures out what to
+   suggest. It never draws anything itself.
+2. **The `Lumen` menu bar app** (`Lumen/`, a small Swift app) — the part
+   that actually draws the floating suggestion panel on screen, positioned
+   against your terminal cursor.
+
+Both need to be running for suggestions to show up — that's what the
+setup right below wires up, one command per piece.
+
 ## Quick start
 
-Two commands and you're suggesting:
+This is that setup — one command per piece described above:
 
 ```sh
-# 1. Wire the plugin into your shell (once — new tabs pick it up automatically after)
+# Step 1 — the Zsh plugin (computes suggestions; needs sourcing once)
 echo 'source /path/to/Lumen/shell/zsh/lumen.plugin.zsh' >> ~/.zshrc && source ~/.zshrc
 
-# 2. Build and launch the menu bar app that actually draws the suggestions
+# Step 2 — the menu bar app (draws them on screen; builds Lumen.app, then opens it)
 cd /path/to/Lumen/Lumen && ./build.sh && open Lumen.app
 ```
 
-macOS will ask for Accessibility permission on first launch — grant it,
-then just start typing: `git che`, `docker ex`, `kubectl get`... For the
-full walkthrough (including what to do if that permission prompt gets
-missed), see [Installation](#installation).
+macOS will ask for Accessibility permission the first time `Lumen.app`
+launches — grant it, then just start typing: `git che`, `docker ex`,
+`kubectl get`... For the full step-by-step (including what to do if that
+permission prompt gets missed), see [Installation](#installation) below.
 
 > **Why not just ask an AI?** Because your shell doesn't need to guess.
 > `git`'s subcommands aren't a moving target — they're fixed, known data.
@@ -73,26 +103,6 @@ subcommand coverage](#known-tool-subcommand-coverage)):
   &nbsp;&nbsp;
   <img src="assets/screenshot-kubectl.png" width="420" alt="Lumen suggesting kubectl subcommands">
 </p>
-
-## Overview
-
-Lumen embeds Fig/Kiro-CLI-style command completion directly into an
-existing Zsh session — not a separate terminal emulator, and not an
-always-on background process. As you type (or on Ctrl-Space), the Zsh
-plugin matches the current buffer against known, hand-picked data — a
-tool's subcommands, directories under `cd`, or your repo's own git
-branches — and renders the result as a real floating panel via a
-companion macOS menu bar app, also called **Lumen**.
-
-There's no AI provider, no daemon, and no network round-trip anywhere in
-this path: every suggestion resolves synchronously from local data (a
-static table, a directory glob, or `git for-each-ref`), so it's instant
-and never wrong about what a tool's own subcommands or your own
-branches/directories actually are.
-
-This is a repo with two pieces working together, documented below in one
-place: the Zsh plugin (`shell/zsh/`) and the menu bar
-overlay app (`Lumen/`, Swift).
 
 ## Features
 
