@@ -149,20 +149,41 @@ final class OverlayController {
             ?? NSScreen.main
         let screenMinY = screen?.frame.minY ?? 0
 
+        // Horizontal clamp: anchor.x is the cursor's column, which can sit
+        // anywhere in a wide terminal window — including right up against
+        // the display's edge (e.g. a maximized/right-half window, or just
+        // typing near column $COLUMNS). Without this, the panel's LEFT edge
+        // is always pinned to anchor.x regardless of how wide it actually
+        // rendered, so a panel wider than the remaining screen space runs
+        // straight off the desktop instead of shifting left to stay on it.
+        // Push left first if the right edge would overflow, then pull back
+        // right if that pushed the left edge past the screen's own left
+        // edge (only possible if the panel is wider than the whole
+        // screen) — same "prefer anchor.x, but never end up off-screen"
+        // logic as the vertical below/flipped-above choice already does.
+        var x = anchor.x
+        if let screenFrame = screen?.frame {
+            let overflowRight = (x + fitting.width) - screenFrame.maxX
+            if overflowRight > 0 {
+                x -= overflowRight
+            }
+            x = max(x, screenFrame.minX)
+        }
+
         // verticalGap (see PositionerConfig) leaves a small visible gap
         // between the panel and the cursor's row instead of touching it
         // exactly — pushes the panel further down when placed below, or
         // further up when flipped above, symmetric around the row either
         // way. Runtime-tunable so calibrating it doesn't need a rebuild.
         let gap = CGFloat(PositionerConfig.shared.verticalGap)
-        let belowOrigin = NSPoint(x: anchor.x, y: anchor.cellBottomY - gap - fitting.height)
+        let belowOrigin = NSPoint(x: x, y: anchor.cellBottomY - gap - fitting.height)
         if belowOrigin.y >= screenMinY {
             panel.setFrameOrigin(belowOrigin)
         } else {
-            panel.setFrameOrigin(NSPoint(x: anchor.x, y: anchor.cellTopY + gap))
+            panel.setFrameOrigin(NSPoint(x: x, y: anchor.cellTopY + gap))
         }
         panel.orderFrontRegardless()
-        debugLog("Lumen: overlay panel: fitting=\(fitting) anchor=\(anchor) "
+        debugLog("Lumen: overlay panel: fitting=\(fitting) anchor=\(anchor) clampedX=\(x) "
             + "belowOrigin=\(belowOrigin) screenMinY=\(screenMinY) chose=\(belowOrigin.y >= screenMinY ? "below" : "flipped-above")")
     }
 

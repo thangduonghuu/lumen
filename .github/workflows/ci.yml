@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+jobs:
+  build-and-test:
+    name: Build & test (Lumen.app)
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build
+        working-directory: Lumen
+        run: swift build
+
+      - name: Test
+        working-directory: Lumen
+        run: swift test
+
+  zsh-plugin-syntax:
+    name: zsh plugin syntax check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install zsh
+        run: command -v zsh >/dev/null || (sudo apt-get update && sudo apt-get install -y zsh)
+
+      - name: zsh -n
+        run: zsh -n shell/zsh/lumen.plugin.zsh
