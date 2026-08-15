@@ -9,7 +9,7 @@ import CoreGraphics
 // These cases pin that math down directly rather than relying on manual
 // on-screen verification.
 final class TerminalPositionerTests: XCTestCase {
-    func testBasicWindowNoTitleBar() {
+    func testBasicWindowNoTitleBar() throws {
         let cursor = TerminalPositioner.CursorInfo(row: 5, col: 10, columns: 80, lines: 24)
         let result = TerminalPositioner.computeAnchor(
             windowPosition: CGPoint(x: 0, y: 0),
@@ -26,7 +26,7 @@ final class TerminalPositionerTests: XCTestCase {
         XCTAssertEqual(anchor.cellBottomY, 875, accuracy: 0.001)
     }
 
-    func testWindowWithTitleBarAndOffsetPosition() {
+    func testWindowWithTitleBarAndOffsetPosition() throws {
         let cursor = TerminalPositioner.CursorInfo(row: 2, col: 3, columns: 50, lines: 20)
         let result = TerminalPositioner.computeAnchor(
             windowPosition: CGPoint(x: 100, y: 50),
