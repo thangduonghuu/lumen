@@ -55,6 +55,16 @@
 #                             terminal can't be positioned against, nothing
 #                             is shown for that keystroke (fails silently,
 #                             never blocks typing).
+#   LUMEN_UPDATE_CHECK    1 = check GitHub for new releases and prompt to
+#                             update on shell startup (default), 0 = never
+#                             touch the network for this (the one place
+#                             this plugin does — see "Update check" below).
+#   LUMEN_UPDATE_CHECK_DAYS      minimum days between GitHub checks (default: 1)
+#   LUMEN_UPDATE_SNOOZE_SESSIONS new terminals to wait before re-asking
+#                                 about a release you already said "not now"
+#                                 to (default: 5)
+#   LUMEN_UPDATE_REPO     GitHub "owner/repo" to check releases against
+#                             (default: 'thangduonghuu/lumen')
 
 [[ -o interactive ]] || return
 [[ -n $ZSH_VERSION ]] || return
@@ -64,6 +74,10 @@
 : ${LUMEN_STATE_FILE:=$HOME/.cache/lumen/enabled}
 : ${LUMEN_OVERLAY:=1}
 : ${LUMEN_OVERLAY_SOCK:=$HOME/.cache/lumen/overlay.sock}
+: ${LUMEN_UPDATE_CHECK:=1}
+: ${LUMEN_UPDATE_CHECK_DAYS:=1}
+: ${LUMEN_UPDATE_SNOOZE_SESSIONS:=5}
+: ${LUMEN_UPDATE_REPO:='thangduonghuu/lumen'}
 
 # Runtime on/off switch for AUTOMATIC suggestions, toggled from the
 # Lumen app (a separate menu-bar icon/toggle — see
@@ -4006,3 +4020,146 @@ _lumen_on_shell_exit() {
 }
 autoload -Uz add-zsh-hook
 add-zsh-hook zshexit _lumen_on_shell_exit
+
+# --- update check ---------------------------------------------------------
+#
+# Same idea as oh-my-zsh's own update nag: on new-shell startup, check
+# whether a newer GitHub release exists and, if so, ask once whether to
+# update — with "not now" snoozing the ask for a few more terminals rather
+# than repeating it every single time. This is the one place this plugin
+# ever touches the network (everything else is local-only by design, see
+# the file header) — LUMEN_UPDATE_CHECK=0 turns it off entirely.
+#
+# Only meaningful for a git-clone install (the one the README documents):
+# "update" means `git pull` in place, since that's also how the plugin
+# file itself got here. State lives next to the existing overlay-toggle
+# state file ($HOME/.cache/lumen/), shared across every open terminal, so
+# the snooze countdown and the "already checked today" stamp both apply
+# globally rather than per-tab.
+
+_LUMEN_UPDATE_DIR=${LUMEN_STATE_FILE:h}
+_LUMEN_UPDATE_STAMP_FILE=$_LUMEN_UPDATE_DIR/update_last_check
+_LUMEN_UPDATE_LATEST_FILE=$_LUMEN_UPDATE_DIR/update_latest
+_LUMEN_UPDATE_SNOOZE_FILE=$_LUMEN_UPDATE_DIR/update_snooze
+
+# True (0) if $1 is a strictly newer "vX.Y.Z"-style tag than $2.
+_lumen_version_gt() {
+  local -a a b
+  a=(${(s:.:)${1#v}})
+  b=(${(s:.:)${2#v}})
+  local i
+  for i in 1 2 3; do
+    (( ${a[i]:-0} > ${b[i]:-0} )) && return 0
+    (( ${a[i]:-0} < ${b[i]:-0} )) && return 1
+  done
+  return 1
+}
+
+# The tag reachable from the currently checked-out commit — i.e. "what
+# `git pull` would move you off of," not necessarily the latest tag that
+# exists anywhere in the repo (e.g. on a branch other than the one
+# actually checked out).
+_lumen_local_version() {
+  git -C "$_LUMEN_REPO_ROOT" describe --tags --abbrev=0 2>/dev/null
+}
+
+# Fires at most once every $LUMEN_UPDATE_CHECK_DAYS: shells out to curl in
+# a disowned background job (`&!`) so a slow/offline network never delays
+# the prompt this file exists to show, and writes the result for the
+# *next* shell startup to pick up — this run's prompt (if any) only ever
+# reflects what a previous check already found. If the background job
+# gets killed mid-request (e.g. the terminal window closes before curl
+# returns), the stamp file is simply never written, so the next shell to
+# start just retries — no separate failure handling needed.
+_lumen_update_fetch_async() {
+  command -v curl >/dev/null 2>&1 || return
+  local now=$(date +%s) last=0
+  [[ -f $_LUMEN_UPDATE_STAMP_FILE ]] && last=$(<$_LUMEN_UPDATE_STAMP_FILE)
+  (( now - last < LUMEN_UPDATE_CHECK_DAYS * 86400 )) && return
+  (
+    local tag
+    tag=$(curl -fsSL --max-time 5 \
+      "https://api.github.com/repos/$LUMEN_UPDATE_REPO/releases/latest" 2>/dev/null \
+      | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+    mkdir -p "$_LUMEN_UPDATE_DIR"
+    echo "$now" > "$_LUMEN_UPDATE_STAMP_FILE"
+    [[ -n $tag ]] && echo "$tag" > "$_LUMEN_UPDATE_LATEST_FILE"
+  ) &!
+}
+
+# `git pull` in place, then rebuild+relaunch the menu bar app — mirrors
+# how the plugin itself and the app both got installed per the README
+# (git clone + ./build.sh), so updating uses the same two steps by hand.
+_lumen_update_perform() {
+  print -P "%F{cyan}Updating Lumen…%f"
+  # A dirty working tree almost certainly means someone is actively
+  # developing on this checkout (this repo itself, for instance) —
+  # `git pull` there risks clobbering or conflicting with uncommitted
+  # work, so bail and let them update by hand instead of guessing.
+  if [[ -n $(git -C "$_LUMEN_REPO_ROOT" status --porcelain 2>/dev/null) ]]; then
+    print -P "%F{yellow}$_LUMEN_REPO_ROOT has local changes — update manually (git pull) to avoid clobbering them.%f"
+    return 1
+  fi
+  if ! git -C "$_LUMEN_REPO_ROOT" pull --ff-only; then
+    print -P "%F{red}git pull failed — update manually.%f"
+    return 1
+  fi
+  # Clear cached state so the next shell compares against what we just
+  # pulled instead of immediately re-flagging the version we're leaving.
+  rm -f "$_LUMEN_UPDATE_SNOOZE_FILE" "$_LUMEN_UPDATE_LATEST_FILE"
+  if [[ -x "$_LUMEN_REPO_ROOT/Lumen/build.sh" ]]; then
+    print -P "%F{cyan}Rebuilding the menu bar app…%f"
+    if ( cd "$_LUMEN_REPO_ROOT/Lumen" && ./build.sh ); then
+      pkill -x Lumen 2>/dev/null
+      open "$_LUMEN_REPO_ROOT/Lumen/Lumen.app"
+      print -P "%F{green}Updated to $(_lumen_local_version) and relaunched Lumen.app.%f"
+    else
+      print -P "%F{yellow}git pull succeeded but the rebuild failed — run Lumen/build.sh manually.%f"
+    fi
+  fi
+}
+
+# Synchronous, but only ever runs against an already-cached result (see
+# _lumen_update_fetch_async above) — never itself waits on the network.
+_lumen_update_maybe_prompt() {
+  [[ -f $_LUMEN_UPDATE_LATEST_FILE ]] || return
+  local latest=$(<$_LUMEN_UPDATE_LATEST_FILE)
+  local local_ver=$(_lumen_local_version)
+  [[ -n $latest && -n $local_ver ]] || return
+  _lumen_version_gt "$latest" "$local_ver" || return
+
+  if [[ -f $_LUMEN_UPDATE_SNOOZE_FILE ]]; then
+    local -a snooze=(${(s: :)"$(<$_LUMEN_UPDATE_SNOOZE_FILE)"})
+    local snoozed_ver=${snooze[1]:-} snoozed_left=${snooze[2]:-0}
+    if [[ $snoozed_ver == $latest ]] && (( snoozed_left > 0 )); then
+      echo "$latest $(( snoozed_left - 1 ))" > $_LUMEN_UPDATE_SNOOZE_FILE
+      return
+    fi
+  fi
+
+  print -P "%F{cyan}✨ Lumen %F{green}$latest%f is available %F{8}(you have $local_ver)%f"
+  local reply
+  if read -q "reply?Update now? [y/N] "; then
+    print
+    _lumen_update_perform
+  else
+    print
+    echo "$latest $LUMEN_UPDATE_SNOOZE_SESSIONS" > $_LUMEN_UPDATE_SNOOZE_FILE
+    print -P "%F{8}Not now — I'll ask again in $LUMEN_UPDATE_SNOOZE_SESSIONS new terminals (or run 'lumen-update' anytime).%f"
+  fi
+}
+
+# Manual override — force an update right now regardless of the cached
+# latest-version check or snooze state, for anyone who doesn't want to
+# wait for the prompt.
+lumen-update() { _lumen_update_perform }
+
+# Set unconditionally (cheap, no network) so `lumen-update` still works as
+# a manual override even with LUMEN_UPDATE_CHECK=0 — that variable only
+# gates the automatic background check + startup prompt below.
+_LUMEN_REPO_ROOT=${0:A:h:h:h}
+
+if (( LUMEN_UPDATE_CHECK )) && [[ -d $_LUMEN_REPO_ROOT/.git ]]; then
+  _lumen_update_fetch_async
+  _lumen_update_maybe_prompt
+fi
