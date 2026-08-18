@@ -55,6 +55,16 @@
 #                             terminal can't be positioned against, nothing
 #                             is shown for that keystroke (fails silently,
 #                             never blocks typing).
+#   LUMEN_UPDATE_CHECK    1 = check GitHub for new releases and prompt to
+#                             update on shell startup (default), 0 = never
+#                             touch the network for this (the one place
+#                             this plugin does — see "Update check" below).
+#   LUMEN_UPDATE_CHECK_DAYS      minimum days between GitHub checks (default: 1)
+#   LUMEN_UPDATE_SNOOZE_SESSIONS new terminals to wait before re-asking
+#                                 about a release you already said "not now"
+#                                 to (default: 5)
+#   LUMEN_UPDATE_REPO     GitHub "owner/repo" to check releases against
+#                             (default: 'thangduonghuu/lumen')
 
 [[ -o interactive ]] || return
 [[ -n $ZSH_VERSION ]] || return
@@ -64,6 +74,10 @@
 : ${LUMEN_STATE_FILE:=$HOME/.cache/lumen/enabled}
 : ${LUMEN_OVERLAY:=1}
 : ${LUMEN_OVERLAY_SOCK:=$HOME/.cache/lumen/overlay.sock}
+: ${LUMEN_UPDATE_CHECK:=1}
+: ${LUMEN_UPDATE_CHECK_DAYS:=1}
+: ${LUMEN_UPDATE_SNOOZE_SESSIONS:=5}
+: ${LUMEN_UPDATE_REPO:='thangduonghuu/lumen'}
 
 # Runtime on/off switch for AUTOMATIC suggestions, toggled from the
 # Lumen app (a separate menu-bar icon/toggle — see
@@ -3635,6 +3649,279 @@ _lumen_nested_match() {
   (( ${#_LUMEN_CANDIDATES} > 0 ))
 }
 
+# Suggests common deletable files/folders when typing `rm` with flags like
+# -rf, -r, -f. Scans the current directory for common build artifacts,
+# dependencies, caches, and temporary files that users typically want to
+# remove. Each suggestion shows whether it exists in the current directory
+# and what type of artifact it is (build/dependency/cache/system).
+_lumen_rm_match() {
+  [[ "$BUFFER" == rm\ * ]] || return 1
+  local rest="${BUFFER#rm }"
+  rest="${rest## }"
+  
+  # Must have at least one flag (typically -rf, -r, -f, etc.)
+  # and be typing a path argument after the flags
+  [[ "$rest" == -* ]] || return 1
+  
+  # Extract the partial path being typed (after all flags)
+  local partial=""
+  local -a words=(${(z)BUFFER})
+  local -i i
+  local found_path=0
+  
+  # Skip "rm" and all flag arguments to find the path being typed
+  for (( i=2; i <= ${#words}; i++ )); do
+    if [[ "${words[i]}" != -* ]]; then
+      found_path=1
+      partial="${words[i]}"
+      break
+    fi
+  done
+  
+  # If buffer ends with space after flags, ready for path suggestions
+  if [[ "$BUFFER" == *' ' && "$found_path" == 0 ]]; then
+    partial=""
+  elif [[ "$found_path" == 0 ]]; then
+    # Still typing flags, not ready for path suggestions yet
+    return 1
+  fi
+  
+  # Don't suggest if user has moved past the first argument (already typing second path)
+  [[ "$partial" == *' '* ]] && return 1
+  
+  # Common patterns to suggest for deletion
+  # Format: "name<TAB>description<TAB>category"
+  local -a deletion_patterns=(
+    $'.build\tSwift build artifacts\tBuild artifacts'
+    $'build\tCompiled output directory\tBuild artifacts'
+    $'dist\tDistribution/build output\tBuild artifacts'
+    $'target\tRust/Java build directory\tBuild artifacts'
+    $'out\tBuild output directory\tBuild artifacts'
+    $'bin\tBinary output directory\tBuild artifacts'
+    $'obj\tObject files directory\tBuild artifacts'
+    $'.gradle\tGradle cache directory\tBuild artifacts'
+    $'DerivedData\tXcode build artifacts\tBuild artifacts'
+    $'node_modules\tNode.js dependencies\tDependencies'
+    $'vendor\tPHP/Ruby dependencies\tDependencies'
+    $'.bundle\tBundler dependencies cache\tDependencies'
+    $'bower_components\tBower dependencies\tDependencies'
+    $'jspm_packages\tJSPM dependencies\tDependencies'
+    $'.cache\tGeneric cache directory\tCache'
+    $'.npm\tnpm package cache\tCache'
+    $'.yarn\tYarn cache directory\tCache'
+    $'.pnpm-store\tpnpm store cache\tCache'
+    $'.next\tNext.js build cache\tCache'
+    $'.nuxt\tNuxt.js build cache\tCache'
+    $'.vite\tVite cache directory\tCache'
+    $'.turbo\tTurborepo cache\tCache'
+    $'.parcel-cache\tParcel bundler cache\tCache'
+    $'__pycache__\tPython bytecode cache\tCache'
+    $'.pytest_cache\tPytest cache directory\tCache'
+    $'.mypy_cache\tMypy type checker cache\tCache'
+    $'.ruff_cache\tRuff linter cache\tCache'
+    $'.tox\tTox testing cache\tCache'
+    $'.coverage\tCoverage.py data file\tTemp files'
+    $'.DS_Store\tmacOS folder metadata\tSystem files'
+    $'Thumbs.db\tWindows thumbnail cache\tSystem files'
+    $'desktop.ini\tWindows folder settings\tSystem files'
+    $'*.log\tLog files\tTemp files'
+    $'tmp\tTemporary files directory\tTemp files'
+    $'.tmp\tHidden temporary files\tTemp files'
+    $'temp\tTemporary files directory\tTemp files'
+    $'logs\tLog files directory\tTemp files'
+    $'coverage\tTest coverage reports\tTemp files'
+    $'.nyc_output\tIstanbul coverage data\tTemp files'
+  )
+  
+  # Find matches that exist in current directory
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  
+  local entry name hint desc
+  local -a parts matches
+  setopt local_options extended_glob
+  
+  for entry in "${deletion_patterns[@]}"; do
+    parts=("${(@ps:\t:)entry}")
+    name=$parts[1]
+    hint=$parts[2]
+    desc=$parts[3]
+    
+    # Check if this pattern matches the partial input
+    [[ "$name" == "$partial"* ]] || continue
+    
+    # Check if this file/folder actually exists in current directory
+    # Show ALL patterns, but mark existing ones with [exists]
+    matches=( ${~name}(N) )
+    local exists=""
+    if (( ${#matches} > 0 )); then
+      exists=" [exists]"
+      hint="${hint}${exists}"
+    fi
+    
+    _LUMEN_CANDIDATES+=("rm ${rest%$partial}${name}")
+    _LUMEN_LABELS+=("$name")
+    _LUMEN_HINTS+=("$hint")
+    _LUMEN_DESCRIPTIONS+=("$desc")
+    _LUMEN_ICONS+=("dir")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+
+  # Real files/directories in the working directory matching the partial —
+  # on top of the curated junk-pattern list above, so an ordinary folder
+  # like "assets" or "my-notes" (not a recognized build/cache pattern)
+  # still shows up. Same case-insensitive glob _lumen_cd_match uses for cd,
+  # but without the dirs-only qualifier since rm removes files too.
+  if (( ${#_LUMEN_CANDIDATES} < _LUMEN_MAX_CANDIDATES )); then
+    local -a fs_matches
+    fs_matches=( (#i)${partial}*(N) )
+    local fentry flabel ficon fdesc existing already
+    for fentry in "${fs_matches[@]}"; do
+      if [[ -d "$fentry" ]]; then
+        flabel="${fentry%/}/"
+        ficon="dir"
+        fdesc="Directory"
+      else
+        flabel="$fentry"
+        ficon=""
+        fdesc="File"
+      fi
+
+      already=0
+      for existing in "${_LUMEN_LABELS[@]}"; do
+        [[ "${existing%/}" == "${flabel%/}" ]] && { already=1; break }
+      done
+      (( already )) && continue
+
+      _LUMEN_CANDIDATES+=("rm ${rest%$partial}${flabel}")
+      _LUMEN_LABELS+=("$flabel")
+      _LUMEN_HINTS+=("")
+      _LUMEN_DESCRIPTIONS+=("$fdesc")
+      _LUMEN_ICONS+=("$ficon")
+      (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+    done
+  fi
+
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+
+# Generic real-filesystem path completion shared by plain path-argument
+# Unix commands (cp/mv/ln) that don't have "subcommands" the way git/docker
+# do — just flags followed by one or more path arguments. Always completes
+# the LAST word on the buffer, whichever argument position that happens to
+# be (source or destination) — not worth telling those apart, the same way
+# regular shell tab-completion doesn't either.
+_lumen_path_arg_match() {
+  local tool=$1 verb=$2
+  [[ "$BUFFER" == "$tool "* ]] || return 1
+
+  local -a words=(${(z)BUFFER})
+  local partial=""
+  [[ "$BUFFER" == *' ' ]] || partial="${words[-1]}"
+  [[ "$partial" == -* ]] && return 1
+
+  local -a matches
+  setopt local_options extended_glob
+  matches=( (#i)${partial}*(N) )
+  (( ${#matches} == 0 )) && return 1
+
+  local entry label icon
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  for entry in "${matches[@]}"; do
+    if [[ -d "$entry" ]]; then
+      label="${entry%/}/"
+      icon="dir"
+    else
+      label="$entry"
+      icon=""
+    fi
+    _LUMEN_CANDIDATES+=("${BUFFER%$partial}${label}")
+    _LUMEN_LABELS+=("$label")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("$verb target")
+    _LUMEN_ICONS+=("$icon")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+_lumen_cp_match() { _lumen_path_arg_match cp Copy }
+_lumen_mv_match() { _lumen_path_arg_match mv Move }
+_lumen_ln_match() { _lumen_path_arg_match ln Link }
+
+# Suggests running processes for kill/pkill/killall from the live process
+# table (`ps`) — the process-table counterpart to
+# _lumen_docker_container_match, using local `ps` output instead of
+# `docker ps` as the data source. kill takes a PID, so its candidates
+# insert the PID; pkill/killall take a process NAME, so theirs insert the
+# name instead — same underlying process list, different column becomes
+# the insertable text.
+_lumen_kill_match() {
+  local tool="${BUFFER%% *}"
+  case "$tool" in
+    kill|pkill|killall) ;;
+    *) return 1 ;;
+  esac
+  [[ "$BUFFER" == "$tool "* ]] || return 1
+
+  # Complete the LAST word on the buffer, same as _lumen_path_arg_match —
+  # covers both the plain "kill 123" case and "kill -9 123" (a flag before
+  # the target is normal for kill), plus a second target after the first
+  # ("kill 111 22").
+  local -a words=(${(z)BUFFER})
+  local rest=""
+  [[ "$BUFFER" == *' ' ]] || rest="${words[-1]}"
+  [[ "$rest" == -* ]] && return 1
+
+  local -a lines
+  lines=(${(f)"$(command ps -axo pid=,comm= 2>/dev/null)"})
+  (( ${#lines} == 0 )) && return 1
+
+  local entry pid pname insertable desc
+  local -a fields seen_names
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  for entry in "${lines[@]}"; do
+    # ${=entry} forces whitespace word-splitting regardless of SH_WORD_SPLIT,
+    # collapsing the leading spaces macOS's `ps -o pid=` right-pads numeric
+    # PIDs with (plain ${entry%% *}/${entry#* } trimming leaves those in,
+    # yielding an empty pid) — comm can't contain spaces (it's a path), so a
+    # 2-field split is safe.
+    fields=(${=entry})
+    pid="${fields[1]}"
+    pname="${fields[2]:t}" # ps -o comm= reports a full path on macOS — basename only
+
+    if [[ "$tool" == "kill" ]]; then
+      [[ "$pid" == "$rest"* ]] || continue
+      insertable="$pid"
+      desc="$pname"
+    else
+      [[ "$pname" == "$rest"* ]] || continue
+      (( ${seen_names[(Ie)$pname]} )) && continue
+      seen_names+=("$pname")
+      insertable="$pname"
+      desc="pid $pid"
+    fi
+
+    _LUMEN_CANDIDATES+=("${BUFFER%$rest}${insertable}")
+    _LUMEN_LABELS+=("$insertable")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("$desc")
+    _LUMEN_ICONS+=("")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+
 # Tries every no-AI-round-trip match source in order, cheapest/most-specific
 # first, and stops at the first one that produces candidates. Shared entry
 # point for both the automatic (_lumen_suggest_now) and manual
@@ -3642,6 +3929,11 @@ _lumen_nested_match() {
 # as a "static" match.
 _lumen_static_or_dynamic_match() {
   _lumen_cd_match && return 0
+  _lumen_rm_match && return 0
+  _lumen_cp_match && return 0
+  _lumen_mv_match && return 0
+  _lumen_ln_match && return 0
+  _lumen_kill_match && return 0
   _lumen_git_branch_match && return 0
   _lumen_git_remote_match && return 0
   _lumen_git_stash_match && return 0
@@ -4006,3 +4298,146 @@ _lumen_on_shell_exit() {
 }
 autoload -Uz add-zsh-hook
 add-zsh-hook zshexit _lumen_on_shell_exit
+
+# --- update check ---------------------------------------------------------
+#
+# Same idea as oh-my-zsh's own update nag: on new-shell startup, check
+# whether a newer GitHub release exists and, if so, ask once whether to
+# update — with "not now" snoozing the ask for a few more terminals rather
+# than repeating it every single time. This is the one place this plugin
+# ever touches the network (everything else is local-only by design, see
+# the file header) — LUMEN_UPDATE_CHECK=0 turns it off entirely.
+#
+# Only meaningful for a git-clone install (the one the README documents):
+# "update" means `git pull` in place, since that's also how the plugin
+# file itself got here. State lives next to the existing overlay-toggle
+# state file ($HOME/.cache/lumen/), shared across every open terminal, so
+# the snooze countdown and the "already checked today" stamp both apply
+# globally rather than per-tab.
+
+_LUMEN_UPDATE_DIR=${LUMEN_STATE_FILE:h}
+_LUMEN_UPDATE_STAMP_FILE=$_LUMEN_UPDATE_DIR/update_last_check
+_LUMEN_UPDATE_LATEST_FILE=$_LUMEN_UPDATE_DIR/update_latest
+_LUMEN_UPDATE_SNOOZE_FILE=$_LUMEN_UPDATE_DIR/update_snooze
+
+# True (0) if $1 is a strictly newer "vX.Y.Z"-style tag than $2.
+_lumen_version_gt() {
+  local -a a b
+  a=(${(s:.:)${1#v}})
+  b=(${(s:.:)${2#v}})
+  local i
+  for i in 1 2 3; do
+    (( ${a[i]:-0} > ${b[i]:-0} )) && return 0
+    (( ${a[i]:-0} < ${b[i]:-0} )) && return 1
+  done
+  return 1
+}
+
+# The tag reachable from the currently checked-out commit — i.e. "what
+# `git pull` would move you off of," not necessarily the latest tag that
+# exists anywhere in the repo (e.g. on a branch other than the one
+# actually checked out).
+_lumen_local_version() {
+  git -C "$_LUMEN_REPO_ROOT" describe --tags --abbrev=0 2>/dev/null
+}
+
+# Fires at most once every $LUMEN_UPDATE_CHECK_DAYS: shells out to curl in
+# a disowned background job (`&!`) so a slow/offline network never delays
+# the prompt this file exists to show, and writes the result for the
+# *next* shell startup to pick up — this run's prompt (if any) only ever
+# reflects what a previous check already found. If the background job
+# gets killed mid-request (e.g. the terminal window closes before curl
+# returns), the stamp file is simply never written, so the next shell to
+# start just retries — no separate failure handling needed.
+_lumen_update_fetch_async() {
+  command -v curl >/dev/null 2>&1 || return
+  local now=$(date +%s) last=0
+  [[ -f $_LUMEN_UPDATE_STAMP_FILE ]] && last=$(<$_LUMEN_UPDATE_STAMP_FILE)
+  (( now - last < LUMEN_UPDATE_CHECK_DAYS * 86400 )) && return
+  (
+    local tag
+    tag=$(curl -fsSL --max-time 5 \
+      "https://api.github.com/repos/$LUMEN_UPDATE_REPO/releases/latest" 2>/dev/null \
+      | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+    mkdir -p "$_LUMEN_UPDATE_DIR"
+    echo "$now" > "$_LUMEN_UPDATE_STAMP_FILE"
+    [[ -n $tag ]] && echo "$tag" > "$_LUMEN_UPDATE_LATEST_FILE"
+  ) &!
+}
+
+# `git pull` in place, then rebuild+relaunch the menu bar app — mirrors
+# how the plugin itself and the app both got installed per the README
+# (git clone + ./build.sh), so updating uses the same two steps by hand.
+_lumen_update_perform() {
+  print -P "%F{cyan}Updating Lumen…%f"
+  # A dirty working tree almost certainly means someone is actively
+  # developing on this checkout (this repo itself, for instance) —
+  # `git pull` there risks clobbering or conflicting with uncommitted
+  # work, so bail and let them update by hand instead of guessing.
+  if [[ -n $(git -C "$_LUMEN_REPO_ROOT" status --porcelain 2>/dev/null) ]]; then
+    print -P "%F{yellow}$_LUMEN_REPO_ROOT has local changes — update manually (git pull) to avoid clobbering them.%f"
+    return 1
+  fi
+  if ! git -C "$_LUMEN_REPO_ROOT" pull --ff-only; then
+    print -P "%F{red}git pull failed — update manually.%f"
+    return 1
+  fi
+  # Clear cached state so the next shell compares against what we just
+  # pulled instead of immediately re-flagging the version we're leaving.
+  rm -f "$_LUMEN_UPDATE_SNOOZE_FILE" "$_LUMEN_UPDATE_LATEST_FILE"
+  if [[ -x "$_LUMEN_REPO_ROOT/Lumen/build.sh" ]]; then
+    print -P "%F{cyan}Rebuilding the menu bar app…%f"
+    if ( cd "$_LUMEN_REPO_ROOT/Lumen" && ./build.sh ); then
+      pkill -x Lumen 2>/dev/null
+      open "$_LUMEN_REPO_ROOT/Lumen/Lumen.app"
+      print -P "%F{green}Updated to $(_lumen_local_version) and relaunched Lumen.app.%f"
+    else
+      print -P "%F{yellow}git pull succeeded but the rebuild failed — run Lumen/build.sh manually.%f"
+    fi
+  fi
+}
+
+# Synchronous, but only ever runs against an already-cached result (see
+# _lumen_update_fetch_async above) — never itself waits on the network.
+_lumen_update_maybe_prompt() {
+  [[ -f $_LUMEN_UPDATE_LATEST_FILE ]] || return
+  local latest=$(<$_LUMEN_UPDATE_LATEST_FILE)
+  local local_ver=$(_lumen_local_version)
+  [[ -n $latest && -n $local_ver ]] || return
+  _lumen_version_gt "$latest" "$local_ver" || return
+
+  if [[ -f $_LUMEN_UPDATE_SNOOZE_FILE ]]; then
+    local -a snooze=(${(s: :)"$(<$_LUMEN_UPDATE_SNOOZE_FILE)"})
+    local snoozed_ver=${snooze[1]:-} snoozed_left=${snooze[2]:-0}
+    if [[ $snoozed_ver == $latest ]] && (( snoozed_left > 0 )); then
+      echo "$latest $(( snoozed_left - 1 ))" > $_LUMEN_UPDATE_SNOOZE_FILE
+      return
+    fi
+  fi
+
+  print -P "%F{cyan}✨ Lumen %F{green}$latest%f is available %F{8}(you have $local_ver)%f"
+  local reply
+  if read -q "reply?Update now? [y/N] "; then
+    print
+    _lumen_update_perform
+  else
+    print
+    echo "$latest $LUMEN_UPDATE_SNOOZE_SESSIONS" > $_LUMEN_UPDATE_SNOOZE_FILE
+    print -P "%F{8}Not now — I'll ask again in $LUMEN_UPDATE_SNOOZE_SESSIONS new terminals (or run 'lumen-update' anytime).%f"
+  fi
+}
+
+# Manual override — force an update right now regardless of the cached
+# latest-version check or snooze state, for anyone who doesn't want to
+# wait for the prompt.
+lumen-update() { _lumen_update_perform }
+
+# Set unconditionally (cheap, no network) so `lumen-update` still works as
+# a manual override even with LUMEN_UPDATE_CHECK=0 — that variable only
+# gates the automatic background check + startup prompt below.
+_LUMEN_REPO_ROOT=${0:A:h:h:h}
+
+if (( LUMEN_UPDATE_CHECK )) && [[ -d $_LUMEN_REPO_ROOT/.git ]]; then
+  _lumen_update_fetch_async
+  _lumen_update_maybe_prompt
+fi
