@@ -6,14 +6,14 @@ submit it — no prior familiarity with the repo assumed.
 
 ## Project layout
 
-Lumen is two pieces that work together (see the [README](README.md#architecture)
+Lumen is two pieces that work together (see the [README](README.md#what-it-is)
 for the full picture):
 
 | Path | What it is |
 | --- | --- |
 | [`shell/zsh/`](shell/zsh/) | The Zsh plugin — a single shell script, this is the active suggestion engine. |
 | [`Lumen/`](Lumen/) | The SwiftUI menu bar app that draws the floating panel. |
-| [`daemon/src/`](daemon/src/) | A parked Rust daemon/client, not wired into the live path — see the README's [Parked: the Rust daemon](README.md#parked-the-rust-daemon) section. Only touch this if your change is specifically about it. |
+| [`daemon/src/`](daemon/src/) | A parked Rust daemon/client for AI-generated suggestions, not wired into the live path. Only touch this if your change is specifically about it. |
 
 Most contributions will touch either the Zsh plugin or the Swift app, not
 both.
@@ -52,7 +52,7 @@ open Lumen.app
 
 Full step-by-step details (including granting Accessibility permission,
 which the app needs to position the floating panel) are in the README's
-[Installation](README.md#installation) section — follow that if anything
+[Setup](README.md#setup) section — follow that if anything
 above doesn't work as expected.
 
 ## Making a change
@@ -82,8 +82,7 @@ open Lumen.app
 
 Re-grant Accessibility permission after every rebuild — the app's ad-hoc
 code signature changes each build, which invalidates the previous grant.
-See the README's [Lumen menu bar app](README.md#the-lumen-menu-bar-app)
-section for why.
+See the README's [Setup](README.md#setup) section for why.
 
 For a fully clean rebuild:
 
