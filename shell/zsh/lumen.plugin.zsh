@@ -155,6 +155,13 @@ typeset -ga _LUMEN_LABELS=()
 # instead of one generic badge for everything. "cmd" is the fallback for
 # any tool without its own glyph yet.
 typeset -ga _LUMEN_ICONS=()
+# Per-row danger flag ("1" or empty) for flags that are hard-to-undo —
+# force-push, --hard reset, force-delete, etc. Only _lumen_static_match and
+# _lumen_nested_match populate this (from a 4th tab-separated field on the
+# handful of entries actually worth flagging); every other matcher leaves it
+# empty, which _lumen_overlay_show treats as "not dangerous" via its
+# ${_LUMEN_DANGER[$i]:-} default.
+typeset -ga _LUMEN_DANGER=()
 typeset -gi _LUMEN_INDEX=0
 # Per-matcher cap on how many candidates get built. The native overlay
 # (OverlayContentView in OverlayPanel.swift) scrolls past whatever doesn't
@@ -697,8 +704,8 @@ typeset -ga _LUMEN_VAGRANT_SUBCMDS=(
 )
 
 typeset -ga _LUMEN_VAGRANT_DESTROY_FLAGS=(
-  $'-f\t\tDestroy without confirmation'
-  $'--force\t\tDestroy without confirmation'
+  $'-f\t\tDestroy without confirmation\t1'
+  $'--force\t\tDestroy without confirmation\t1'
 )
 
 typeset -ga _LUMEN_PULUMI_SUBCMDS=(
@@ -1056,8 +1063,8 @@ typeset -ga _LUMEN_DOCKER_RUN_FLAGS=(
 )
 
 typeset -ga _LUMEN_DOCKER_RMI_FLAGS=(
-  $'-f\t\tForce removal, even if the image has multiple tags or is in use'
-  $'--force\t\tForce removal, even if the image has multiple tags or is in use'
+  $'-f\t\tForce removal, even if the image has multiple tags or is in use\t1'
+  $'--force\t\tForce removal, even if the image has multiple tags or is in use\t1'
 )
 
 typeset -ga _LUMEN_DOCKER_START_FLAGS=(
@@ -1120,8 +1127,8 @@ typeset -ga _LUMEN_DOCKER_STOP_FLAGS=(
 )
 
 typeset -ga _LUMEN_DOCKER_RM_FLAGS=(
-  $'-f\t\tForce removal of a running container'
-  $'--force\t\tForce removal of a running container'
+  $'-f\t\tForce removal of a running container\t1'
+  $'--force\t\tForce removal of a running container\t1'
   $'-v\t\tAlso remove anonymous volumes associated with the container'
 )
 typeset -ga _LUMEN_DOCKER_CONTAINER_RM_FLAGS=("${_LUMEN_DOCKER_RM_FLAGS[@]}")
@@ -1192,7 +1199,7 @@ typeset -ga _LUMEN_GIT_LOG_FLAGS=(
 typeset -ga _LUMEN_GIT_BRANCH_FLAGS=(
   $'-a\t\tList both local and remote branches'
   $'-d\t<branch>\tDelete a branch'
-  $'-D\t<branch>\tForce-delete a branch'
+  $'-D\t<branch>\tForce-delete a branch\t1'
   $'-m\t<old> <new>\tRename a branch'
   $'-v\t\tShow last commit on each branch'
 )
@@ -1200,7 +1207,7 @@ typeset -ga _LUMEN_GIT_BRANCH_FLAGS=(
 typeset -ga _LUMEN_GIT_CHECKOUT_FLAGS=(
   $'-b\t<branch>\tCreate and switch to a new branch'
   $'--track\t<remote-branch>\tCreate a tracking branch'
-  $'-f\t\tForce checkout, discarding local changes'
+  $'-f\t\tForce checkout, discarding local changes\t1'
 )
 
 typeset -ga _LUMEN_GIT_DIFF_FLAGS=(
@@ -1223,13 +1230,13 @@ typeset -ga _LUMEN_GIT_COMMIT_FLAGS=(
 )
 
 typeset -ga _LUMEN_GIT_PUSH_FLAGS=(
-  $'--force-with-lease\t\tForce-push, but abort if the remote has commits you haven'"'"'t seen'
-  $'-f\t\tForce-push, overwriting the remote branch unconditionally'
-  $'--force\t\tForce-push, overwriting the remote branch unconditionally'
+  $'--force-with-lease\t\tForce-push, but abort if the remote has commits you haven'"'"$'t seen\t1'
+  $'-f\t\tForce-push, overwriting the remote branch unconditionally\t1'
+  $'--force\t\tForce-push, overwriting the remote branch unconditionally\t1'
   $'-u\t\tSet the upstream (tracking) branch for this push'
   $'--set-upstream\t\tSet the upstream (tracking) branch for this push'
   $'--tags\t\tPush tags along with commits'
-  $'--delete\t<branch>\tDelete a remote branch'
+  $'--delete\t<branch>\tDelete a remote branch\t1'
 )
 
 typeset -ga _LUMEN_GIT_REBASE_FLAGS=(
@@ -1311,14 +1318,14 @@ typeset -ga _LUMEN_GIT_CLONE_FLAGS=(
 )
 
 typeset -ga _LUMEN_GIT_CLEAN_FLAGS=(
-  $'-f\t\tForce the removal'
+  $'-f\t\tForce the removal\t1'
   $'-d\t\tAlso remove untracked directories'
 )
 
 typeset -ga _LUMEN_GIT_RESET_FLAGS=(
   $'--soft\t\tMove HEAD only; keep the index and working tree unchanged'
   $'--mixed\t\tMove HEAD and reset the index; keep the working tree unchanged (default)'
-  $'--hard\t\tMove HEAD and reset the index AND working tree, discarding local changes'
+  $'--hard\t\tMove HEAD and reset the index AND working tree, discarding local changes\t1'
   $'--merge\t\tReset the index and HEAD, but keep uncommitted changes not touched by the reset'
   $'--keep\t\tLike --merge, but abort if the reset would touch uncommitted changes'
 )
@@ -1384,10 +1391,10 @@ typeset -ga _LUMEN_KUBECTL_SCALE_FLAGS=(
 )
 
 typeset -ga _LUMEN_KUBECTL_DELETE_FLAGS=(
-  $'--force\t\tSkip graceful termination (use with --grace-period=0 on a stuck pod)'
+  $'--force\t\tSkip graceful termination (use with --grace-period=0 on a stuck pod)\t1'
   $'--grace-period\t<seconds>\tSeconds to allow for graceful termination; 0 forces immediate deletion'
   $'-n\t<namespace>\tNamespace of the resource'
-  $'--all\t\tDelete all resources of the given type in the namespace'
+  $'--all\t\tDelete all resources of the given type in the namespace\t1'
 )
 
 typeset -ga _LUMEN_KUBECTL_LOGS_FLAGS=(
@@ -1454,7 +1461,7 @@ typeset -ga _LUMEN_AWS_S3_SUBCMDS=(
 )
 
 typeset -ga _LUMEN_AWS_S3_SYNC_FLAGS=(
-  $'--delete\t\tRemove destination files that don'"'"'t exist in the source (destructive)'
+  $'--delete\t\tRemove destination files that don'"'"$'t exist in the source (destructive)\t1'
   $'--exclude\t<pattern>\tExclude files matching a pattern'
   $'--dryrun\t\tShow what would be synced without transferring anything'
 )
@@ -2100,6 +2107,11 @@ _lumen_overlay_show() {
   payload+="\"descriptions\":$(_lumen_json_str_array "${_LUMEN_DESCRIPTIONS[@]}"),"
   payload+="\"labels\":$(_lumen_json_str_array "${label_parts[@]}"),"
   payload+="\"icons\":$(_lumen_json_str_array "${_LUMEN_ICONS[@]}"),"
+  local -a danger_parts
+  for (( i = 1; i <= ${#_LUMEN_CANDIDATES}; i++ )); do
+    danger_parts+=("${_LUMEN_DANGER[$i]:-}")
+  done
+  payload+="\"danger\":$(_lumen_json_str_array "${danger_parts[@]}"),"
   payload+="\"selectedIndex\":$(( _LUMEN_INDEX - 1 )),"
   payload+="\"cursorRow\":$live_row,"
   payload+="\"cursorCol\":$live_col,"
@@ -2126,6 +2138,7 @@ _lumen_reset_candidates() {
   _LUMEN_HINTS=()
   _LUMEN_LABELS=()
   _LUMEN_ICONS=()
+  _LUMEN_DANGER=()
   _LUMEN_INDEX=0
 }
 
@@ -2317,6 +2330,7 @@ _lumen_static_match() {
   _LUMEN_HINTS=()
   _LUMEN_LABELS=()
   _LUMEN_ICONS=()
+  _LUMEN_DANGER=()
   for entry in "${table[@]}"; do
     parts=("${(@ps:\t:)entry}")
     name=$parts[1]
@@ -2326,6 +2340,7 @@ _lumen_static_match() {
     _LUMEN_HINTS+=("${parts[2]:-}")
     _LUMEN_DESCRIPTIONS+=("${parts[3]:-}")
     _LUMEN_ICONS+=("$icon_kind")
+    _LUMEN_DANGER+=("${parts[4]:-}")
     (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
   done
   (( ${#_LUMEN_CANDIDATES} > 0 ))
@@ -3635,6 +3650,7 @@ _lumen_nested_match() {
   _LUMEN_HINTS=()
   _LUMEN_LABELS=()
   _LUMEN_ICONS=()
+  _LUMEN_DANGER=()
   for entry in "${table[@]}"; do
     parts=("${(@ps:\t:)entry}")
     name=$parts[1]
@@ -3644,6 +3660,7 @@ _lumen_nested_match() {
     _LUMEN_HINTS+=("${parts[2]:-}")
     _LUMEN_DESCRIPTIONS+=("${parts[3]:-}")
     _LUMEN_ICONS+=("$icon_kind")
+    _LUMEN_DANGER+=("${parts[4]:-}")
     (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
   done
   (( ${#_LUMEN_CANDIDATES} > 0 ))

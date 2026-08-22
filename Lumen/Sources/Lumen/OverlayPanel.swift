@@ -40,6 +40,9 @@ struct OverlayCandidate {
     let label: String
     let description: String
     let icon: CandidateIcon
+    // Hard-to-undo flags (force-push, --hard reset, force-delete, ...) —
+    // see _LUMEN_DANGER in lumen.plugin.zsh for which entries set this.
+    let isDangerous: Bool
 }
 
 final class OverlayState: ObservableObject {
@@ -296,7 +299,15 @@ struct OverlayContentView: View {
                                 Text(candidate.label)
                                     .font(.system(.body, design: .monospaced))
                                     .fontWeight(selected ? .bold : .regular)
-                                    .foregroundStyle(selected ? .primary : .secondary)
+                                    .foregroundStyle(
+                                        candidate.isDangerous ? Color(red: 0.86, green: 0.24, blue: 0.20)
+                                            : selected ? .primary : .secondary
+                                    )
+                                if candidate.isDangerous {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(Color(red: 0.86, green: 0.24, blue: 0.20))
+                                }
                                 Spacer(minLength: 12)
                             }
                             .frame(height: rowHeight)
@@ -304,7 +315,8 @@ struct OverlayContentView: View {
                             .background(
                                 RoundedRectangle(cornerRadius: 6)
                                     .fill(
-                                        selected ? Color.accentColor.opacity(0.28)
+                                        candidate.isDangerous ? Color(red: 0.86, green: 0.24, blue: 0.20).opacity(selected ? 0.22 : 0.10)
+                                            : selected ? Color.accentColor.opacity(0.28)
                                             : idx == hoveredIndex ? Color.primary.opacity(0.08)
                                             : Color.clear
                                     )

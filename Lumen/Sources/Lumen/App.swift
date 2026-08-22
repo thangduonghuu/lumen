@@ -194,11 +194,15 @@ final class OverlayBridge {
         // to CandidateIcon's own default (.command) per row rather than
         // failing the whole guard above.
         let icons = message["icons"] as? [String] ?? []
+        // Optional, same backward-compat rule as icons: older shell-plugin
+        // builds without the danger field just render every row as safe.
+        let danger = message["danger"] as? [String] ?? []
         let candidates = labels.indices.map { i in
             OverlayCandidate(
                 label: labels[i],
                 description: i < descriptions.count ? descriptions[i] : "",
-                icon: CandidateIcon(raw: i < icons.count ? icons[i] : nil)
+                icon: CandidateIcon(raw: i < icons.count ? icons[i] : nil),
+                isDangerous: i < danger.count && !danger[i].isEmpty
             )
         }
         _ = candidateStrings // the raw insertable text isn't needed for display, only labels/descriptions are
