@@ -3770,15 +3770,12 @@ _lumen_rm_match() {
     # Check if this pattern matches the partial input
     [[ "$name" == "$partial"* ]] || continue
     
-    # Check if this file/folder actually exists in current directory
-    # Show ALL patterns, but mark existing ones with [exists]
+    # Only suggest patterns that actually exist in the current directory —
+    # no point offering to delete a .gradle cache in a folder that has no
+    # .gradle.
     matches=( ${~name}(N) )
-    local exists=""
-    if (( ${#matches} > 0 )); then
-      exists=" [exists]"
-      hint="${hint}${exists}"
-    fi
-    
+    (( ${#matches} > 0 )) || continue
+
     _LUMEN_CANDIDATES+=("rm ${rest%$partial}${name}")
     _LUMEN_LABELS+=("$name")
     _LUMEN_HINTS+=("$hint")
