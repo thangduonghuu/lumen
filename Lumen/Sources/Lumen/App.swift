@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import ApplicationServices
+import Sparkle
 
 // Menu bar toggle for Lumen's automatic (as-you-type) suggestions.
 // State is a single file the zsh plugin polls before firing an automatic
@@ -42,7 +43,9 @@ final class ToggleState: ObservableObject {
 
 struct MenuContent: View {
     @ObservedObject var state: ToggleState
+    let updater: SPUUpdater
     @State private var quitHovering = false
+    @State private var updateHovering = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -80,6 +83,32 @@ struct MenuContent: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
+
+            Divider()
+
+            Button {
+                updater.checkForUpdates()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 10.5))
+                    Text("Check for Updates…")
+                        .font(.system(size: 12.5))
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .contentShape(Rectangle())
+                .background(
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(updateHovering ? Color.primary.opacity(0.08) : Color.clear)
+                )
+                .padding(.horizontal, 5)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.primary)
+            .disabled(!updater.canCheckForUpdates)
+            .onHover { updateHovering = $0 }
 
             Divider()
 
@@ -243,6 +272,9 @@ struct LumenApp: App {
         socketPath: FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".cache/lumen/overlay.sock").path
     )
+    private let updaterController = SPUStandardUpdaterController(
+        startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil
+    )
 
     init() {
         // No Dock icon, no app-switcher entry — menu bar only.
@@ -264,7 +296,7 @@ struct LumenApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MenuContent(state: state)
+            MenuContent(state: state, updater: updaterController.updater)
         } label: {
             Image(systemName: state.enabled ? "sparkles" : "pause.circle")
         }

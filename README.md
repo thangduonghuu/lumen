@@ -43,6 +43,7 @@ command (`git for-each-ref`, a directory glob, `docker ps`, ...).
 | **Case-insensitive `cd` completion** | Typing `cd p` suggests `projects/`, `Pictures/`, `Personal/` regardless of case; accepting drills into that directory so you can keep completing deeper. |
 | **Installed-version awareness** | Real installed versions for `nvm use`/`pyenv global`/`rbenv local`, and real installed formulae for `brew uninstall`/`info`/`link`. |
 | **Menu bar control** | Toggle automatic suggestions on/off from the menu bar; the state syncs to every open shell via a shared file. Manual Ctrl-Space always works regardless of the toggle. |
+| **Auto-updates** | `Lumen.app` checks [releases](https://github.com/thangduonghuu/lumen/releases) daily via [Sparkle](https://sparkle-project.org) and lets you check manually from the menu bar. **Note:** because these builds are ad-hoc signed (no paid Apple Developer ID), macOS still treats each update as a new app identity — you'll need to re-grant Accessibility permission after installing an update, same as after a manual reinstall. |
 
 ## Usage / Keybindings
 

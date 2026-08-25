@@ -73,6 +73,14 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 	<string>13.0</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/thangduonghuu/lumen/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>2AMcVFwskBTaaUEJ21+qOrenX9qcwA1XWOSKaXRD998=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 </dict>
 </plist>
 PLIST
@@ -101,9 +109,27 @@ if [ -d "$RESOURCE_BUNDLE_SRC" ]; then
     cp -R "$RESOURCE_BUNDLE_SRC" "$APP/Contents/Resources/Lumen_Lumen.bundle"
 fi
 
+# Sparkle.framework, standard location. The .build/release symlink (rather
+# than an arch-specific dir) works for both the single-arch and --universal
+# paths above — Sparkle ships one already-universal (arm64+x86_64) dylib for
+# macOS inside its xcframework, so there's nothing to lipo here regardless
+# of which arch(es) the Lumen binary itself was built for.
+mkdir -p "$APP/Contents/Frameworks"
+rm -rf "$APP/Contents/Frameworks/Sparkle.framework"
+cp -R ".build/release/Sparkle.framework" "$APP/Contents/Frameworks/Sparkle.framework"
+
+# SwiftPM's default rpaths (@loader_path, the toolchain's swift lib dir)
+# don't cover Contents/Frameworks/ once the binary is moved into a real .app
+# bundle, so the dynamic linker can't find Sparkle.framework there without
+# this — without it the app fails to launch entirely (dyld: Library not
+# loaded) once packaged, even though `swift build`/`swift run` work fine
+# from the SPM build directory where @loader_path already resolves.
+install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/Lumen"
+
 # Re-sign at the bundle level (ad-hoc — no Developer ID needed for local
 # use) so the bundle's own code identity, not just the loose binary's, is
-# what Accessibility permission gets granted to.
+# what Accessibility permission gets granted to. --deep also re-signs
+# Sparkle.framework (and its embedded XPC services) copied in above.
 codesign --force --deep --sign - "$APP"
 
 echo "Built $APP — run it with: open \"$APP\""

@@ -51,9 +51,43 @@ jobs:
           VERSION="${TAG#v}"
           tar -czf "Lumen-${VERSION}-universal.app.tar.gz" Lumen-universal.app
 
+      # Sparkle auto-update feed for the universal tarball. Signed with the
+      # maintainer's EdDSA key (SPARKLE_PRIVATE_KEY secret) so Lumen.app can
+      # verify update authenticity independent of code signing — this repo
+      # ships ad-hoc signed builds (no paid Apple Developer ID), so it can't
+      # rely on a stable Team ID the way notarized apps do; EdDSA signing is
+      # the piece of update integrity that works without one.
+      #
+      # Only the current release's archive is fed in, so the generated
+      # appcast has a single <item> (this CI job starts from a fresh
+      # checkout each run, with no access to prior releases' archives to
+      # preserve history) — sufficient for Sparkle to detect and install the
+      # newer version, just without multi-version release-note history.
+      - name: Download Sparkle CLI tools
+        run: |
+          curl -sL -o sparkle-tools.tar.xz "https://github.com/sparkle-project/Sparkle/releases/download/2.9.6/Sparkle-2.9.6.tar.xz"
+          mkdir -p sparkle-tools
+          tar -xf sparkle-tools.tar.xz -C sparkle-tools
+          xattr -cr sparkle-tools/bin
+
+      - name: Sign update and generate appcast
+        working-directory: Lumen
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          VERSION="${TAG#v}"
+          mkdir -p appcast-src
+          cp "Lumen-${VERSION}-universal.app.tar.gz" appcast-src/
+          echo "$SPARKLE_PRIVATE_KEY" | ../sparkle-tools/bin/generate_appcast \
+            --ed-key-file - \
+            --download-url-prefix "https://github.com/${{ github.repository }}/releases/download/$TAG/" \
+            appcast-src/
+          cp appcast-src/appcast.xml appcast.xml
+
       - name: Upload release assets
         working-directory: Lumen
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$TAG" Lumen.dmg "Lumen-${TAG#v}-universal.app.tar.gz" --clobber
+        run: gh release upload "$TAG" Lumen.dmg "Lumen-${TAG#v}-universal.app.tar.gz" appcast.xml --clobber
