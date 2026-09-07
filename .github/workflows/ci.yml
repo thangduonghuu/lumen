@@ -22,8 +22,8 @@ jobs:
         working-directory: Lumen
         run: swift test
 
-  zsh-plugin-syntax:
-    name: zsh plugin syntax check
+  zsh-plugin:
+    name: zsh plugin (syntax + matching tests)
     runs-on: ubuntu-latest
 
     steps:
@@ -35,3 +35,6 @@ jobs:
 
       - name: zsh -n
         run: zsh -n shell/zsh/lumen.plugin.zsh
+
+      - name: matching tests
+        run: zsh -f -i shell/tests/run.zsh

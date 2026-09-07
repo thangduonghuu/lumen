@@ -1910,17 +1910,29 @@ _lumen_overlay_supported() {
   (( LUMEN_OVERLAY ))
 }
 
-# Minimal JSON string escaping — only what can actually appear in a
-# candidate/description/hint: backslash, double quote, and newline/tab.
-# Static-table entries and directory/branch names are hand-written or
-# filesystem/git-sourced ASCII with none of these in practice, but escaping
-# is cheap enough to just always do rather than assume.
+# JSON string escaping for a candidate/description/hint. Static-table
+# entries and branch names are ASCII in practice, but cp/mv/ln/rm and
+# git-add candidates are real filenames and can contain any byte except
+# NUL — a lone backslash, an embedded newline, or a raw control char. Any
+# unescaped U+0000–U+001F makes the whole payload invalid JSON, which the
+# app then silently drops, so every control char has to go.
 _lumen_json_escape() {
   local s=$1
   s=${s//\\/\\\\}
   s=${s//\"/\\\"}
   s=${s//$'\n'/\\n}
+  s=${s//$'\r'/\\r}
   s=${s//$'\t'/\\t}
+  # Escape any remaining C0 control char as \u00XX. Guarded so the common
+  # control-free case stays a single pattern test rather than 29 scans.
+  if [[ $s == *[[:cntrl:]]* ]]; then
+    local -a _hex=(0 1 2 3 4 5 6 7 8 9 a b c d e f)
+    local i
+    for i in {1..31}; do
+      (( i == 9 || i == 10 || i == 13 )) && continue  # \t \n \r done above
+      s=${s//${(#)i}/\\u00${_hex[(i>>4)+1]}${_hex[(i&15)+1]}}
+    done
+  fi
   print -rn -- "$s"
 }
 
