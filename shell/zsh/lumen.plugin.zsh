@@ -209,26 +209,56 @@ typeset -ga _LUMEN_GIT_SUBCMDS=(
   $'restore\t<file>...\tRestore working tree files'
 )
 
+# Full set of kubectl operations (the official "kubectl --help" groups:
+# Basic / Deploy / Cluster Management / Troubleshooting / Advanced /
+# Settings / Other), ordered by how often each is actually reached for
+# rather than alphabetically. The genuinely rare ones (alpha, options,
+# kustomize, convert) are left out on purpose — same "common-case fast
+# path" rule as the git table. The per-<type>-<name> and per-<pod>
+# argument completions for these live in _lumen_kubectl_resource_match /
+# _lumen_kubectl_pod_match below.
 typeset -ga _LUMEN_KUBECTL_SUBCMDS=(
-  $'get\t<resource>\tDisplay one or many resources'
-  $'describe\t<resource> <name>\tShow detailed state of a resource'
-  $'logs\t<pod>\tPrint logs for a container in a pod'
-  $'apply\t\tApply a configuration to a resource'
-  $'exec\t\tExecute a command in a container'
-  $'delete\t<resource> <name>\tDelete resources'
-  $'create\t\tCreate a resource from a file or stdin'
-  $'edit\t<resource> <name>\tEdit a resource on the server'
+  $'get\t<type> [name]\tDisplay one or many resources'
+  $'describe\t<type> <name>\tShow the detailed state of a resource'
+  $'logs\t<pod>\tPrint the logs for a container in a pod'
+  $'apply\t-f <file>\tApply a configuration to a resource by file or stdin'
+  $'exec\t<pod> -- <cmd>\tExecute a command in a container'
+  $'delete\t<type> <name>\tDelete resources by file, name, or label selector'
+  $'create\t-f <file>\tCreate a resource from a file or stdin'
+  $'edit\t<type> <name>\tEdit a resource on the server in $EDITOR'
   $'rollout\t[status|undo|restart]\tManage the rollout of a resource'
-  $'scale\t<resource>\tScale a resource'
-  $'port-forward\t<pod> <ports>\tForward local ports to a pod'
-  $'config\t[get-contexts|use-context]\tModify kubeconfig files'
+  $'scale\t<type>/<name>\tSet a new replica count for a workload'
+  $'set\t[image|env|resources]\tChange a specific feature on an existing object'
+  $'port-forward\t<pod> <ports>\tForward one or more local ports to a pod'
+  $'run\t<name> --image=<img>\tRun a particular image on the cluster'
+  $'expose\t<type> <name>\tExpose a resource as a new Service'
   $'top\t[pod|node]\tDisplay resource (CPU/memory) usage'
-  $'cp\t<src> <dst>\tCopy files to/from a container'
-  $'label\t<resource> <name> <key>=<val>\tUpdate labels on a resource'
-  $'run\t<name> --image=<image>\tRun a particular image on the cluster'
-  $'expose\t<resource> <name>\tExpose a resource as a new Service'
-  $'context\t[current|use]\tView or switch kubeconfig contexts (via config)'
-  $'namespace\t<name>\tSwitch active namespace (via config set-context)'
+  $'explain\t<type>\tShow documentation for a resource type and its fields'
+  $'config\t[get-contexts|use-context]\tModify kubeconfig files'
+  $'cp\t<pod>:<src> <dst>\tCopy files and directories to/from a container'
+  $'label\t<type> <name> <k>=<v>\tUpdate the labels on a resource'
+  $'annotate\t<type> <name> <k>=<v>\tUpdate the annotations on a resource'
+  $'patch\t<type> <name> -p <patch>\tUpdate fields of a resource with a merge patch'
+  $'diff\t-f <file>\tDiff a file or stdin against the live configuration'
+  $'wait\t<type>/<name> --for=<cond>\tWait for a condition on one or more resources'
+  $'debug\t<pod> --image=<img>\tStart a debugging session for a pod or node'
+  $'attach\t<pod> -it\tAttach to a running container'
+  $'auth\t[can-i|whoami]\tInspect authorization'
+  $'cluster-info\t\tShow control-plane and service endpoints'
+  $'api-resources\t\tList the supported API resources'
+  $'api-versions\t\tList the supported API group/versions'
+  $'events\t[--for <type>/<name>]\tList events, optionally watching'
+  $'autoscale\t<type> <name> --max=<n>\tCreate a HorizontalPodAutoscaler for a workload'
+  $'replace\t-f <file>\tReplace a resource by file or stdin'
+  $'cordon\t<node>\tMark a node as unschedulable'
+  $'uncordon\t<node>\tMark a node as schedulable'
+  $'drain\t<node>\tEvict the pods from a node ahead of maintenance'
+  $'taint\t<node> <k>=<v>:<effect>\tUpdate the taints on one or more nodes'
+  $'certificate\t[approve|deny] <csr>\tApprove or deny CertificateSigningRequests'
+  $'proxy\t--port=<port>\tRun a proxy to the Kubernetes API server'
+  $'completion\t<shell>\tOutput shell completion code (bash|zsh|fish)'
+  $'plugin\t[list]\tList and inspect installed kubectl plugins'
+  $'version\t\tPrint the client and server version information'
 )
 
 typeset -ga _LUMEN_NPM_SUBCMDS=(
@@ -1348,9 +1378,15 @@ typeset -ga _LUMEN_KUBECTL_CONFIG_SUBCMDS=(
   $'get-contexts\t\tList the available contexts'
   $'use-context\t<name>\tSet the current context'
   $'current-context\t\tDisplay the current context'
-  $'set-context\t<name>\tSet a context entry'
+  $'set-context\t<name>\tSet a context entry (--namespace / --cluster / --user)'
   $'view\t\tDisplay the merged kubeconfig'
   $'delete-context\t<name>\tDelete a context'
+  $'rename-context\t<old> <new>\tRename a context'
+  $'set-cluster\t<name>\tSet a cluster entry'
+  $'set-credentials\t<name>\tSet a user entry'
+  $'get-clusters\t\tList the clusters defined in the kubeconfig'
+  $'get-users\t\tList the users defined in the kubeconfig'
+  $'unset\t<property>\tUnset an individual value in the kubeconfig'
 )
 
 typeset -ga _LUMEN_KUBECTL_ROLLOUT_SUBCMDS=(
@@ -1367,19 +1403,35 @@ typeset -ga _LUMEN_KUBECTL_ROLLOUT_UNDO_FLAGS=(
 )
 
 typeset -ga _LUMEN_KUBECTL_GET_FLAGS=(
-  $'-o\t<format>\tOutput format (json|yaml|wide|...)'
+  $'-o\t<format>\tOutput format (json|yaml|wide|name|jsonpath=...|custom-columns=...)'
   $'-n\t<namespace>\tNamespace to query'
+  $'-A\t\tList across all namespaces'
   $'--all-namespaces\t\tList across all namespaces'
+  $'-l\t<selector>\tFilter by label selector (e.g. app=web,tier!=cache)'
+  $'--field-selector\t<sel>\tFilter by field (e.g. status.phase=Running)'
   $'-w\t\tWatch for changes'
+  $'--show-labels\t\tShow all labels as the last column'
+  $'--sort-by\t<jsonpath>\tSort the rows by this field'
+  $'--no-headers\t\tOmit the header row'
 )
 
 typeset -ga _LUMEN_KUBECTL_EXEC_FLAGS=(
   $'-it\t\tInteractive session with a tty attached'
+  $'-i\t\tKeep stdin open on the container'
+  $'-t\t\tAllocate a tty'
+  $'-c\t<container>\tContainer within the pod, if it has more than one'
   $'-n\t<namespace>\tNamespace of the target pod'
+  $'--\t<cmd> [args...]\tEverything after -- is the command to run in the container'
 )
 
 typeset -ga _LUMEN_KUBECTL_APPLY_FLAGS=(
-  $'-f\t<file>\tApply a configuration from a file'
+  $'-f\t<file>\tApply a configuration from a file, directory, or URL'
+  $'-k\t<dir>\tApply a kustomization directory'
+  $'-R\t\tRecurse into directories given to -f'
+  $'--server-side\t\tApply on the API server (server-side apply)'
+  $'--prune\t\tDelete resources no longer in the applied set\t1'
+  $'--dry-run\t<client|server>\tPreview without persisting changes'
+  $'-n\t<namespace>\tNamespace to apply into'
 )
 
 typeset -ga _LUMEN_KUBECTL_CREATE_FLAGS=(
@@ -1388,12 +1440,18 @@ typeset -ga _LUMEN_KUBECTL_CREATE_FLAGS=(
 
 typeset -ga _LUMEN_KUBECTL_SCALE_FLAGS=(
   $'--replicas\t<n>\tSet the desired number of replicas'
+  $'--current-replicas\t<n>\tOnly scale if the current replica count matches'
+  $'-n\t<namespace>\tNamespace of the workload'
+  $'--all\t\tScale all resources of the given type in the namespace'
 )
 
 typeset -ga _LUMEN_KUBECTL_DELETE_FLAGS=(
   $'--force\t\tSkip graceful termination (use with --grace-period=0 on a stuck pod)\t1'
   $'--grace-period\t<seconds>\tSeconds to allow for graceful termination; 0 forces immediate deletion'
+  $'--now\t\tShut down with a 1-second grace period'
   $'-n\t<namespace>\tNamespace of the resource'
+  $'-l\t<selector>\tDelete every resource matching this label selector\t1'
+  $'-f\t<file>\tDelete the resources described in a file'
   $'--all\t\tDelete all resources of the given type in the namespace\t1'
 )
 
@@ -1402,6 +1460,9 @@ typeset -ga _LUMEN_KUBECTL_LOGS_FLAGS=(
   $'--follow\t\tStream logs continuously'
   $'--previous\t\tShow logs from the previous (crashed/restarted) instance of the container'
   $'--tail\t<n>\tShow only the last n lines'
+  $'--since\t<dur>\tOnly logs newer than this (e.g. 10m, 1h)'
+  $'--timestamps\t\tPrefix every line with an RFC3339 timestamp'
+  $'--all-containers\t\tGet logs from every container in the pod'
   $'-n\t<namespace>\tNamespace of the pod'
   $'-c\t<container>\tContainer within the pod, if it has more than one'
 )
@@ -1410,11 +1471,178 @@ typeset -ga _LUMEN_KUBECTL_RUN_FLAGS=(
   $'-it\t\tAttach an interactive TTY to the container'
   $'--rm\t\tDelete the pod once it exits'
   $'--image\t<image>\tImage to run'
+  $'--restart\t<Always|OnFailure|Never>\tRestart policy for the created pod'
+  $'--env\t<KEY=VALUE>\tSet an environment variable (repeatable)'
+  $'--port\t<port>\tPort the container exposes'
+  $'--command\t-- <cmd>\tUse the args after -- as the entrypoint, not arguments'
+  $'--dry-run\t<client|server>\tPreview the object without creating it'
   $'-n\t<namespace>\tNamespace to run the pod in'
 )
 
 typeset -ga _LUMEN_KUBECTL_PORT_FORWARD_FLAGS=(
+  $'--address\t<addr>\tLocal addresses to listen on (default 127.0.0.1)'
   $'-n\t<namespace>\tNamespace of the target pod'
+)
+
+# --- deeper kubectl sub-subcommand tables (picked up by _lumen_nested_match
+# via the _LUMEN_KUBECTL_<PATH>_SUBCMDS / _FLAGS naming convention) ----------
+
+typeset -ga _LUMEN_KUBECTL_SET_SUBCMDS=(
+  $'image\t<type>/<name> <container>=<img>\tUpdate the image of a pod template'
+  $'env\t<type>/<name> <KEY>=<VALUE>\tSet environment variables on a pod template'
+  $'resources\t<type>/<name>\tSet CPU/memory requests and limits'
+  $'serviceaccount\t<type>/<name> <sa>\tSet the ServiceAccount of a pod template'
+  $'selector\t<type>/<name> <k>=<v>\tSet the selector on a resource'
+  $'subject\t<rolebinding> --user/--group\tUpdate the subjects of a RoleBinding'
+)
+
+typeset -ga _LUMEN_KUBECTL_AUTH_SUBCMDS=(
+  $'can-i\t<verb> <resource>\tCheck whether an action is allowed'
+  $'whoami\t\tShow the identity kubectl is authenticating as'
+  $'reconcile\t-f <file>\tReconcile RBAC role and rolebinding objects'
+)
+
+typeset -ga _LUMEN_KUBECTL_AUTH_CAN_I_FLAGS=(
+  $'--list\t\tList everything the current user is allowed to do'
+  $'--as\t<user>\tCheck as another user (impersonation)'
+  $'-A\t\tCheck across all namespaces'
+  $'-n\t<namespace>\tNamespace to check in'
+)
+
+typeset -ga _LUMEN_KUBECTL_TOP_SUBCMDS=(
+  $'pod\t[name]\tShow CPU/memory usage for pods'
+  $'node\t[name]\tShow CPU/memory usage for nodes'
+)
+
+typeset -ga _LUMEN_KUBECTL_TOP_POD_FLAGS=(
+  $'-n\t<namespace>\tNamespace to query'
+  $'-A\t\tShow pods across all namespaces'
+  $'--containers\t\tBreak the usage out per container'
+  $'-l\t<selector>\tFilter by label selector'
+  $'--sort-by\t<cpu|memory>\tSort the rows by this metric'
+)
+
+typeset -ga _LUMEN_KUBECTL_TOP_NODE_FLAGS=(
+  $'--sort-by\t<cpu|memory>\tSort the rows by this metric'
+  $'--no-headers\t\tOmit the header row'
+)
+
+typeset -ga _LUMEN_KUBECTL_CERTIFICATE_SUBCMDS=(
+  $'approve\t<csr>\tApprove a CertificateSigningRequest'
+  $'deny\t<csr>\tDeny a CertificateSigningRequest'
+)
+
+typeset -ga _LUMEN_KUBECTL_PLUGIN_SUBCMDS=(
+  $'list\t\tList the kubectl plugins found on $PATH'
+)
+
+typeset -ga _LUMEN_KUBECTL_DESCRIBE_FLAGS=(
+  $'-n\t<namespace>\tNamespace of the resource'
+  $'-A\t\tDescribe matching resources across all namespaces'
+  $'-l\t<selector>\tDescribe every resource matching this label selector'
+  $'--show-events\t\tInclude the related events (default true)'
+)
+
+typeset -ga _LUMEN_KUBECTL_DEBUG_FLAGS=(
+  $'-it\t\tAttach an interactive TTY to the debug container'
+  $'--image\t<image>\tImage to use for the debug container'
+  $'--target\t<container>\tShare the process namespace of this container'
+  $'--profile\t<profile>\tDebugging profile (legacy|general|baseline|restricted|netadmin)'
+  $'-c\t<name>\tName to give the new debug container'
+  $'--copy-to\t<name>\tCopy the pod into a new one with this name instead of editing it'
+  $'-n\t<namespace>\tNamespace of the target'
+)
+
+typeset -ga _LUMEN_KUBECTL_WAIT_FLAGS=(
+  $'--for\t<condition>\tWhat to wait for (e.g. condition=Ready, delete, jsonpath=...)'
+  $'--timeout\t<dur>\tHow long to wait before giving up (e.g. 60s, 5m; 0 = forever)'
+  $'-n\t<namespace>\tNamespace of the resource'
+  $'--all\t\tWait on every resource of the given type in the namespace'
+  $'-l\t<selector>\tWait on resources matching this label selector'
+)
+
+typeset -ga _LUMEN_KUBECTL_DRAIN_FLAGS=(
+  $'--ignore-daemonsets\t\tDon'"'"'t fail on DaemonSet-managed pods'
+  $'--delete-emptydir-data\t\tAllow eviction of pods using emptyDir volumes (data is lost)\t1'
+  $'--force\t\tAlso evict pods not managed by a controller\t1'
+  $'--grace-period\t<seconds>\tGrace period for each pod eviction; -1 uses the pod default'
+  $'--timeout\t<dur>\tGive up after this long'
+  $'--disable-eviction\t\tForce-delete pods, bypassing PodDisruptionBudgets\t1'
+)
+
+typeset -ga _LUMEN_KUBECTL_ROLLOUT_STATUS_FLAGS=(
+  $'-w\t\tWatch the rollout status until it finishes (default true)'
+  $'--timeout\t<dur>\tGive up watching after this long (0 = forever)'
+  $'--revision\t<n>\tPin the status check to a specific revision'
+  $'-n\t<namespace>\tNamespace of the workload'
+)
+
+typeset -ga _LUMEN_KUBECTL_ROLLOUT_RESTART_FLAGS=(
+  $'-n\t<namespace>\tNamespace of the workload'
+  $'-l\t<selector>\tRestart every workload matching this label selector'
+)
+
+# Resource-type words kubectl itself accepts (plural, plus the short alias
+# in the hint column) — used by _lumen_kubectl_resource_match to complete
+# the TYPE word of "kubectl get <type>" / "describe <type> <name>" / ...
+# Hand-picked common set ordered by how often each is reached for; kubectl
+# knows a few hundred more once CRDs are counted, this is the fast path.
+typeset -ga _LUMEN_KUBECTL_RESOURCE_TYPES=(
+  $'pods\tpo\tSmallest deployable compute units'
+  $'services\tsvc\tStable network endpoint for a set of pods'
+  $'deployments\tdeploy\tDeclarative updates for pods and ReplicaSets'
+  $'replicasets\trs\tKeeps a stable set of replica pods running'
+  $'statefulsets\tsts\tWorkloads with a stable identity and storage'
+  $'daemonsets\tds\tRuns a pod on every (matching) node'
+  $'jobs\t\tRun-to-completion workloads'
+  $'cronjobs\tcj\tJobs on a repeating schedule'
+  $'configmaps\tcm\tNon-confidential key/value configuration'
+  $'secrets\t\tConfidential key/value data'
+  $'ingresses\ting\tHTTP/S routing rules into the cluster'
+  $'namespaces\tns\tVirtual cluster partitions'
+  $'nodes\tno\tWorker machines in the cluster'
+  $'persistentvolumeclaims\tpvc\tA pod'"'"'s request for storage'
+  $'persistentvolumes\tpv\tA piece of provisioned cluster storage'
+  $'endpoints\tep\tThe backing addresses for a Service'
+  $'serviceaccounts\tsa\tIdentity for the processes in a pod'
+  $'events\tev\tCluster events (also: kubectl events)'
+  $'horizontalpodautoscalers\thpa\tScales a workload on observed metrics'
+  $'replicationcontrollers\trc\tLegacy pod replication (prefer Deployments)'
+  $'roles\t\tNamespaced RBAC permission set'
+  $'rolebindings\t\tGrants a Role within a namespace'
+  $'clusterroles\t\tCluster-wide RBAC permission set'
+  $'clusterrolebindings\t\tGrants a ClusterRole cluster-wide'
+  $'storageclasses\tsc\tClasses of dynamically provisioned storage'
+  $'networkpolicies\tnetpol\tPod-level network traffic rules'
+  $'poddisruptionbudgets\tpdb\tCaps how many pods a disruption may remove'
+  $'resourcequotas\tquota\tConstrains aggregate resource usage in a namespace'
+  $'limitranges\tlimits\tDefault / min / max limits per object'
+  $'customresourcedefinitions\tcrd\tExtends the API with new resource kinds'
+  # Group-qualified forms (RESOURCE.GROUP), the spelling `kubectl explain`
+  # and `kubectl api-resources` print — reach for these to disambiguate
+  # from a same-named CRD. Listed last because the bare plural above is
+  # what you type day to day; matched only once you'"'"'ve typed past the ".".
+  $'deployments.apps\t\tapps/v1 Deployment, fully qualified'
+  $'replicasets.apps\t\tapps/v1 ReplicaSet, fully qualified'
+  $'statefulsets.apps\t\tapps/v1 StatefulSet, fully qualified'
+  $'daemonsets.apps\t\tapps/v1 DaemonSet, fully qualified'
+  $'jobs.batch\t\tbatch/v1 Job, fully qualified'
+  $'cronjobs.batch\t\tbatch/v1 CronJob, fully qualified'
+  $'ingresses.networking.k8s.io\t\tnetworking.k8s.io/v1 Ingress, fully qualified'
+)
+
+# `kubectl rollout` only operates on these four kinds — a much shorter list
+# than the full resource table, so _lumen_kubectl_resource_match swaps to
+# it when the verb is rollout instead of offering "rollout status secrets".
+typeset -ga _LUMEN_KUBECTL_ROLLOUT_TYPES=(
+  $'deployments\tdeploy\tDeclarative updates for pods and ReplicaSets'
+  $'daemonsets\tds\tRuns a pod on every (matching) node'
+  $'statefulsets\tsts\tWorkloads with a stable identity and storage'
+  $'replicasets\trs\tKeeps a stable set of replica pods running'
+  $'deployments.apps\t\tapps/v1 Deployment, fully qualified'
+  $'daemonsets.apps\t\tapps/v1 DaemonSet, fully qualified'
+  $'statefulsets.apps\t\tapps/v1 StatefulSet, fully qualified'
+  $'replicasets.apps\t\tapps/v1 ReplicaSet, fully qualified'
 )
 
 # Last-resort fallback when typing "-" at a position with no hand-picked
@@ -2784,6 +3012,256 @@ _lumen_docker_volume_match() {
   (( ${#_LUMEN_CANDIDATES} > 0 ))
 }
 
+# Pulls "-n <ns>" / "--namespace <ns>" / "--namespace=<ns>" out of the
+# current buffer so a kubectl resource lookup queries the namespace the
+# user is actually targeting instead of always "default". Prints the
+# namespace, or nothing if none is on the line. This is the only
+# mid-command flag the two kubectl matchers below understand — see their
+# comment on why anything else makes them back off.
+_lumen_kubectl_ns() {
+  local -a w=(${(z)BUFFER})
+  local -i i
+  for (( i = 1; i <= ${#w}; i++ )); do
+    case "${w[i]}" in
+      -n|--namespace)
+        [[ -n "${w[i+1]:-}" && "${w[i+1]}" != -* ]] && { print -r -- "${w[i+1]}"; return 0 }
+        ;;
+      -n=*|--namespace=*) print -r -- "${w[i]#*=}"; return 0 ;;
+    esac
+  done
+  return 0
+}
+
+# Suggests real pod names once a kubectl subcommand whose first argument is
+# a bare pod name has been typed (logs/exec/attach/port-forward/debug) —
+# the kubectl counterpart to _lumen_docker_container_match, replacing the
+# static "<pod>" hint from _LUMEN_KUBECTL_SUBCMDS with actual pods from
+# `kubectl get pods` (their phase shown in the description column, the way
+# the docker matcher shows container status). Honours a leading "-n <ns>"
+# but backs off if any *other* flag sits between the subcommand and the
+# name — the live lookup and the rebuilt candidate only understand the
+# plain shape, same scope the docker matchers keep. Runs `kubectl get
+# pods` fresh on every keystroke (no cache, same as the git/docker
+# matchers); it is a read-only call and stays silent when there is no
+# reachable cluster.
+_lumen_kubectl_pod_match() {
+  local tool="${BUFFER%% *}"
+  case "$tool" in kubectl|k) ;; *) return 1 ;; esac
+  [[ "$BUFFER" == "$tool "* ]] || return 1
+
+  local -a words=(${(z)BUFFER})
+  local verb="${words[2]:-}"
+  case "$verb" in
+    logs|exec|attach|port-forward|debug) ;;
+    *) return 1 ;;
+  esac
+
+  local partial=""
+  if [[ "$BUFFER" != *' ' ]]; then
+    partial="${words[-1]}"
+    words=("${(@)words[1,-2]}")
+  fi
+  [[ "$partial" == -* ]] && return 1
+  [[ "$partial" == *' '* ]] && return 1
+
+  # The pod name is the first plain argument after the verb, so if one is
+  # already sitting there we're past it — back off. A few value-taking
+  # flags have their value stepped over so "kubectl exec -it <pod>" still
+  # counts zero plain args, not one.
+  local -i i plain=0
+  for (( i = 3; i <= ${#words}; i++ )); do
+    case "${words[i]}" in
+      -n|--namespace|-c|--container|--context) (( i++ )) ;;
+      -*) ;;
+      *) (( plain++ )) ;;
+    esac
+  done
+  (( plain == 0 )) || return 1
+
+  command -v kubectl &>/dev/null || return 1
+
+  local ns; ns="$(_lumen_kubectl_ns)"
+  local -a lines
+  # --request-timeout caps the per-keystroke cost when the API server is
+  # routable but silent (connection-refused already fails instantly).
+  lines=(${(f)"$(command kubectl get pods ${ns:+--namespace=$ns} --no-headers --request-timeout=2s 2>/dev/null)"})
+  (( ${#lines} == 0 )) && return 1
+
+  local entry name pstatus
+  local -a f
+  local icon_kind=$(_lumen_tool_icon_kind kubectl)
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  _LUMEN_DANGER=()
+  for entry in "${lines[@]}"; do
+    f=(${=entry})
+    name="${f[1]}"
+    pstatus="${f[3]:-Pod}"   # NAME READY STATUS RESTARTS AGE
+    [[ -n "$name" && "$name" == "$partial"* ]] || continue
+    _LUMEN_CANDIDATES+=("${BUFFER%$partial}${name} ")
+    _LUMEN_LABELS+=("$name")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("${ns:+[$ns] }${pstatus}")
+    _LUMEN_ICONS+=("$icon_kind")
+    _LUMEN_DANGER+=("")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+
+# Suggests resource TYPES and then real resource NAMES for the kubectl
+# subcommands that take a "<type> <name>" (or "<type>/<name>") target:
+#
+#   kubectl get po|                    -> pods, poddisruptionbudgets, ...  (type stage)
+#   kubectl get pods web|              -> web-7c9f... (name stage, via `kubectl get pods`)
+#   kubectl describe svc/ap|           -> svc/api-gateway (combined type/name word)
+#   kubectl set image deploy/w|        -> deploy/web  (nested "set <what>" target)
+#   kubectl rollout status deploy|     -> deployments (nested "rollout <what>" target)
+#
+# Covers the one-word verbs (get/describe/delete/edit/label/annotate/patch/
+# scale/autoscale/expose/wait), `explain` (type only — its next word is a
+# field path, not a resource name), and the two-word `set <image|env|
+# resources|serviceaccount|selector>` / `rollout <status|undo|restart|
+# history|pause|resume>` targets. Types come from the static
+# _LUMEN_KUBECTL_RESOURCE_TYPES table (no cluster needed); names run
+# `kubectl get <type>` live. Same "plain shape plus an optional leading
+# -n <ns>" constraint and no-caching policy as _lumen_kubectl_pod_match.
+_lumen_kubectl_resource_match() {
+  local tool="${BUFFER%% *}"
+  case "$tool" in kubectl|k) ;; *) return 1 ;; esac
+  [[ "$BUFFER" == "$tool "* ]] || return 1
+
+  local -a words=(${(z)BUFFER})
+  local partial=""
+  if [[ "$BUFFER" != *' ' ]]; then
+    partial="${words[-1]}"
+    words=("${(@)words[1,-2]}")
+  fi
+  [[ "$partial" == -* ]] && return 1
+  [[ "$partial" == *' '* ]] && return 1
+
+  # Resolve the command "verb path" — one word for the plain verbs, two for
+  # the nested "set <what>" / "rollout <what>" targets — and the word index
+  # its positional args start at.
+  local verb="${words[2]:-}" verb2="${words[3]:-}"
+  local -i posstart=3
+  local -i explain_only=0 rollout_target=0
+  case "$verb" in
+    get|describe|delete|edit|label|annotate|patch|scale|autoscale|expose|wait) ;;
+    explain) explain_only=1 ;;
+    set)
+      case "$verb2" in
+        image|env|resources|serviceaccount|selector) posstart=4 ;;
+        *) return 1 ;;
+      esac ;;
+    rollout)
+      case "$verb2" in
+        status|undo|restart|history|pause|resume) posstart=4; rollout_target=1 ;;
+        *) return 1 ;;
+      esac ;;
+    *) return 1 ;;
+  esac
+
+  # Plain args already sitting after the verb path: 0 -> we're completing
+  # the type; 1 -> that arg is the type and we're completing the name;
+  # more -> past it, back off. Values of the common value-taking flags are
+  # stepped over.
+  local -i i
+  local -a plain=()
+  for (( i = posstart; i <= ${#words}; i++ )); do
+    case "${words[i]}" in
+      -n|--namespace|-l|--selector|-o|--output|--context|--field-selector) (( i++ )) ;;
+      -*) ;;
+      *) plain+=("${words[i]}") ;;
+    esac
+  done
+  (( ${#plain} <= 1 )) || return 1
+  # A "type/name" arg is already a complete reference — nothing left to
+  # complete (the user has moved on to container=image / KEY=VALUE / ...).
+  (( ${#plain} == 1 )) && [[ "${plain[1]}" == */* ]] && return 1
+  # `kubectl explain <type>` has no resource-name argument (its second word
+  # is a field path like `pods.spec.containers`), so once the type is in,
+  # there is nothing here to offer.
+  (( explain_only && ${#plain} >= 1 )) && return 1
+
+  local icon_kind=$(_lumen_tool_icon_kind kubectl)
+  local ns; ns="$(_lumen_kubectl_ns)"
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  _LUMEN_DANGER=()
+
+  # --- type stage: filter the static resource-type table ------------------
+  if (( ${#plain} == 0 )) && [[ "$partial" != */* ]]; then
+    local entry name
+    local -a parts type_table
+    if (( rollout_target )); then
+      type_table=("${_LUMEN_KUBECTL_ROLLOUT_TYPES[@]}")
+    else
+      type_table=("${_LUMEN_KUBECTL_RESOURCE_TYPES[@]}")
+    fi
+    for entry in "${type_table[@]}"; do
+      parts=("${(@ps:\t:)entry}")
+      name="${parts[1]}"
+      [[ "$name" == "$partial"* ]] || continue
+      _LUMEN_CANDIDATES+=("${BUFFER%$partial}${name} ")
+      _LUMEN_LABELS+=("$name")
+      _LUMEN_HINTS+=("${parts[2]:-}")
+      _LUMEN_DESCRIPTIONS+=("${parts[3]:-}")
+      _LUMEN_ICONS+=("$icon_kind")
+      _LUMEN_DANGER+=("")
+      (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+    done
+    (( ${#_LUMEN_CANDIDATES} > 0 ))
+    return
+  fi
+
+  # --- name stage: `kubectl get <type>` ---------------------------------
+  [[ "$verb" == explain ]] && return 1   # guarded above; also covers "explain foo/bar"
+  local rtype namepart prefix
+  if (( ${#plain} == 1 )); then
+    rtype="${plain[1]}"
+    namepart="$partial"
+    prefix="${BUFFER%$partial}"
+  else
+    # combined "type/name" still being typed as one word
+    rtype="${partial%%/*}"
+    namepart="${partial#*/}"
+    prefix="${BUFFER%$partial}${rtype}/"
+  fi
+  [[ -n "$rtype" ]] || return 1
+  command -v kubectl &>/dev/null || return 1
+
+  local -a lines
+  lines=(${(f)"$(command kubectl get "$rtype" ${ns:+--namespace=$ns} --no-headers --request-timeout=2s 2>/dev/null)"})
+  (( ${#lines} == 0 )) && return 1
+
+  local entry name desc
+  local -a f
+  for entry in "${lines[@]}"; do
+    f=(${=entry})
+    name="${f[1]}"
+    [[ -n "$name" && "$name" == "$namepart"* ]] || continue
+    case "$rtype" in
+      po|pod|pods) desc="${f[3]:-Pod}" ;;          # NAME READY STATUS ...
+      *)           desc="${f[2]:-$rtype}" ;;       # 2nd column varies by type
+    esac
+    _LUMEN_CANDIDATES+=("${prefix}${name} ")
+    _LUMEN_LABELS+=("$name")
+    _LUMEN_HINTS+=("")
+    _LUMEN_DESCRIPTIONS+=("${ns:+[$ns] }${desc}")
+    _LUMEN_ICONS+=("$icon_kind")
+    _LUMEN_DANGER+=("")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+
 # Shared by every JSON-based project-file matcher below (package.json's
 # "scripts", composer.json's "scripts", deno.json(c)'s "tasks"): reads
 # file $1 and prints "name<TAB>value" pairs for each key found inside the
@@ -3968,6 +4446,8 @@ _lumen_static_or_dynamic_match() {
   _lumen_docker_image_match && return 0
   _lumen_docker_network_match && return 0
   _lumen_docker_volume_match && return 0
+  _lumen_kubectl_pod_match && return 0
+  _lumen_kubectl_resource_match && return 0
   _lumen_package_script_match && return 0
   _lumen_package_dep_match && return 0
   _lumen_nvm_match && return 0
