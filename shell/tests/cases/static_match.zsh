@@ -32,4 +32,30 @@ case_static_match() {
   _lumen_static_match
   assert_fail $? 'unknown tool -> no match'
   assert_eq 0 ${#_LUMEN_LABELS} 'unknown tool -> zero candidates'
+
+  # A flag past a positional arg still finds the verb's own flags table —
+  # _lumen_nested_match's key lookup drops trailing positional words
+  # (branch/container/package name, ...) instead of only matching when the
+  # flag sits immediately after the verb.
+  BUFFER="git checkout main -f"
+  _lumen_reset_candidates
+  _lumen_static_or_dynamic_match
+  assert_has -f "${_LUMEN_LABELS[@]}"
+
+  BUFFER="docker restart mycontainer -t"
+  _lumen_reset_candidates
+  _lumen_static_or_dynamic_match
+  assert_has -t "${_LUMEN_LABELS[@]}"
+
+  BUFFER="npm install lodash --save"
+  _lumen_reset_candidates
+  _lumen_static_or_dynamic_match
+  assert_has --save-dev "${_LUMEN_LABELS[@]}"
+
+  # No matching flags table at any prefix length -> generic fallback, not
+  # a crash or stale candidates from a shorter unrelated key.
+  BUFFER="git status --"
+  _lumen_reset_candidates
+  _lumen_static_or_dynamic_match
+  assert_has --help "${_LUMEN_LABELS[@]}"
 }

@@ -153,4 +153,38 @@ case_kubectl_match() {
   assert_eq staging "$(_lumen_kubectl_ns)" '--namespace=<ns> extracted'
   BUFFER="kubectl get pods"
   assert_eq "" "$(_lumen_kubectl_ns)" 'no namespace flag -> empty'
+
+  # Type stage: the name and its short alias are separate rows, each
+  # matched independently, instead of one "pods po" row that always shows
+  # both regardless of what was typed.
+  BUFFER="kubectl get p"
+  _lumen_reset_candidates
+  _lumen_static_or_dynamic_match
+  assert_has pods "${_LUMEN_LABELS[@]}"
+  assert_has po   "${_LUMEN_LABELS[@]}"
+  BUFFER="kubectl get pods"
+  _lumen_reset_candidates
+  _lumen_static_or_dynamic_match
+  assert_has  pods "${_LUMEN_LABELS[@]}"
+  assert_lacks po  "${_LUMEN_LABELS[@]}"
+
+  # A flag past the already-typed TYPE (and/or NAME) still resolves to the
+  # verb's own flags table, not the generic fallback.
+  BUFFER="kubectl get pods -o"
+  _lumen_reset_candidates
+  _lumen_static_or_dynamic_match
+  assert_has -o "${_LUMEN_LABELS[@]}"
+
+  # Verbs with no dedicated flags table before this fix (kubectl expose)
+  # and nested "set <what>" flags (kubectl set image) both resolve once
+  # their type/name arguments are already typed.
+  BUFFER="kubectl expose deployments.apps app1-deploy --port"
+  _lumen_reset_candidates
+  _lumen_static_or_dynamic_match
+  assert_has --port "${_LUMEN_LABELS[@]}"
+
+  BUFFER="kubectl set image deploy/web app=nginx:1.27 --dry"
+  _lumen_reset_candidates
+  _lumen_static_or_dynamic_match
+  assert_has --dry-run "${_LUMEN_LABELS[@]}"
 }
