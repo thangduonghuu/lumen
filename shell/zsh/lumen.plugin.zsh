@@ -290,6 +290,8 @@ typeset -ga _LUMEN_DOCKER_SUBCMDS=(
   $'stop\t<container>\tStop a running container'
   $'start\t<container>\tStart a stopped container'
   $'rm\t<container>\tRemove a container'
+  $'restart\t<container>\tRestart a container'
+  $'kill\t<container>\tSend a signal (default SIGKILL) to a container'
   $'rmi\t<image>\tRemove an image'
   $'pull\t<image>\tPull an image from a registry'
   $'push\t<image>\tPush an image to a registry'
@@ -355,6 +357,22 @@ typeset -ga _LUMEN_TERRAFORM_SUBCMDS=(
   $'force-unlock\t<lock-id>\tRelease a stuck lock on the state'
 )
 
+typeset -ga _LUMEN_TERRAFORM_FMT_FLAGS=(
+  $'-recursive\t\tAlso process files in subdirectories'
+  $'-check\t\tCheck if input is formatted; exits nonzero if not, without writing'
+  $'-diff\t\tShow the formatting diff instead of (or alongside) writing it'
+  $'-write=false\t\tDon'"'"'t write the changes, just report them'
+)
+
+typeset -ga _LUMEN_TERRAFORM_VALIDATE_FLAGS=(
+  $'-json\t\tOutput validation results as machine-readable JSON'
+)
+
+typeset -ga _LUMEN_TERRAFORM_OUTPUT_FLAGS=(
+  $'-json\t\tOutput values as a JSON object'
+  $'-raw\t\tPrint a single string/number/bool value with no extra formatting'
+)
+
 typeset -ga _LUMEN_HELM_SUBCMDS=(
   $'install\t<name> <chart>\tInstall a chart'
   $'upgrade\t<name> <chart>\tUpgrade a release'
@@ -413,6 +431,12 @@ typeset -ga _LUMEN_YARN_ADD_FLAGS=(
   $'--dev\t\tSave as a devDependency'
 )
 
+typeset -ga _LUMEN_YARN_INSTALL_FLAGS=(
+  $'--frozen-lockfile\t\tFail instead of updating yarn.lock (use in CI)'
+  $'--production\t\tSkip devDependencies'
+  $'--ignore-scripts\t\tSkip lifecycle scripts'
+)
+
 typeset -ga _LUMEN_PNPM_SUBCMDS=(
   $'add\t<package>\tAdd a dependency'
   $'remove\t<package>\tRemove a dependency'
@@ -429,6 +453,12 @@ typeset -ga _LUMEN_PNPM_SUBCMDS=(
   $'exec\t<cmd>\tExecute a shell command in scope of the project'
   $'dlx\t<package>\tRun a package binary without installing it'
   $'init\t\tCreate a new package.json'
+)
+
+typeset -ga _LUMEN_PNPM_INSTALL_FLAGS=(
+  $'--frozen-lockfile\t\tFail instead of updating pnpm-lock.yaml (use in CI)'
+  $'--prod\t\tSkip devDependencies'
+  $'--ignore-scripts\t\tSkip lifecycle scripts'
 )
 
 typeset -ga _LUMEN_PNPM_ADD_FLAGS=(
@@ -487,6 +517,206 @@ typeset -ga _LUMEN_AZ_SUBCMDS=(
   $'network\t\tManage virtual networks'
   $'sql\t\tManage Azure SQL databases'
   $'monitor\t\tManage Azure Monitor logs and metrics'
+)
+
+# --- deeper az sub-subcommand tables (picked up by _lumen_nested_match via
+# the _LUMEN_AZ_<PATH>_SUBCMDS / _FLAGS naming convention) ------------------
+
+typeset -ga _LUMEN_AZ_VM_SUBCMDS=(
+  $'create\t\tCreate a virtual machine'
+  $'list\t\tList virtual machines'
+  $'show\t\tGet the details of a VM'
+  $'start\t\tStart a stopped VM'
+  $'stop\t\tPower off a running VM (still billed for storage)'
+  $'restart\t\tRestart a VM'
+  $'deallocate\t\tStop and release the compute resources of a VM (no compute billing)'
+  $'delete\t\tDelete a VM'
+  $'resize\t\tChange a VM'"'"'s size'
+)
+
+typeset -ga _LUMEN_AZ_VM_CREATE_FLAGS=(
+  $'--resource-group\t<group>\tResource group name (required)'
+  $'-g\t<group>\tResource group name (required)'
+  $'--name\t<name>\tName of the VM (required)'
+  $'-n\t<name>\tName of the VM (required)'
+  $'--image\t<image>\tOS image, e.g. Ubuntu2204 (default: Ubuntu2204)'
+  $'--size\t<size>\tVM size, e.g. Standard_D2s_v5'
+  $'--admin-username\t<user>\tAdmin username for the VM'
+  $'--generate-ssh-keys\t\tGenerate an SSH key pair if none exists in ~/.ssh'
+  $'--location\t<location>\tRegion (defaults to the resource group'"'"'s location)'
+  $'-l\t<location>\tRegion (defaults to the resource group'"'"'s location)'
+)
+
+typeset -ga _LUMEN_AZ_VM_LIST_FLAGS=(
+  $'--resource-group\t<group>\tOnly list VMs in this resource group'
+  $'-g\t<group>\tOnly list VMs in this resource group'
+  $'--show-details\t\tInclude public IP, FQDN, and power state (slower)'
+)
+
+typeset -ga _LUMEN_AZ_VM_DELETE_FLAGS=(
+  $'--resource-group\t<group>\tResource group name'
+  $'-g\t<group>\tResource group name'
+  $'--name\t<name>\tName of the VM'
+  $'-n\t<name>\tName of the VM'
+  $'--yes\t\tSkip the confirmation prompt\t1'
+  $'-y\t\tSkip the confirmation prompt\t1'
+  $'--no-wait\t\tDon'"'"'t wait for the delete to finish'
+)
+
+typeset -ga _LUMEN_AZ_AKS_SUBCMDS=(
+  $'create\t\tCreate a managed Kubernetes cluster'
+  $'get-credentials\t\tDownload cluster credentials into kubeconfig'
+  $'list\t\tList managed clusters'
+  $'show\t\tShow details of a managed cluster'
+  $'delete\t\tDelete a managed cluster'
+  $'scale\t\tScale the node count of a node pool'
+  $'upgrade\t\tUpgrade a cluster to a newer Kubernetes version'
+  $'start\t\tStart a stopped cluster'
+  $'stop\t\tStop a running cluster'
+)
+
+typeset -ga _LUMEN_AZ_AKS_CREATE_FLAGS=(
+  $'--resource-group\t<group>\tResource group name (required)'
+  $'-g\t<group>\tResource group name (required)'
+  $'--name\t<name>\tName of the cluster (required)'
+  $'-n\t<name>\tName of the cluster (required)'
+  $'--node-count\t<n>\tNumber of nodes in the default node pool (default: 3)'
+  $'--node-vm-size\t<size>\tVM size for the nodes'
+  $'--generate-ssh-keys\t\tGenerate an SSH key pair if none exists in ~/.ssh'
+  $'--kubernetes-version\t<ver>\tKubernetes version to use'
+)
+
+typeset -ga _LUMEN_AZ_AKS_GET_CREDENTIALS_FLAGS=(
+  $'--resource-group\t<group>\tResource group name (required)'
+  $'-g\t<group>\tResource group name (required)'
+  $'--name\t<name>\tName of the cluster (required)'
+  $'-n\t<name>\tName of the cluster (required)'
+  $'--overwrite-existing\t\tOverwrite the existing kubeconfig entry for this cluster'
+  $'--admin\t\tGet cluster admin credentials instead of user credentials'
+)
+
+typeset -ga _LUMEN_AZ_GROUP_SUBCMDS=(
+  $'create\t\tCreate a resource group'
+  $'list\t\tList resource groups'
+  $'delete\t\tDelete a resource group'
+  $'show\t\tGet a resource group'
+  $'exists\t\tCheck whether a resource group exists'
+  $'update\t\tUpdate a resource group'
+)
+
+typeset -ga _LUMEN_AZ_GROUP_CREATE_FLAGS=(
+  $'--name\t<name>\tName of the new resource group (required)'
+  $'-n\t<name>\tName of the new resource group (required)'
+  $'--location\t<location>\tRegion, e.g. westus (required)'
+  $'-l\t<location>\tRegion, e.g. westus (required)'
+  $'--tags\t<k=v ...>\tSpace-separated tags'
+)
+
+typeset -ga _LUMEN_AZ_GROUP_DELETE_FLAGS=(
+  $'--name\t<name>\tName of the resource group'
+  $'-n\t<name>\tName of the resource group'
+  $'--yes\t\tDon'"'"'t prompt for confirmation — deletes every resource inside the group\t1'
+  $'-y\t\tDon'"'"'t prompt for confirmation — deletes every resource inside the group\t1'
+  $'--no-wait\t\tDon'"'"'t wait for the delete to finish'
+)
+
+typeset -ga _LUMEN_AZ_GROUP_LIST_FLAGS=(
+  $'--tag\t<k=v>\tFilter by a single tag'
+)
+
+typeset -ga _LUMEN_AZ_STORAGE_SUBCMDS=(
+  $'account\t\tManage storage accounts'
+  $'container\t\tManage blob containers'
+  $'blob\t\tManage blobs'
+  $'share\t\tManage file shares'
+  $'queue\t\tManage queues'
+)
+
+typeset -ga _LUMEN_AZ_STORAGE_ACCOUNT_SUBCMDS=(
+  $'create\t\tCreate a storage account'
+  $'list\t\tList storage accounts'
+  $'delete\t\tDelete a storage account'
+  $'show\t\tShow storage account properties'
+  $'show-connection-string\t\tGet the connection string for a storage account'
+)
+
+typeset -ga _LUMEN_AZ_STORAGE_ACCOUNT_CREATE_FLAGS=(
+  $'--name\t<name>\tName of the storage account (required)'
+  $'-n\t<name>\tName of the storage account (required)'
+  $'--resource-group\t<group>\tResource group name (required)'
+  $'-g\t<group>\tResource group name (required)'
+  $'--location\t<location>\tRegion'
+  $'-l\t<location>\tRegion'
+  $'--sku\t<sku>\tReplication SKU, e.g. Standard_LRS, Standard_GRS, Premium_LRS'
+)
+
+typeset -ga _LUMEN_AZ_STORAGE_CONTAINER_SUBCMDS=(
+  $'create\t\tCreate a container in a storage account'
+  $'list\t\tList containers in a storage account'
+  $'delete\t\tMark a container for deletion'
+  $'exists\t\tCheck whether a container exists'
+)
+
+typeset -ga _LUMEN_AZ_STORAGE_CONTAINER_CREATE_FLAGS=(
+  $'--name\t<name>\tName of the container (required)'
+  $'-n\t<name>\tName of the container (required)'
+  $'--account-name\t<account>\tStorage account name'
+)
+
+typeset -ga _LUMEN_AZ_STORAGE_BLOB_SUBCMDS=(
+  $'upload\t\tUpload a file as a blob'
+  $'download\t\tDownload a blob to a file'
+  $'list\t\tList blobs in a container'
+  $'delete\t\tDelete a blob'
+  $'show\t\tGet the details of a blob'
+)
+
+typeset -ga _LUMEN_AZ_STORAGE_BLOB_UPLOAD_FLAGS=(
+  $'--container-name\t<name>\tContainer to upload into (required)'
+  $'-c\t<name>\tContainer to upload into (required)'
+  $'--name\t<name>\tName to give the blob (required)'
+  $'--file\t<path>\tLocal file to upload (required)'
+  $'-f\t<path>\tLocal file to upload (required)'
+  $'--account-name\t<account>\tStorage account name'
+)
+
+typeset -ga _LUMEN_AZ_STORAGE_BLOB_DOWNLOAD_FLAGS=(
+  $'--container-name\t<name>\tContainer to download from (required)'
+  $'-c\t<name>\tContainer to download from (required)'
+  $'--name\t<name>\tBlob to download (required)'
+  $'--file\t<path>\tLocal path to save to (required)'
+  $'-f\t<path>\tLocal path to save to (required)'
+  $'--account-name\t<account>\tStorage account name'
+)
+
+typeset -ga _LUMEN_AZ_WEBAPP_SUBCMDS=(
+  $'create\t\tCreate a web app'
+  $'list\t\tList web apps'
+  $'delete\t\tDelete a web app'
+  $'deploy\t\tDeploy code to a web app'
+)
+
+typeset -ga _LUMEN_AZ_WEBAPP_CREATE_FLAGS=(
+  $'--name\t<name>\tName of the web app (required)'
+  $'-n\t<name>\tName of the web app (required)'
+  $'--resource-group\t<group>\tResource group name (required)'
+  $'-g\t<group>\tResource group name (required)'
+  $'--plan\t<plan>\tApp Service plan name (required)'
+)
+
+typeset -ga _LUMEN_AZ_ACR_SUBCMDS=(
+  $'create\t\tCreate a container registry'
+  $'list\t\tList container registries'
+  $'login\t\tLog in to a registry'
+  $'delete\t\tDelete a registry'
+)
+
+typeset -ga _LUMEN_AZ_ACR_CREATE_FLAGS=(
+  $'--name\t<name>\tName of the registry (required)'
+  $'-n\t<name>\tName of the registry (required)'
+  $'--resource-group\t<group>\tResource group name (required)'
+  $'-g\t<group>\tResource group name (required)'
+  $'--sku\t<sku>\tBasic, Standard, or Premium'
 )
 
 # Apache Kafka's admin/producer/consumer scripts are separate binaries
@@ -579,6 +809,15 @@ typeset -ga _LUMEN_CARGO_SUBCMDS=(
 
 typeset -ga _LUMEN_CARGO_BUILD_FLAGS=(
   $'--release\t\tBuild with optimizations, in release mode'
+  $'-p\t<spec>\tBuild only the specified package'
+  $'--package\t<spec>\tBuild only the specified package'
+  $'--features\t<features>\tSpace/comma-separated list of features to activate'
+  $'--bin\t<name>\tBuild only the specified binary'
+  $'--example\t<name>\tBuild only the specified example'
+  $'--target\t<triple>\tBuild for the specified target triple'
+  $'--offline\t\tRun without accessing the network'
+  $'--locked\t\tAssert Cargo.lock is up to date, without updating it'
+  $'--manifest-path\t<path>\tPath to Cargo.toml'
 )
 typeset -ga _LUMEN_CARGO_RUN_FLAGS=("${_LUMEN_CARGO_BUILD_FLAGS[@]}")
 typeset -ga _LUMEN_CARGO_TEST_FLAGS=("${_LUMEN_CARGO_BUILD_FLAGS[@]}")
@@ -738,6 +977,17 @@ typeset -ga _LUMEN_VAGRANT_DESTROY_FLAGS=(
   $'--force\t\tDestroy without confirmation\t1'
 )
 
+typeset -ga _LUMEN_VAGRANT_UP_FLAGS=(
+  $'--provision\t\tForce provisioners to run'
+)
+
+typeset -ga _LUMEN_VAGRANT_SSH_FLAGS=(
+  $'-c\t<command>\tRun a single command over SSH instead of an interactive session'
+  $'--command\t<command>\tRun a single command over SSH instead of an interactive session'
+)
+
+typeset -ga _LUMEN_VAGRANT_HALT_FLAGS=("${_LUMEN_VAGRANT_DESTROY_FLAGS[@]}")
+
 typeset -ga _LUMEN_PULUMI_SUBCMDS=(
   $'up\t\tCreate or update resources in a stack'
   $'destroy\t\tDestroy resources in a stack'
@@ -755,6 +1005,13 @@ typeset -ga _LUMEN_PULUMI_SUBCMDS=(
 
 typeset -ga _LUMEN_PULUMI_UP_FLAGS=(
   $'--yes\t\tSkip the interactive approval prompt'
+  $'-s\t<stack>\tThe stack to operate on (defaults to the current stack)'
+  $'--stack\t<stack>\tThe stack to operate on (defaults to the current stack)'
+  $'--config-file\t<file>\tUse config values from this file instead of the stack config'
+  $'-t\t<urn>\tOnly update this resource (repeatable)'
+  $'--target\t<urn>\tOnly update this resource (repeatable)'
+  $'--diff\t\tShow a detailed diff of the changes'
+  $'--skip-preview\t\tSkip the preview step'
 )
 typeset -ga _LUMEN_PULUMI_DESTROY_FLAGS=("${_LUMEN_PULUMI_UP_FLAGS[@]}")
 
@@ -922,6 +1179,12 @@ typeset -ga _LUMEN_SYSTEMCTL_SUBCMDS=(
 
 typeset -ga _LUMEN_SYSTEMCTL_ENABLE_FLAGS=(
   $'--now\t\tAlso start the unit immediately, not just on the next boot'
+)
+
+typeset -ga _LUMEN_SYSTEMCTL_STATUS_FLAGS=(
+  $'-l\t\tDon'"'"'t ellipsize unit names or output'
+  $'--full\t\tDon'"'"'t ellipsize unit names or output'
+  $'--no-pager\t\tDo not pipe output into a pager'
 )
 
 typeset -ga _LUMEN_NVM_SUBCMDS=(
@@ -1161,6 +1424,16 @@ typeset -ga _LUMEN_DOCKER_RM_FLAGS=(
   $'--force\t\tForce removal of a running container\t1'
   $'-v\t\tAlso remove anonymous volumes associated with the container'
 )
+
+typeset -ga _LUMEN_DOCKER_RESTART_FLAGS=(
+  $'-t\t<seconds>\tSeconds to wait before killing the container (default 10)'
+  $'--time\t<seconds>\tSeconds to wait before killing the container (default 10)'
+)
+
+typeset -ga _LUMEN_DOCKER_KILL_FLAGS=(
+  $'-s\t<signal>\tSignal to send (default SIGKILL)'
+  $'--signal\t<signal>\tSignal to send (default SIGKILL)'
+)
 typeset -ga _LUMEN_DOCKER_CONTAINER_RM_FLAGS=("${_LUMEN_DOCKER_RM_FLAGS[@]}")
 # "docker container <x>" is the modern long form of "docker <x>" for
 # run/logs/stop/start — same flags, so alias rather than duplicate.
@@ -1374,6 +1647,33 @@ typeset -ga _LUMEN_NPM_INSTALL_FLAGS=(
   $'--legacy-peer-deps\t\tIgnore peer dependency conflicts'
 )
 
+typeset -ga _LUMEN_NPM_CI_FLAGS=(
+  $'--production\t\tSkip devDependencies'
+  $'--legacy-peer-deps\t\tIgnore peer dependency conflicts'
+)
+
+typeset -ga _LUMEN_NPM_UNINSTALL_FLAGS=(
+  $'--save-dev\t\tAlso remove it from devDependencies'
+  $'-g\t\tUninstall a global package'
+)
+
+typeset -ga _LUMEN_NPM_UPDATE_FLAGS=(
+  $'--save\t\tUpdate the version ranges in package.json too'
+  $'-g\t\tUpdate global packages'
+)
+
+typeset -ga _LUMEN_NPM_PUBLISH_FLAGS=(
+  $'--tag\t<tag>\tPublish under a dist-tag other than latest'
+  $'--access\t<public|restricted>\tSet package visibility'
+  $'--dry-run\t\tShow what would be published without publishing it'
+  $'--otp\t<code>\tOne-time password for accounts with 2FA'
+)
+
+typeset -ga _LUMEN_NPM_RUN_FLAGS=(
+  $'--silent\t\tSuppress npm'"'"'s own log output for the script'
+  $'--if-present\t\tExit quietly if the script isn'"'"'t defined'
+)
+
 typeset -ga _LUMEN_KUBECTL_CONFIG_SUBCMDS=(
   $'get-contexts\t\tList the available contexts'
   $'use-context\t<name>\tSet the current context'
@@ -1436,6 +1736,11 @@ typeset -ga _LUMEN_KUBECTL_APPLY_FLAGS=(
 
 typeset -ga _LUMEN_KUBECTL_CREATE_FLAGS=(
   $'-f\t<file>\tCreate a resource from a file or stdin'
+  $'-k\t<dir>\tCreate from a kustomization directory'
+  $'--dry-run\t<client|server>\tPreview without persisting the change'
+  $'--save-config\t\tKeep the config so it can be used by future kubectl apply calls'
+  $'--validate\t<true|false|strict|warn|ignore>\tValidate the object against its schema'
+  $'-n\t<namespace>\tNamespace to create into'
 )
 
 typeset -ga _LUMEN_KUBECTL_SCALE_FLAGS=(
@@ -1443,6 +1748,20 @@ typeset -ga _LUMEN_KUBECTL_SCALE_FLAGS=(
   $'--current-replicas\t<n>\tOnly scale if the current replica count matches'
   $'-n\t<namespace>\tNamespace of the workload'
   $'--all\t\tScale all resources of the given type in the namespace'
+)
+
+typeset -ga _LUMEN_KUBECTL_EXPOSE_FLAGS=(
+  $'--port\t<port>\tPort the new Service listens on'
+  $'--target-port\t<port>\tPort on the pod containers to forward to'
+  $'--protocol\t<TCP|UDP|SCTP>\tProtocol for the Service (default TCP)'
+  $'--name\t<name>\tName for the new Service (defaults to the source resource name)'
+  $'--type\t<ClusterIP|NodePort|LoadBalancer|ExternalName>\tService type to create'
+  $'--selector\t<k=v,...>\tSelector instead of the source resource labels'
+  $'-l\t<k=v,...>\tLabels to apply to the new Service'
+  $'--external-ip\t<ip>\tAdditional external IP to accept traffic for'
+  $'--session-affinity\t<None|ClientIP>\tEnable sticky sessions'
+  $'--dry-run\t<client|server>\tPreview without creating the Service'
+  $'-n\t<namespace>\tNamespace to create the Service in'
 )
 
 typeset -ga _LUMEN_KUBECTL_DELETE_FLAGS=(
@@ -1484,6 +1803,14 @@ typeset -ga _LUMEN_KUBECTL_PORT_FORWARD_FLAGS=(
   $'-n\t<namespace>\tNamespace of the target pod'
 )
 
+typeset -ga _LUMEN_KUBECTL_ATTACH_FLAGS=(
+  $'-i\t\tKeep stdin open on the container'
+  $'-t\t\tAllocate a tty'
+  $'-c\t<container>\tContainer within the pod, if it has more than one'
+  $'--pod-running-timeout\t<dur>\tHow long to wait for the pod to start running (default 1m0s)'
+  $'-n\t<namespace>\tNamespace of the target pod'
+)
+
 # --- deeper kubectl sub-subcommand tables (picked up by _lumen_nested_match
 # via the _LUMEN_KUBECTL_<PATH>_SUBCMDS / _FLAGS naming convention) ----------
 
@@ -1494,6 +1821,39 @@ typeset -ga _LUMEN_KUBECTL_SET_SUBCMDS=(
   $'serviceaccount\t<type>/<name> <sa>\tSet the ServiceAccount of a pod template'
   $'selector\t<type>/<name> <k>=<v>\tSet the selector on a resource'
   $'subject\t<rolebinding> --user/--group\tUpdate the subjects of a RoleBinding'
+)
+
+typeset -ga _LUMEN_KUBECTL_SET_IMAGE_FLAGS=(
+  $'--dry-run\t<client|server>\tPreview without persisting the change'
+  $'--local\t\tRun the command against the input, not the live cluster'
+  $'-n\t<namespace>\tNamespace of the resource'
+  $'--all\t\tApply to every resource in the namespace of the given type'
+)
+
+typeset -ga _LUMEN_KUBECTL_SET_ENV_FLAGS=(
+  $'--list\t\tList the currently set environment variables'
+  $'--overwrite\t<true|false>\tAllow overwriting an already-set variable (default true)'
+  $'--from\t<configmap|secret>:<name>\tPopulate variables from a ConfigMap or Secret'
+  $'--dry-run\t<client|server>\tPreview without persisting the change'
+  $'-n\t<namespace>\tNamespace of the resource'
+)
+
+typeset -ga _LUMEN_KUBECTL_SET_RESOURCES_FLAGS=(
+  $'--limits\t<cpu=,memory=>\tSet resource limits (e.g. cpu=200m,memory=512Mi)'
+  $'--requests\t<cpu=,memory=>\tSet resource requests (e.g. cpu=100m,memory=256Mi)'
+  $'--dry-run\t<client|server>\tPreview without persisting the change'
+  $'-n\t<namespace>\tNamespace of the resource'
+)
+
+typeset -ga _LUMEN_KUBECTL_SET_SERVICEACCOUNT_FLAGS=(
+  $'--dry-run\t<client|server>\tPreview without persisting the change'
+  $'-n\t<namespace>\tNamespace of the resource'
+)
+
+typeset -ga _LUMEN_KUBECTL_SET_SELECTOR_FLAGS=(
+  $'--resource-version\t<v>\tOnly update if this matches the current resource version'
+  $'--dry-run\t<client|server>\tPreview without persisting the change'
+  $'-n\t<namespace>\tNamespace of the resource'
 )
 
 typeset -ga _LUMEN_KUBECTL_AUTH_SUBCMDS=(
@@ -1798,6 +2158,16 @@ typeset -ga _LUMEN_AWS_EC2_TERMINATE_INSTANCES_FLAGS=(
 )
 typeset -ga _LUMEN_AWS_EC2_RUN_INSTANCES_FLAGS=(
   $'--image-id\t<ami>\tAMI to launch instances from'
+  $'--instance-type\t<type>\tInstance type (e.g. t3.micro)'
+  $'--key-name\t<name>\tKey pair for SSH access'
+  $'--security-group-ids\t<sg-id>\tSecurity group(s) to attach'
+  $'--subnet-id\t<subnet-id>\tSubnet to launch into'
+  $'--count\t<n>\tNumber of instances to launch'
+)
+typeset -ga _LUMEN_AWS_EC2_DESCRIBE_INSTANCES_FLAGS=(
+  $'--instance-ids\t<id>\tLimit to specific instance ID(s)'
+  $'--filters\t<Name=,Values=>\tFilter by attribute, e.g. Name=instance-type,Values=t3.micro'
+  $'--query\t<jmespath>\tShape the output with a JMESPath expression'
 )
 typeset -ga _LUMEN_AWS_EC2_CREATE_TAGS_FLAGS=(
   $'--resources\t<id>\tResource(s) to tag'
@@ -1978,8 +2348,31 @@ typeset -ga _LUMEN_HELM_INSTALL_FLAGS=(
   $'-n\t<namespace>\tNamespace to install into'
   $'--namespace\t<namespace>\tNamespace to install into'
   $'--dry-run\t\tSimulate the install without making changes'
+  $'--create-namespace\t\tCreate the release namespace if it doesn'"'"'t exist'
+  $'--atomic\t\tRoll back on failure; implies --wait'
+  $'--version\t<constraint>\tChart version to install (e.g. 1.1.1 or ^2.0.0)'
+  $'--wait\t\tWait until all resources are ready before marking the release successful'
 )
 typeset -ga _LUMEN_HELM_UPGRADE_FLAGS=("${_LUMEN_HELM_INSTALL_FLAGS[@]}")
+
+typeset -ga _LUMEN_HELM_UNINSTALL_FLAGS=(
+  $'--keep-history\t\tRemove resources but retain the release record for history/rollback'
+  $'-n\t<namespace>\tNamespace of the release'
+  $'--namespace\t<namespace>\tNamespace of the release'
+  $'--dry-run\t\tSimulate the uninstall without removing anything'
+)
+
+typeset -ga _LUMEN_HELM_ROLLBACK_FLAGS=(
+  $'-n\t<namespace>\tNamespace of the release'
+  $'--namespace\t<namespace>\tNamespace of the release'
+  $'--wait\t\tWait until all resources are ready before marking the rollback successful'
+)
+
+typeset -ga _LUMEN_HELM_TEMPLATE_FLAGS=(
+  $'-f\t<file>\tSet values from a YAML file'
+  $'--values\t<file>\tSet values from a YAML file'
+  $'--set\t<key=value>\tSet a value on the command line'
+)
 
 typeset -ga _LUMEN_GH_PR_SUBCMDS=(
   $'create\t\tCreate a pull request'
@@ -2037,6 +2430,46 @@ typeset -ga _LUMEN_GH_RUN_SUBCMDS=(
   $'cancel\t<run-id>\tCancel a workflow run'
 )
 
+typeset -ga _LUMEN_GH_RELEASE_SUBCMDS=(
+  $'create\t<tag>\tCreate a release'
+  $'list\t\tList releases'
+  $'view\t<tag>\tView a release'
+  $'delete\t<tag>\tDelete a release\t1'
+  $'upload\t<tag> <files>\tUpload assets to a release'
+  $'download\t[tag]\tDownload assets from a release'
+  $'edit\t<tag>\tEdit a release'
+)
+
+typeset -ga _LUMEN_GH_RELEASE_CREATE_FLAGS=(
+  $'-t\t<text>\tTitle for the release'
+  $'--title\t<text>\tTitle for the release'
+  $'-n\t<text>\tRelease notes text'
+  $'--notes\t<text>\tRelease notes text'
+  $'-d\t\tSave the release as a draft'
+  $'--draft\t\tSave the release as a draft'
+  $'-p\t\tMark the release as a prerelease'
+  $'--prerelease\t\tMark the release as a prerelease'
+  $'--generate-notes\t\tAuto-generate release notes from merged PRs'
+  $'--target\t<branch|commit>\tBranch or commit to tag from (defaults to the default branch)'
+)
+
+typeset -ga _LUMEN_GH_WORKFLOW_SUBCMDS=(
+  $'list\t\tList workflows'
+  $'run\t<workflow>\tRun a workflow'
+  $'view\t<workflow>\tView a workflow'
+  $'enable\t<workflow>\tEnable a workflow'
+  $'disable\t<workflow>\tDisable a workflow'
+)
+
+typeset -ga _LUMEN_GH_WORKFLOW_RUN_FLAGS=(
+  $'-f\t<key=value>\tSet a string input field for the workflow'
+  $'--raw-field\t<key=value>\tSet a string input field for the workflow'
+  $'-F\t<key=value>\tSet a typed input field (JSON-inferred type)'
+  $'--field\t<key=value>\tSet a typed input field (JSON-inferred type)'
+  $'-r\t<branch>\tBranch or tag to run the workflow on'
+  $'--ref\t<branch>\tBranch or tag to run the workflow on'
+)
+
 typeset -ga _LUMEN_GLAB_MR_SUBCMDS=(
   $'create\t\tCreate a merge request'
   $'list\t\tList merge requests'
@@ -2049,12 +2482,44 @@ typeset -ga _LUMEN_GLAB_MR_SUBCMDS=(
   $'update\t[id]\tUpdate a merge request'
 )
 
+typeset -ga _LUMEN_GLAB_MR_CREATE_FLAGS=(
+  $'-t\t<text>\tTitle for the merge request'
+  $'--title\t<text>\tTitle for the merge request'
+  $'-d\t<text>\tDescription for the merge request'
+  $'--description\t<text>\tDescription for the merge request'
+  $'--draft\t\tCreate as a draft merge request'
+  $'-b\t<branch>\tTarget branch to merge into'
+  $'--target-branch\t<branch>\tTarget branch to merge into'
+  $'-s\t<branch>\tSource branch (defaults to the current branch)'
+  $'--source-branch\t<branch>\tSource branch (defaults to the current branch)'
+  $'-y\t\tSkip the submission confirmation prompt'
+  $'--yes\t\tSkip the submission confirmation prompt'
+  $'-l\t<label>\tAdd label(s) to the merge request'
+  $'--label\t<label>\tAdd label(s) to the merge request'
+)
+
 typeset -ga _LUMEN_GLAB_CI_SUBCMDS=(
   $'status\t\tShow CI/CD pipeline status for the current branch'
   $'view\t[id]\tView a pipeline'
   $'trace\t[job-id]\tTrace/follow a CI/CD job log'
   $'retry\t[job-id]\tRetry a CI/CD job'
   $'run\t\tCreate/run a new pipeline'
+)
+
+typeset -ga _LUMEN_GLAB_CI_STATUS_FLAGS=(
+  $'-b\t<branch>\tCheck pipeline status for a specific branch'
+  $'--branch\t<branch>\tCheck pipeline status for a specific branch'
+  $'-l\t\tShow status in real time until the pipeline ends'
+  $'--live\t\tShow status in real time until the pipeline ends'
+  $'-c\t\tShow status in compact format'
+  $'--compact\t\tShow status in compact format'
+)
+
+typeset -ga _LUMEN_GLAB_CI_TRACE_FLAGS=(
+  $'-b\t<branch>\tBranch to search for the job'
+  $'--branch\t<branch>\tBranch to search for the job'
+  $'-p\t<pipeline-id>\tPipeline ID to search for the job'
+  $'--pipeline-id\t<pipeline-id>\tPipeline ID to search for the job'
 )
 
 typeset -ga _LUMEN_GCLOUD_COMPUTE_SUBCMDS=(
@@ -2070,6 +2535,79 @@ typeset -ga _LUMEN_GCLOUD_CONTAINER_SUBCMDS=(
   $'clusters\t[list|create|delete|get-credentials]\tManage GKE clusters'
   $'images\t[list|delete]\tManage container images'
   $'node-pools\t[list|create|delete]\tManage GKE node pools'
+)
+
+typeset -ga _LUMEN_GCLOUD_COMPUTE_INSTANCES_SUBCMDS=(
+  $'create\t\tCreate a VM instance'
+  $'list\t\tList instances'
+  $'delete\t\tDelete one or more instances'
+  $'describe\t\tShow details of an instance'
+  $'start\t\tStart a stopped instance'
+  $'stop\t\tStop a running instance'
+  $'restart\t\tRestart an instance'
+  $'ssh\t\tSSH into an instance'
+)
+
+typeset -ga _LUMEN_GCLOUD_COMPUTE_INSTANCES_CREATE_FLAGS=(
+  $'--zone\t<zone>\tZone to create the instance in'
+  $'--machine-type\t<type>\tMachine type, e.g. e2-medium'
+  $'--image\t<image>\tSpecific OS image to use'
+  $'--image-family\t<family>\tLatest image from this family, e.g. debian-12'
+  $'--image-project\t<project>\tProject that owns --image/--image-family'
+  $'--network\t<network>\tVPC network to attach to'
+  $'--subnet\t<subnet>\tSubnet to attach to'
+)
+
+typeset -ga _LUMEN_GCLOUD_COMPUTE_INSTANCES_LIST_FLAGS=(
+  $'--zones\t<zone,...>\tOnly list instances in these zones'
+  $'--filter\t<expr>\tFilter results by a resource-key expression'
+)
+
+typeset -ga _LUMEN_GCLOUD_COMPUTE_INSTANCES_DELETE_FLAGS=(
+  $'--zone\t<zone>\tZone the instance is in'
+  $'--quiet\t\tSkip the confirmation prompt\t1'
+)
+
+typeset -ga _LUMEN_GCLOUD_CONTAINER_CLUSTERS_SUBCMDS=(
+  $'create\t\tCreate a GKE cluster'
+  $'list\t\tList clusters'
+  $'delete\t\tDelete a cluster'
+  $'describe\t\tShow details of a cluster'
+  $'get-credentials\t\tFetch cluster credentials for kubectl'
+  $'resize\t\tResize a cluster'"'"'s node pool'
+)
+
+typeset -ga _LUMEN_GCLOUD_CONTAINER_CLUSTERS_CREATE_FLAGS=(
+  $'--zone\t<zone>\tZone for a zonal cluster'
+  $'--region\t<region>\tRegion for a regional cluster'
+  $'--num-nodes\t<n>\tNodes per zone (default: 3)'
+  $'--machine-type\t<type>\tMachine type for the nodes'
+  $'--cluster-version\t<ver>\tKubernetes version to install'
+)
+
+typeset -ga _LUMEN_GCLOUD_CONTAINER_CLUSTERS_GET_CREDENTIALS_FLAGS=(
+  $'--location\t<loc>\tZone or region of the cluster (preferred over --zone/--region)'
+  $'--zone\t<zone>\tZone, for a zonal cluster'
+  $'--region\t<region>\tRegion, for a regional cluster'
+)
+
+typeset -ga _LUMEN_GCLOUD_RUN_SUBCMDS=(
+  $'deploy\t\tDeploy a container image to Cloud Run'
+  $'services\t\tManage Cloud Run services'
+  $'revisions\t\tManage Cloud Run revisions'
+  $'jobs\t\tManage Cloud Run jobs'
+)
+
+typeset -ga _LUMEN_GCLOUD_RUN_DEPLOY_FLAGS=(
+  $'--image\t<image>\tContainer image to deploy'
+  $'--region\t<region>\tRegion to deploy into'
+  $'--allow-unauthenticated\t\tAllow public, unauthenticated access'
+  $'--no-allow-unauthenticated\t\tRequire authentication for all requests'
+  $'--memory\t<amount>\tMemory per instance, e.g. 512Mi, 4Gi'
+  $'--cpu\t<n>\tCPU per instance: fractional, 1, 2, 4, or 8'
+  $'--port\t<port>\tContainer port to receive requests on'
+  $'--min-instances\t<n>\tMinimum instances kept warm'
+  $'--max-instances\t<n>\tMaximum concurrent instances'
 )
 
 # On-screen row/column the cursor is at, so the box lines up under wherever
@@ -3140,7 +3678,6 @@ _lumen_kubectl_resource_match() {
     partial="${words[-1]}"
     words=("${(@)words[1,-2]}")
   fi
-  [[ "$partial" == -* ]] && return 1
   [[ "$partial" == *' '* ]] && return 1
 
   # Resolve the command "verb path" — one word for the plain verbs, two for
@@ -3164,6 +3701,41 @@ _lumen_kubectl_resource_match() {
       esac ;;
     *) return 1 ;;
   esac
+
+  # A flag can show up anywhere past the verb — "kubectl get pods -o wide",
+  # "kubectl expose deploy app1 --port ..." — not just right after the verb
+  # word. _lumen_nested_match keys its flag-table lookup off every word in
+  # the path, so once TYPE/NAME are already typed that key no longer
+  # matches any table and it falls back to the generic, irrelevant flag
+  # list. Resolve the verb's own _FLAGS table directly here instead, using
+  # the same _LUMEN_KUBECTL_<VERB>_FLAGS convention nested_match uses.
+  if [[ "$partial" == -* ]]; then
+    local flag_key="${(U)verb}"
+    (( posstart == 4 )) && flag_key+="_${(U)verb2}"
+    local flags_table_var="_LUMEN_KUBECTL_${flag_key}_FLAGS"
+    (( ${+parameters[$flags_table_var]} )) || return 1
+    local -a flags_table=("${(@P)flags_table_var}")
+    (( ${#flags_table} > 0 )) || return 1
+
+    local fentry fname icon_kind=$(_lumen_tool_icon_kind kubectl)
+    local -a fparts
+    _LUMEN_CANDIDATES=(); _LUMEN_DESCRIPTIONS=(); _LUMEN_HINTS=()
+    _LUMEN_LABELS=(); _LUMEN_ICONS=(); _LUMEN_DANGER=()
+    for fentry in "${flags_table[@]}"; do
+      fparts=("${(@ps:\t:)fentry}")
+      fname="${fparts[1]}"
+      [[ "$fname" == "$partial"* ]] || continue
+      _LUMEN_CANDIDATES+=("${BUFFER%$partial}${fname} ")
+      _LUMEN_LABELS+=("$fname")
+      _LUMEN_HINTS+=("${fparts[2]:-}")
+      _LUMEN_DESCRIPTIONS+=("${fparts[3]:-}")
+      _LUMEN_ICONS+=("$icon_kind")
+      _LUMEN_DANGER+=("${fparts[4]:-}")
+      (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+    done
+    (( ${#_LUMEN_CANDIDATES} > 0 ))
+    return
+  fi
 
   # Plain args already sitting after the verb path: 0 -> we're completing
   # the type; 1 -> that arg is the type and we're completing the name;
@@ -3198,24 +3770,40 @@ _lumen_kubectl_resource_match() {
 
   # --- type stage: filter the static resource-type table ------------------
   if (( ${#plain} == 0 )) && [[ "$partial" != */* ]]; then
-    local entry name
+    local entry name short desc
     local -a parts type_table
     if (( rollout_target )); then
       type_table=("${_LUMEN_KUBECTL_ROLLOUT_TYPES[@]}")
     else
       type_table=("${_LUMEN_KUBECTL_RESOURCE_TYPES[@]}")
     fi
+    # Each entry can surface as two distinct rows — the full name and its
+    # short alias — rather than one row with the alias jammed onto the end
+    # of the name, so "po" matches and reads as its own candidate instead
+    # of always trailing "pods".
     for entry in "${type_table[@]}"; do
       parts=("${(@ps:\t:)entry}")
       name="${parts[1]}"
-      [[ "$name" == "$partial"* ]] || continue
-      _LUMEN_CANDIDATES+=("${BUFFER%$partial}${name} ")
-      _LUMEN_LABELS+=("$name")
-      _LUMEN_HINTS+=("${parts[2]:-}")
-      _LUMEN_DESCRIPTIONS+=("${parts[3]:-}")
-      _LUMEN_ICONS+=("$icon_kind")
-      _LUMEN_DANGER+=("")
-      (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+      short="${parts[2]:-}"
+      desc="${parts[3]:-}"
+      if [[ "$name" == "$partial"* ]]; then
+        _LUMEN_CANDIDATES+=("${BUFFER%$partial}${name} ")
+        _LUMEN_LABELS+=("$name")
+        _LUMEN_HINTS+=("")
+        _LUMEN_DESCRIPTIONS+=("$desc")
+        _LUMEN_ICONS+=("$icon_kind")
+        _LUMEN_DANGER+=("")
+        (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+      fi
+      if [[ -n "$short" && "$short" == "$partial"* ]]; then
+        _LUMEN_CANDIDATES+=("${BUFFER%$partial}${short} ")
+        _LUMEN_LABELS+=("$short")
+        _LUMEN_HINTS+=("")
+        _LUMEN_DESCRIPTIONS+=("Short for $name")
+        _LUMEN_ICONS+=("$icon_kind")
+        _LUMEN_DANGER+=("")
+        (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+      fi
     done
     (( ${#_LUMEN_CANDIDATES} > 0 ))
     return
@@ -4072,7 +4660,7 @@ _lumen_nested_match() {
   [[ "$BUFFER" == "$tool "* ]] || return 1
 
   case "$tool" in
-    git|kubectl|k|npm|docker|aws|terraform|tf|helm|gh|glab|gcloud|tmux|vagrant|cargo|yarn|pnpm|pulumi|systemctl) ;;
+    git|kubectl|k|npm|docker|aws|terraform|tf|helm|gh|glab|gcloud|az|tmux|vagrant|cargo|yarn|pnpm|pulumi|systemctl) ;;
     *) return 1 ;;
   esac
 
@@ -4108,8 +4696,32 @@ _lumen_nested_match() {
   # at this path at all.
   local table_var
   if [[ "$partial" == -* ]]; then
-    table_var="_LUMEN_${key}_FLAGS"
-    (( ${+parameters[$table_var]} )) || table_var="_LUMEN_GENERIC_FLAGS"
+    # A flag can follow any number of positional args past the verb —
+    # "kubectl get pods -o wide", "git checkout main -f", "docker restart
+    # mycontainer -t 5" — not just sit right after it. The full path key
+    # built above only matches a table when nothing positional came
+    # between the verb and the flag, so try it first and then
+    # progressively drop trailing (positional) words until a real
+    # per-verb *_FLAGS table turns up, landing on the verb's own table
+    # instead of a nonsense key salted with a resource/branch/container
+    # name.
+    local -a kpath=("${(@)path}")
+    local ktool="${(U)tool_canon//[^a-zA-Z0-9]/_}" kkey kseg candidate
+    table_var=""
+    while true; do
+      kkey="$ktool"
+      for kseg in "${kpath[@]}"; do
+        kkey+="_${(U)kseg//[^a-zA-Z0-9]/_}"
+      done
+      candidate="_LUMEN_${kkey}_FLAGS"
+      if (( ${+parameters[$candidate]} )); then
+        table_var="$candidate"
+        break
+      fi
+      (( ${#kpath} == 0 )) && break
+      kpath=("${(@)kpath[1,-2]}")
+    done
+    [[ -n "$table_var" ]] || table_var="_LUMEN_GENERIC_FLAGS"
   else
     table_var="_LUMEN_${key}_SUBCMDS"
     # A "leaf" command with only a *_FLAGS table and no sub-subcommands of
