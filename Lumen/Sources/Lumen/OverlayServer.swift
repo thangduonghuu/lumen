@@ -11,6 +11,18 @@ import Foundation
 /// file's correctness independent of Network.framework's less-documented
 /// Unix-domain-socket entry points.
 final class OverlayServer {
+    /// One overlay message is a small JSON dict (candidates + cursor info).
+    /// Anything past this is a misbehaving or hostile client, not a real
+    /// payload — stop reading and drop it rather than growing `data`
+    /// without bound.
+    private static let maxMessageBytes = 64 * 1024
+
+    /// Ceiling on how long a single client may take to send its blob and
+    /// close. The accept loop handles clients one at a time, so without this
+    /// a client that connects and then stalls (or never sends EOF) wedges
+    /// every subsequent message. `read()` returns -1/EAGAIN when it trips.
+    private static let clientReadTimeoutSeconds = 2
+
     private let socketPath: String
     private var listenFD: Int32 = -1
     private var running = false
@@ -115,16 +127,27 @@ final class OverlayServer {
 
     private func handleClient(_ fd: Int32) {
         defer { close(fd) }
+
+        var timeout = timeval(tv_sec: Self.clientReadTimeoutSeconds, tv_usec: 0)
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+
         var data = Data()
         var buf = [UInt8](repeating: 0, count: 4096)
         while true {
             let n = read(fd, &buf, buf.count)
             if n <= 0 { break }
             data.append(buf, count: n)
+            if data.count > Self.maxMessageBytes {
+                debugLog("Lumen: overlay message exceeded \(Self.maxMessageBytes) bytes — dropped")
+                return
+            }
         }
-        guard !data.isEmpty,
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else { return }
+        guard !data.isEmpty else { return }
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            let preview = String(decoding: data.prefix(200), as: UTF8.self)
+            debugLog("Lumen: overlay message not a JSON object (\(data.count) bytes): \(preview)")
+            return
+        }
         DispatchQueue.main.async { [weak self] in
             self?.onMessage?(json)
         }

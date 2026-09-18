@@ -193,6 +193,12 @@ final class OverlayController {
     func hide() {
         panel?.orderOut(nil)
         anchoredPID = nil
+        // A fresh session (next show) may legitimately land many rows away
+        // from wherever this one last was — a new prompt after a command
+        // printed a screenful of output, say — so the jump-continuity
+        // baseline shouldn't carry over and flag that as implausible. See
+        // TerminalPositioner.resetContinuity.
+        TerminalPositioner.resetContinuity()
     }
 
     /// Handles a click on candidate row `idx`. There's no back-channel from
