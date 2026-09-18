@@ -209,4 +209,66 @@ case_kubectl_match() {
   _lumen_static_or_dynamic_match
   assert_has --dry-run "${_LUMEN_LABELS[@]}"
   assert_lacks --version "${_LUMEN_LABELS[@]}"
+
+  # Same fallback bug for the plain verbs that had no *_FLAGS table at all
+  # (annotate/label/edit/patch/autoscale) — TYPE and NAME already typed
+  # should still land on that verb's own flags, not the generic
+  # -h/--help/--version list.
+  BUFFER="kubectl annotate deployments appdemo1 "
+  _lumen_reset_candidates
+  _lumen_static_or_dynamic_match
+  assert_has --overwrite "${_LUMEN_LABELS[@]}"
+  assert_lacks --version "${_LUMEN_LABELS[@]}"
+
+  # Once the annotate target (TYPE NAME, or TYPE/NAME) is fully typed, also
+  # offer well-known annotation keys (e.g. kubernetes.io/change-cause) —
+  # alongside the flags above, not instead of them.
+  BUFFER="kubectl annotate deployments appdemo1 "
+  _lumen_reset_candidates
+  _lumen_static_or_dynamic_match
+  assert_has 'kubernetes.io/change-cause' "${_LUMEN_LABELS[@]}"
+  assert_has --overwrite                  "${_LUMEN_LABELS[@]}"
+  assert_has "kubectl annotate deployments appdemo1 kubernetes.io/change-cause=" "${_LUMEN_CANDIDATES[@]}"
+
+  BUFFER="kubectl annotate deployment/nginx-deployment "
+  _lumen_reset_candidates
+  _lumen_static_or_dynamic_match
+  assert_has 'kubernetes.io/change-cause' "${_LUMEN_LABELS[@]}"
+
+  # Filtered by what's already typed, and backs off once "=" starts the
+  # value (nothing left here to suggest for the value itself).
+  BUFFER="kubectl annotate deployments appdemo1 kubernetes.io/ch"
+  _lumen_reset_candidates
+  _lumen_kubectl_resource_match
+  assert_has 'kubernetes.io/change-cause' "${_LUMEN_LABELS[@]}"
+  assert_lacks 'prometheus.io/scrape'      "${_LUMEN_LABELS[@]}"
+
+  BUFFER="kubectl annotate deployments appdemo1 kubernetes.io/change-cause=foo"
+  _lumen_reset_candidates
+  _lumen_kubectl_resource_match
+  assert_fail $? 'mid-value -> nothing left for the annotate matcher to suggest'
+
+  BUFFER="kubectl label deployments appdemo1 "
+  _lumen_reset_candidates
+  _lumen_static_or_dynamic_match
+  assert_has --overwrite "${_LUMEN_LABELS[@]}"
+  assert_lacks --version "${_LUMEN_LABELS[@]}"
+
+  BUFFER="kubectl patch deployments appdemo1 "
+  _lumen_reset_candidates
+  _lumen_static_or_dynamic_match
+  assert_has --type "${_LUMEN_LABELS[@]}"
+  assert_lacks --version "${_LUMEN_LABELS[@]}"
+
+  BUFFER="kubectl autoscale deployments appdemo1 "
+  _lumen_reset_candidates
+  _lumen_static_or_dynamic_match
+  assert_has --min "${_LUMEN_LABELS[@]}"
+  assert_lacks --version "${_LUMEN_LABELS[@]}"
+
+  BUFFER="kubectl edit deployments appdemo1 "
+  _lumen_reset_candidates
+  _lumen_static_or_dynamic_match
+  assert_has --save-config "${_LUMEN_LABELS[@]}"
+  assert_lacks --version "${_LUMEN_LABELS[@]}"
 }

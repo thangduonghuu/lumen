@@ -1774,6 +1774,63 @@ typeset -ga _LUMEN_KUBECTL_DELETE_FLAGS=(
   $'--all\t\tDelete all resources of the given type in the namespace\t1'
 )
 
+typeset -ga _LUMEN_KUBECTL_ANNOTATE_FLAGS=(
+  $'--overwrite\t\tAllow overwriting annotations that already have a value'
+  $'--resource-version\t<version>\tOnly update if this is the current resource version'
+  $'--all\t\tAnnotate every resource of the given type in the namespace'
+  $'-l\t<selector>\tAnnotate every resource matching this label selector'
+  $'--list\t\tList the annotations for the object instead of setting one'
+  $'--dry-run\t<client|server>\tPreview the change without applying it'
+  $'-n\t<namespace>\tNamespace of the resource'
+)
+
+# Well-known KEY=VALUE annotations people actually type by hand after
+# `kubectl annotate <type> <name> ` — picked up by _lumen_kubectl_resource_match
+# once the target is fully typed. kubernetes.io/change-cause is the one
+# `kubectl rollout history`/`undo` reads back out.
+typeset -ga _LUMEN_KUBECTL_ANNOTATE_WELLKNOWN_KEYS=(
+  $'kubernetes.io/change-cause\tShown by `kubectl rollout history`; record why this change was made'
+  $'prometheus.io/scrape\tLet a Prometheus using annotation-based discovery scrape this pod/service'
+  $'prometheus.io/port\tPort for Prometheus to scrape on this pod/service'
+  $'prometheus.io/path\tMetrics path for Prometheus to scrape (default /metrics)'
+)
+
+typeset -ga _LUMEN_KUBECTL_LABEL_FLAGS=(
+  $'--overwrite\t\tAllow overwriting labels that already have a value'
+  $'--resource-version\t<version>\tOnly update if this is the current resource version'
+  $'--all\t\tLabel every resource of the given type in the namespace'
+  $'-l\t<selector>\tLabel every resource matching this label selector'
+  $'--list\t\tList the labels for the object instead of setting one'
+  $'--dry-run\t<client|server>\tPreview the change without applying it'
+  $'-n\t<namespace>\tNamespace of the resource'
+)
+
+typeset -ga _LUMEN_KUBECTL_EDIT_FLAGS=(
+  $'-o\t<yaml|json>\tOutput format used to edit the resource (default yaml)'
+  $'--save-config\t\tKeep the config so future kubectl apply calls can track it'
+  $'-k\t<dir>\tEdit the Kustomization in this directory instead of a live object'
+  $'--field-manager\t<name>\tName of the manager used to track field ownership'
+  $'-n\t<namespace>\tNamespace of the resource'
+)
+
+typeset -ga _LUMEN_KUBECTL_PATCH_FLAGS=(
+  $'-p\t<patch>\tThe patch content, as JSON or YAML'
+  $'--type\t<strategic|merge|json>\tPatch format to use (default strategic)'
+  $'--patch-file\t<file>\tRead the patch from a file instead of -p'
+  $'--dry-run\t<client|server>\tPreview the change without applying it'
+  $'--field-manager\t<name>\tName of the manager used to track field ownership'
+  $'-n\t<namespace>\tNamespace of the resource'
+)
+
+typeset -ga _LUMEN_KUBECTL_AUTOSCALE_FLAGS=(
+  $'--min\t<n>\tLower limit for the number of replicas'
+  $'--max\t<n>\tUpper limit for the number of replicas'
+  $'--cpu-percent\t<n>\tTarget average CPU utilization (default 80)'
+  $'--name\t<name>\tName for the newly created HorizontalPodAutoscaler'
+  $'--dry-run\t<client|server>\tPreview the change without applying it'
+  $'-n\t<namespace>\tNamespace of the resource'
+)
+
 typeset -ga _LUMEN_KUBECTL_LOGS_FLAGS=(
   $'-f\t\tStream logs continuously'
   $'--follow\t\tStream logs continuously'
@@ -3762,6 +3819,53 @@ _lumen_kubectl_resource_match() {
       *) plain+=("${words[i]}") ;;
     esac
   done
+  # `annotate <type> <name> <key>=<value>` / `annotate <type>/<name>
+  # <key>=<value>`: once the target is fully typed, offer a short list of
+  # well-known annotation keys (e.g. kubernetes.io/change-cause) alongside
+  # the verb's own flags (--overwrite, -n, ...) instead of backing off with
+  # nothing to suggest. Both lists only match a partial that starts with
+  # neither "-" (handled above already) nor is mid-value — once "=" starts
+  # the value, this falls through to the normal backoff below.
+  local -i annotate_target_done=0
+  if [[ "$verb" == annotate ]]; then
+    (( ${#plain} == 2 )) && annotate_target_done=1
+    (( ${#plain} == 1 )) && [[ "${plain[1]}" == */* ]] && annotate_target_done=1
+  fi
+  if (( annotate_target_done )) && [[ "$partial" != *=* ]]; then
+    local akey adesc aentry fentry fname
+    local -a aparts fparts
+    local ann_icon_kind=$(_lumen_tool_icon_kind kubectl)
+    _LUMEN_CANDIDATES=(); _LUMEN_DESCRIPTIONS=(); _LUMEN_HINTS=()
+    _LUMEN_LABELS=(); _LUMEN_ICONS=(); _LUMEN_DANGER=()
+    for aentry in "${_LUMEN_KUBECTL_ANNOTATE_WELLKNOWN_KEYS[@]}"; do
+      aparts=("${(@ps:\t:)aentry}")
+      akey="${aparts[1]}"
+      adesc="${aparts[2]:-}"
+      [[ "$akey" == "$partial"* ]] || continue
+      _LUMEN_CANDIDATES+=("${BUFFER%$partial}${akey}=")
+      _LUMEN_LABELS+=("$akey")
+      _LUMEN_HINTS+=("=<value>")
+      _LUMEN_DESCRIPTIONS+=("$adesc")
+      _LUMEN_ICONS+=("$ann_icon_kind")
+      _LUMEN_DANGER+=("")
+      (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+    done
+    for fentry in "${_LUMEN_KUBECTL_ANNOTATE_FLAGS[@]}"; do
+      (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+      fparts=("${(@ps:\t:)fentry}")
+      fname="${fparts[1]}"
+      [[ "$fname" == "$partial"* ]] || continue
+      _LUMEN_CANDIDATES+=("${BUFFER%$partial}${fname} ")
+      _LUMEN_LABELS+=("$fname")
+      _LUMEN_HINTS+=("${fparts[2]:-}")
+      _LUMEN_DESCRIPTIONS+=("${fparts[3]:-}")
+      _LUMEN_ICONS+=("$ann_icon_kind")
+      _LUMEN_DANGER+=("${fparts[4]:-}")
+    done
+    (( ${#_LUMEN_CANDIDATES} > 0 )) && return 0
+    return 1
+  fi
+
   (( ${#plain} <= 1 )) || return 1
   # A "type/name" arg is already a complete reference — nothing left to
   # complete (the user has moved on to container=image / KEY=VALUE / ...).
