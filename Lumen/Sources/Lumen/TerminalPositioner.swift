@@ -168,6 +168,45 @@ enum TerminalPositioner {
     private static let cellWidthRange: ClosedRange<CGFloat> = 3...40
     private static let cellHeightRange: ClosedRange<CGFloat> = 6...60
 
+    /// The most recently trusted caret-bounds reading, per pid — lets a
+    /// single implausible jump (see `implausibleJump(from:pid:)`) be
+    /// recognized against "what this same app was just reporting a moment
+    /// ago", not just against screen bounds. Cleared whenever the overlay
+    /// hides (see `resetContinuity`) so a legitimate jump to a new prompt
+    /// several screens down — after the panel was closed and reopens fresh
+    /// — is never second-guessed; only a jump WITHIN one continuously-shown
+    /// session is.
+    private static var lastTrustedCaretAnchor: (pid: pid_t, anchor: ScreenAnchor, at: Date)?
+
+    /// Larger than any real single-line cursor move a terminal's font size
+    /// could produce, comfortably under the ~1600pt jump actually observed
+    /// (2026-09-17, TermHub, mid-edit on an existing prompt line — see the
+    /// isTermHub comment above: its AXBoundsForRange answer has been seen to
+    /// go stale/unflipped for a single query with no window move involved).
+    private static let implausibleJumpPoints: CGFloat = 400
+    private static let continuityWindowSeconds: TimeInterval = 2.0
+
+    /// Called whenever the overlay panel hides (see OverlayController.hide)
+    /// so the next show — a fresh session, possibly a brand-new prompt many
+    /// rows away from the last one — starts without a stale baseline to be
+    /// compared against.
+    static func resetContinuity() {
+        lastTrustedCaretAnchor = nil
+    }
+
+    /// Returns the jump distance (points) if `result` is implausibly far
+    /// from the last trusted caret-bounds reading for the same pid within
+    /// `continuityWindowSeconds`, or nil if there's nothing to compare
+    /// against or the move is plausible.
+    private static func implausibleJump(from result: ScreenAnchor, pid: pid_t) -> CGFloat? {
+        guard let last = lastTrustedCaretAnchor,
+              last.pid == pid,
+              Date().timeIntervalSince(last.at) < continuityWindowSeconds
+        else { return nil }
+        let distance = abs(result.cellBottomY - last.anchor.cellBottomY)
+        return distance > implausibleJumpPoints ? distance : nil
+    }
+
     static func anchor(for cursor: CursorInfo) -> ScreenAnchor? {
         guard let app = NSWorkspace.shared.frontmostApplication else {
             debugLog("Lumen: overlay position: no frontmost app")
@@ -223,12 +262,22 @@ enum TerminalPositioner {
                 )
             }
             if isOnSomeScreen(result) {
-                debugLog("Lumen: overlay position: using caret bounds for "
-                    + "\(app.localizedName ?? "?") rect=\(rect) -> \(result)")
-                return result
+                if let jump = implausibleJump(from: result, pid: app.processIdentifier) {
+                    debugLog("Lumen: overlay position: rejecting caret bounds for "
+                        + "\(app.localizedName ?? "?") rect=\(rect) -> \(result) — \(jump)pt jump from the "
+                        + "last trusted reading within \(continuityWindowSeconds)s with no hide in between "
+                        + "(known TermHub AX-bridging glitch — see isTermHub above), falling back to "
+                        + "frame-based computation instead of trusting it")
+                } else {
+                    debugLog("Lumen: overlay position: using caret bounds for "
+                        + "\(app.localizedName ?? "?") rect=\(rect) -> \(result)")
+                    lastTrustedCaretAnchor = (app.processIdentifier, result, Date())
+                    return result
+                }
+            } else {
+                debugLog("Lumen: overlay position: caret bounds for \(app.localizedName ?? "?") "
+                    + "rect=\(rect) resolved off-screen, falling back to frame-based computation")
             }
-            debugLog("Lumen: overlay position: caret bounds for \(app.localizedName ?? "?") "
-                + "rect=\(rect) resolved off-screen, falling back to frame-based computation")
         }
 
         // SECONDARY, STILL CARET-BASED: VS Code's integrated terminal (and

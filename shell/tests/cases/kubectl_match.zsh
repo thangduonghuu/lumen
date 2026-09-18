@@ -24,11 +24,21 @@ case_kubectl_match() {
   assert_lacks context   "${_LUMEN_LABELS[@]}"
   assert_lacks namespace "${_LUMEN_LABELS[@]}"
 
-  # "k" alias resolves to the same table.
+  # "k" only resolves to kubectl when the user's own shell actually
+  # aliases it that way (see _lumen_k_is_kubectl) — not assumed
+  # unconditionally, so it doesn't hijack the letter for anyone who never
+  # set that alias up.
+  BUFFER="k wai"
+  _lumen_reset_candidates
+  _lumen_static_or_dynamic_match
+  assert_fail $? 'k wai -> no match without the "k" alias'
+
+  alias k=kubectl
   BUFFER="k wai"
   _lumen_reset_candidates
   _lumen_static_or_dynamic_match
   assert_has wait "${_LUMEN_LABELS[@]}"
+  unalias k
 
   # Resource-type stage: "kubectl get <partial>" offers plural type names
   # from the static table, filtered by the partial.
@@ -187,4 +197,16 @@ case_kubectl_match() {
   _lumen_reset_candidates
   _lumen_static_or_dynamic_match
   assert_has --dry-run "${_LUMEN_LABELS[@]}"
+
+  # Once TYPE and NAME are typed as two separate words (not "type/name"),
+  # the resource matcher backs off with nothing left to complete and
+  # _lumen_nested_match takes over. Its path key ("...DEPLOYMENTS_APPDEMO1")
+  # matches no real table, so it must drop those trailing positional words
+  # to land on the verb's own flags table instead of the generic top-level
+  # -h/--help/--version fallback.
+  BUFFER="kubectl set image deployments appdemo1 "
+  _lumen_reset_candidates
+  _lumen_static_or_dynamic_match
+  assert_has --dry-run "${_LUMEN_LABELS[@]}"
+  assert_lacks --version "${_LUMEN_LABELS[@]}"
 }

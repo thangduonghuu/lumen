@@ -3012,6 +3012,17 @@ _lumen_tool_icon_kind() {
   esac
 }
 
+# "k" is a near-universal alias for kubectl (it's the one `kubectl`'s own
+# docs suggest: `alias k=kubectl`), but only for people who actually set it
+# up — treating a bare "k" as kubectl unconditionally hijacks it for every
+# user who typed the single letter for some other reason. Every matcher
+# below that accepts "k" as a kubectl spelling gates it through this check
+# first, so the suggestion only appears when the user's own shell agrees "k"
+# means kubectl.
+_lumen_k_is_kubectl() {
+  [[ "${aliases[k]:-}" == kubectl* ]]
+}
+
 # Matches $BUFFER against a known "<tool> <partial-subcommand>" shape and,
 # if it's a tool we have a static table for (see _LUMEN_GIT_SUBCMDS),
 # populates the candidate/description/hint arrays directly from it. Only
@@ -3027,7 +3038,8 @@ _lumen_static_match() {
   local -a table
   case "$tool" in
     git) table=("${_LUMEN_GIT_SUBCMDS[@]}") ;;
-    kubectl|k) table=("${_LUMEN_KUBECTL_SUBCMDS[@]}") ;;
+    kubectl) table=("${_LUMEN_KUBECTL_SUBCMDS[@]}") ;;
+    k) _lumen_k_is_kubectl || return 1; table=("${_LUMEN_KUBECTL_SUBCMDS[@]}") ;;
     npm) table=("${_LUMEN_NPM_SUBCMDS[@]}") ;;
     docker) table=("${_LUMEN_DOCKER_SUBCMDS[@]}") ;;
     aws) table=("${_LUMEN_AWS_SUBCMDS[@]}") ;;
@@ -3584,7 +3596,7 @@ _lumen_kubectl_ns() {
 # reachable cluster.
 _lumen_kubectl_pod_match() {
   local tool="${BUFFER%% *}"
-  case "$tool" in kubectl|k) ;; *) return 1 ;; esac
+  case "$tool" in kubectl) ;; k) _lumen_k_is_kubectl || return 1 ;; *) return 1 ;; esac
   [[ "$BUFFER" == "$tool "* ]] || return 1
 
   local -a words=(${(z)BUFFER})
@@ -3669,7 +3681,7 @@ _lumen_kubectl_pod_match() {
 # -n <ns>" constraint and no-caching policy as _lumen_kubectl_pod_match.
 _lumen_kubectl_resource_match() {
   local tool="${BUFFER%% *}"
-  case "$tool" in kubectl|k) ;; *) return 1 ;; esac
+  case "$tool" in kubectl) ;; k) _lumen_k_is_kubectl || return 1 ;; *) return 1 ;; esac
   [[ "$BUFFER" == "$tool "* ]] || return 1
 
   local -a words=(${(z)BUFFER})
@@ -4660,7 +4672,8 @@ _lumen_nested_match() {
   [[ "$BUFFER" == "$tool "* ]] || return 1
 
   case "$tool" in
-    git|kubectl|k|npm|docker|aws|terraform|tf|helm|gh|glab|gcloud|az|tmux|vagrant|cargo|yarn|pnpm|pulumi|systemctl) ;;
+    git|kubectl|npm|docker|aws|terraform|tf|helm|gh|glab|gcloud|az|tmux|vagrant|cargo|yarn|pnpm|pulumi|systemctl) ;;
+    k) _lumen_k_is_kubectl || return 1 ;;
     *) return 1 ;;
   esac
 
@@ -4735,7 +4748,31 @@ _lumen_nested_match() {
     # -a/-q/--filter right away, same as "docker images -" already did.
     if (( ! ${+parameters[$table_var]} )); then
       table_var="_LUMEN_${key}_FLAGS"
-      (( ${+parameters[$table_var]} )) || table_var="_LUMEN_GENERIC_FLAGS"
+      if (( ! ${+parameters[$table_var]} )); then
+        # Positional args typed past the verb (a resource name, TYPE NAME,
+        # a branch, a container, ...) salt the path key the same way a
+        # trailing flag does above — "kubectl set image deploy web ",
+        # "docker restart mycontainer " — so drop trailing words the same
+        # way until a real verb-level *_FLAGS table turns up, instead of
+        # falling straight to the irrelevant generic flag list.
+        local -a kpath=("${(@)path}")
+        local ktool="${(U)tool_canon//[^a-zA-Z0-9]/_}" kkey kseg candidate
+        table_var=""
+        while true; do
+          kkey="$ktool"
+          for kseg in "${kpath[@]}"; do
+            kkey+="_${(U)kseg//[^a-zA-Z0-9]/_}"
+          done
+          candidate="_LUMEN_${kkey}_FLAGS"
+          if (( ${+parameters[$candidate]} )); then
+            table_var="$candidate"
+            break
+          fi
+          (( ${#kpath} == 0 )) && break
+          kpath=("${(@)kpath[1,-2]}")
+        done
+        [[ -n "$table_var" ]] || table_var="_LUMEN_GENERIC_FLAGS"
+      fi
     fi
   fi
   # Flags and sub-subcommands both belong to the same tool, so they get the
@@ -4970,6 +5007,7 @@ _lumen_path_arg_match() {
 _lumen_cp_match() { _lumen_path_arg_match cp Copy }
 _lumen_mv_match() { _lumen_path_arg_match mv Move }
 _lumen_ln_match() { _lumen_path_arg_match ln Link }
+_lumen_vim_match() { _lumen_path_arg_match vim Edit }
 
 # Suggests running processes for kill/pkill/killall from the live process
 # table (`ps`) — the process-table counterpart to
@@ -5049,6 +5087,7 @@ _lumen_static_or_dynamic_match() {
   _lumen_cp_match && return 0
   _lumen_mv_match && return 0
   _lumen_ln_match && return 0
+  _lumen_vim_match && return 0
   _lumen_kill_match && return 0
   _lumen_git_branch_match && return 0
   _lumen_git_remote_match && return 0
@@ -5320,6 +5359,20 @@ _lumen_line_init() {
 }
 
 # --- registration --------------------------------------------------------
+
+# zsh's factory-default $KEYTIMEOUT (40, in hundredths of a second = 400ms)
+# is how long zle waits after a bare Escape before deciding it isn't the
+# start of a longer \e-prefixed sequence (arrow keys, Alt-combos, ...) —
+# see the comment on the '^[' binding below for the mechanism. At that
+# default, pressing Escape to dismiss the suggestion (_lumen_dismiss_escape)
+# has a real, noticeable ~400ms lag before anything happens, which defeats
+# the point of a reflexive "just tap Escape" dismiss. A real terminal-
+# generated escape sequence always arrives as one atomic write(), not
+# byte-by-byte like a human pressing keys, so a much shorter window is
+# still plenty to tell the two apart — only lowered when $KEYTIMEOUT is
+# still at that factory default, so a value the user (or another plugin)
+# deliberately set themselves is left alone.
+(( KEYTIMEOUT == 40 )) && KEYTIMEOUT=1
 
 zle -N _lumen_trigger
 zle -N _lumen_accept
