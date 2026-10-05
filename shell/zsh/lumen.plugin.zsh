@@ -437,6 +437,14 @@ typeset -ga _LUMEN_YARN_INSTALL_FLAGS=(
   $'--ignore-scripts\t\tSkip lifecycle scripts'
 )
 
+typeset -ga _LUMEN_YARN_REMOVE_FLAGS=(
+  $'-W\t\tAllow removing a dependency from the workspace root'
+)
+
+typeset -ga _LUMEN_YARN_DLX_FLAGS=(
+  $'-p\t<pkg>\tPackage that provides the binary to run'
+)
+
 typeset -ga _LUMEN_PNPM_SUBCMDS=(
   $'add\t<package>\tAdd a dependency'
   $'remove\t<package>\tRemove a dependency'
@@ -464,6 +472,24 @@ typeset -ga _LUMEN_PNPM_INSTALL_FLAGS=(
 typeset -ga _LUMEN_PNPM_ADD_FLAGS=(
   $'-D\t\tSave as a devDependency'
   $'--save-dev\t\tSave as a devDependency'
+)
+
+typeset -ga _LUMEN_PNPM_REMOVE_FLAGS=(
+  $'-D\t\tRemove from devDependencies'
+  $'-g\t\tRemove a global package'
+)
+
+typeset -ga _LUMEN_PNPM_RUN_FLAGS=(
+  $'--if-present\t\tSkip silently if the script is not defined'
+  $'-r\t\tRun the script in every workspace package'
+)
+
+typeset -ga _LUMEN_PNPM_WHY_FLAGS=(
+  $'-r\t\tCheck every workspace package'
+)
+
+typeset -ga _LUMEN_PNPM_DLX_FLAGS=(
+  $'--package\t<pkg>\tPackage that provides the binary to run'
 )
 
 # GitLab's counterpart to gh — same shape, but "mr" (merge request) where
@@ -839,6 +865,51 @@ typeset -ga _LUMEN_GO_SUBCMDS=(
   $'work\t[init|use|edit]\tManage go.work workspace files'
 )
 
+typeset -ga _LUMEN_GO_RUN_FLAGS=(
+  $'-race\t\tEnable the race detector'
+  $'-v\t\tPrint the names of packages as they are compiled'
+)
+
+typeset -ga _LUMEN_GO_GET_FLAGS=(
+  $'-u\t\tUpdate to the latest compatible version'
+  $'-t\t\tAlso consider modules needed by tests'
+)
+
+typeset -ga _LUMEN_GO_INSTALL_FLAGS=(
+  $'-v\t\tPrint the names of packages as they are compiled'
+)
+
+typeset -ga _LUMEN_CARGO_ADD_FLAGS=(
+  $'--dev\t\tAdd as a development dependency'
+  $'--features\t<feat>\tEnable specific crate features'
+  $'--no-default-features\t\tDisable the default features'
+  $'--version\t<ver>\tVersion requirement for the dependency'
+)
+
+typeset -ga _LUMEN_CARGO_REMOVE_FLAGS=(
+  $'--dev\t\tRemove from development dependencies'
+)
+
+typeset -ga _LUMEN_CARGO_INSTALL_FLAGS=(
+  $'--version\t<ver>\tVersion to install'
+  $'--path\t<path>\tInstall from a local path instead of a registry'
+  $'--locked\t\tUse the exact dependency versions in Cargo.lock'
+)
+
+typeset -ga _LUMEN_CARGO_UNINSTALL_FLAGS=(
+  $'--root\t<dir>\tDirectory to uninstall the package from'
+)
+
+typeset -ga _LUMEN_CARGO_NEW_FLAGS=(
+  $'--lib\t\tCreate a library crate instead of a binary'
+  $'--vcs\t<git|none>\tVersion control system to initialize'
+)
+
+typeset -ga _LUMEN_CARGO_SEARCH_FLAGS=(
+  $'--limit\t<n>\tMaximum number of results'
+  $'--registry\t<name>\tRegistry to search'
+)
+
 typeset -ga _LUMEN_PIP_SUBCMDS=(
   $'install\t<package>\tInstall a package'
   $'uninstall\t<package>\tUninstall a package'
@@ -850,6 +921,31 @@ typeset -ga _LUMEN_PIP_SUBCMDS=(
   $'check\t\tVerify installed packages have compatible dependencies'
   $'config\t[list|get|set]\tManage pip configuration'
   $'cache\t[list|remove|purge]\tManage pip'"'"'s wheel cache'
+)
+
+typeset -ga _LUMEN_PIP_INSTALL_FLAGS=(
+  $'-U\t\tUpgrade the package to the newest available version'
+  $'--no-deps\t\tDo not install the package dependencies'
+  $'-r\t<file>\tInstall from a requirements file'
+  $'--user\t\tInstall into the user site-packages directory'
+  $'--index-url\t<url>\tPackage index to use instead of PyPI'
+)
+
+typeset -ga _LUMEN_PIP_UNINSTALL_FLAGS=(
+  $'-y\t\tSkip the confirmation prompt'
+)
+
+typeset -ga _LUMEN_PIP_SHOW_FLAGS=(
+  $'-f\t\tAlso list the files installed by the package'
+)
+
+typeset -ga _LUMEN_PIP_DOWNLOAD_FLAGS=(
+  $'-d\t<dir>\tDirectory to download into'
+  $'--no-deps\t\tDo not download the package dependencies'
+)
+
+typeset -ga _LUMEN_PIP_WHEEL_FLAGS=(
+  $'-w\t<dir>\tDirectory to build the wheel into'
 )
 
 typeset -ga _LUMEN_POETRY_SUBCMDS=(
@@ -867,6 +963,20 @@ typeset -ga _LUMEN_POETRY_SUBCMDS=(
   $'lock\t\tLock dependencies without installing'
   $'env\t[info|list|use|remove]\tManage Poetry environments'
   $'check\t\tValidate pyproject.toml'
+)
+
+typeset -ga _LUMEN_POETRY_ADD_FLAGS=(
+  $'--group\t<group>\tAdd to a specific dependency group (e.g. dev)'
+  $'--optional\t\tMark the dependency as optional'
+)
+
+typeset -ga _LUMEN_POETRY_REMOVE_FLAGS=(
+  $'--group\t<group>\tRemove from a specific dependency group'
+)
+
+typeset -ga _LUMEN_POETRY_NEW_FLAGS=(
+  $'--src\t\tUse the src layout for the new project'
+  $'--name\t<pkgname>\tPackage name, if different from the directory'
 )
 
 typeset -ga _LUMEN_MVN_SUBCMDS=(
@@ -910,6 +1020,11 @@ typeset -ga _LUMEN_DOTNET_SUBCMDS=(
   $'nuget\t[push|locals]\tManage NuGet packages'
 )
 
+typeset -ga _LUMEN_DOTNET_NEW_FLAGS=(
+  $'-o\t<dir>\tOutput directory for the new project'
+  $'-n\t<name>\tName for the new project'
+)
+
 typeset -ga _LUMEN_BUNDLE_SUBCMDS=(
   $'install\t\tInstall gems from the Gemfile'
   $'update\t\tUpdate gems to the latest allowed version'
@@ -924,6 +1039,16 @@ typeset -ga _LUMEN_BUNDLE_SUBCMDS=(
   $'lock\t\tGenerate a Gemfile.lock without installing'
 )
 
+typeset -ga _LUMEN_BUNDLE_ADD_FLAGS=(
+  $'--version\t<ver>\tVersion requirement for the gem'
+  $'--group\t<group>\tAdd to a specific Gemfile group'
+  $'--source\t<url>\tInstall from a specific gem source'
+)
+
+typeset -ga _LUMEN_BUNDLE_SHOW_FLAGS=(
+  $'--paths\t\tShow only the paths of every gem in the bundle'
+)
+
 typeset -ga _LUMEN_GEM_SUBCMDS=(
   $'install\t<gem>\tInstall a gem'
   $'uninstall\t<gem>\tUninstall a gem'
@@ -934,6 +1059,36 @@ typeset -ga _LUMEN_GEM_SUBCMDS=(
   $'push\t<gem>\tPush a gem to RubyGems.org'
   $'specification\t<gem>\tShow a gem'"'"'s specification'
   $'which\t<lib>\tLocate a library file'
+)
+
+typeset -ga _LUMEN_GEM_INSTALL_FLAGS=(
+  $'-v\t<ver>\tInstall a specific version'
+  $'--user-install\t\tInstall into the user directory'
+  $'-N\t\tSkip generating documentation'
+)
+
+typeset -ga _LUMEN_GEM_UNINSTALL_FLAGS=(
+  $'-v\t<ver>\tUninstall a specific version'
+  $'-a\t\tUninstall every installed version\t1'
+  $'-x\t\tAlso remove the executables'
+)
+
+typeset -ga _LUMEN_GEM_SEARCH_FLAGS=(
+  $'-r\t\tSearch the remote index'
+  $'-l\t\tSearch only locally installed gems'
+)
+
+typeset -ga _LUMEN_GEM_BUILD_FLAGS=(
+  $'-o\t<file>\tOutput filename for the built gem'
+)
+
+typeset -ga _LUMEN_GEM_PUSH_FLAGS=(
+  $'--host\t<url>\tGem server to push to'
+  $'-k\t<name>\tAPI key to use'
+)
+
+typeset -ga _LUMEN_GEM_SPECIFICATION_FLAGS=(
+  $'--ruby\t\tPrint the specification as executable Ruby'
 )
 
 # --- system/infra/PaaS tool tables ------------------------------------------
@@ -954,6 +1109,42 @@ typeset -ga _LUMEN_BREW_SUBCMDS=(
   $'outdated\t\tList installed formulae with updates available'
   $'link\t<formula>\tSymlink a formula'"'"'s installed files'
   $'unlink\t<formula>\tRemove symlinks for a formula'
+)
+
+typeset -ga _LUMEN_BREW_INSTALL_FLAGS=(
+  $'--cask\t\tInstall a cask instead of a formula'
+  $'--build-from-source\t\tCompile from source instead of using a bottle'
+  $'--force\t\tReinstall even if already installed'
+  $'--HEAD\t\tInstall the development version from the head of the repo'
+)
+
+typeset -ga _LUMEN_BREW_UNINSTALL_FLAGS=(
+  $'--force\t\tRemove all installed versions\t1'
+  $'--ignore-dependencies\t\tSkip the dependency check\t1'
+)
+
+typeset -ga _LUMEN_BREW_SEARCH_FLAGS=(
+  $'--formula\t\tSearch formulae only'
+  $'--cask\t\tSearch casks only'
+)
+
+typeset -ga _LUMEN_BREW_INFO_FLAGS=(
+  $'--cask\t\tShow info for a cask instead of a formula'
+  $'--json\t<version>\tPrint machine-readable JSON'
+)
+
+typeset -ga _LUMEN_BREW_UNTAP_FLAGS=(
+  $'--force\t\tUntap even if it has an installed formula or cask\t1'
+)
+
+typeset -ga _LUMEN_BREW_LINK_FLAGS=(
+  $'--overwrite\t\tOverwrite existing conflicting files\t1'
+  $'--force\t\tAllow linking a keg-only formula'
+  $'--dry-run\t\tPreview what would be linked without linking'
+)
+
+typeset -ga _LUMEN_BREW_UNLINK_FLAGS=(
+  $'--dry-run\t\tPreview what would be unlinked without unlinking'
 )
 
 typeset -ga _LUMEN_VAGRANT_SUBCMDS=(
@@ -1031,6 +1222,16 @@ typeset -ga _LUMEN_HEROKU_SUBCMDS=(
   $'maintenance\t[on|off]\tToggle maintenance mode'
 )
 
+typeset -ga _LUMEN_HEROKU_RUN_FLAGS=(
+  $'-a\t<name>\tApp to run the command on'
+  $'--size\t<dyno>\tDyno size to run on'
+)
+
+typeset -ga _LUMEN_PULUMI_NEW_FLAGS=(
+  $'-y\t\tSkip prompts and accept the defaults'
+  $'-s\t<name>\tStack to create or use'
+)
+
 typeset -ga _LUMEN_VERCEL_SUBCMDS=(
   $'deploy\t\tDeploy the current directory'
   $'dev\t\tRun a local development server'
@@ -1045,6 +1246,11 @@ typeset -ga _LUMEN_VERCEL_SUBCMDS=(
   $'whoami\t\tShow the current logged-in user'
   $'project\t[ls|add|rm]\tManage projects'
   $'teams\t[ls|switch]\tManage teams'
+)
+
+typeset -ga _LUMEN_VERCEL_RM_FLAGS=(
+  $'-y\t\tSkip the confirmation prompt\t1'
+  $'--safe\t\tSkip deployments that have received traffic within the last 24 hours'
 )
 
 typeset -ga _LUMEN_NETLIFY_SUBCMDS=(
@@ -1075,6 +1281,11 @@ typeset -ga _LUMEN_FIREBASE_SUBCMDS=(
   $'hosting:channel:deploy\t<channel>\tDeploy to a hosting preview channel'
 )
 
+typeset -ga _LUMEN_FIREBASE_HOSTING_CHANNEL_DEPLOY_FLAGS=(
+  $'--expires\t<duration>\tHow long the preview channel stays live (e.g. 7d)'
+  $'-m\t<text>\tMessage describing this deploy'
+)
+
 typeset -ga _LUMEN_FLYCTL_SUBCMDS=(
   $'deploy\t\tDeploy the app'
   $'launch\t\tCreate and configure a new app'
@@ -1088,6 +1299,10 @@ typeset -ga _LUMEN_FLYCTL_SUBCMDS=(
   $'ssh\t[console|shell]\tSSH into a running machine'
   $'open\t\tOpen the app in your browser'
   $'destroy\t<app>\tDestroy an app'
+)
+
+typeset -ga _LUMEN_FLYCTL_DESTROY_FLAGS=(
+  $'-y\t\tSkip the confirmation prompt\t1'
 )
 
 typeset -ga _LUMEN_DOCTL_SUBCMDS=(
@@ -1115,6 +1330,16 @@ typeset -ga _LUMEN_TURBO_SUBCMDS=(
   $'gen\t\tRun code generators'
 )
 
+typeset -ga _LUMEN_TURBO_RUN_FLAGS=(
+  $'--filter\t<pkg>\tRestrict the run to matching packages'
+  $'--parallel\t\tRun tasks in parallel across packages'
+  $'--force\t\tIgnore the cache and re-run every task'
+)
+
+typeset -ga _LUMEN_TURBO_PRUNE_FLAGS=(
+  $'--docker\t\tOutput in the layout expected by a Docker build'
+)
+
 typeset -ga _LUMEN_NX_SUBCMDS=(
   $'run\t<project>:<target>\tRun a target for a project'
   $'build\t[project]\tBuild a project'
@@ -1127,6 +1352,25 @@ typeset -ga _LUMEN_NX_SUBCMDS=(
   $'graph\t\tShow the project dependency graph'
   $'affected\t[build|test|lint]\tRun a target for affected projects only'
   $'migrate\t<version>\tMigrate to a new Nx version'
+)
+
+typeset -ga _LUMEN_NX_RUN_FLAGS=(
+  $'--skip-nx-cache\t\tIgnore the computation cache'
+  $'--verbose\t\tPrint additional diagnostic output'
+)
+
+typeset -ga _LUMEN_NX_GENERATE_FLAGS=(
+  $'--dry-run\t\tPreview the changes without writing any files'
+  $'--project\t<name>\tProject to generate into'
+)
+
+typeset -ga _LUMEN_NX_G_FLAGS=(
+  $'--dry-run\t\tPreview the changes without writing any files'
+  $'--project\t<name>\tProject to generate into'
+)
+
+typeset -ga _LUMEN_NX_MIGRATE_FLAGS=(
+  $'--run-migrations\t\tRun the generated migrations'
 )
 
 typeset -ga _LUMEN_TMUX_SUBCMDS=(
@@ -1163,6 +1407,10 @@ typeset -ga _LUMEN_TMUX_KILL_WINDOW_FLAGS=(
   $'-t\t<name>\tWindow to destroy'
 )
 
+typeset -ga _LUMEN_TMUX_SOURCE_FILE_FLAGS=(
+  $'-q\t\tDo not print errors from the sourced file'
+)
+
 typeset -ga _LUMEN_SYSTEMCTL_SUBCMDS=(
   $'start\t<unit>\tStart a unit'
   $'stop\t<unit>\tStop a unit'
@@ -1187,6 +1435,36 @@ typeset -ga _LUMEN_SYSTEMCTL_STATUS_FLAGS=(
   $'--no-pager\t\tDo not pipe output into a pager'
 )
 
+typeset -ga _LUMEN_SYSTEMCTL_START_FLAGS=(
+  $'--now\t\tStart immediately (used with enable)'
+  $'--user\t\tOperate on the calling user service manager'
+)
+
+typeset -ga _LUMEN_SYSTEMCTL_STOP_FLAGS=(
+  $'--user\t\tOperate on the calling user service manager'
+)
+
+typeset -ga _LUMEN_SYSTEMCTL_RESTART_FLAGS=(
+  $'--user\t\tOperate on the calling user service manager'
+)
+
+typeset -ga _LUMEN_SYSTEMCTL_DISABLE_FLAGS=(
+  $'--now\t\tAlso stop the unit immediately'
+  $'--user\t\tOperate on the calling user service manager'
+)
+
+typeset -ga _LUMEN_SYSTEMCTL_RELOAD_FLAGS=(
+  $'--user\t\tOperate on the calling user service manager'
+)
+
+typeset -ga _LUMEN_SYSTEMCTL_IS_ACTIVE_FLAGS=(
+  $'--quiet\t\tSuppress output; only set the exit code'
+)
+
+typeset -ga _LUMEN_SYSTEMCTL_IS_ENABLED_FLAGS=(
+  $'--quiet\t\tSuppress output; only set the exit code'
+)
+
 typeset -ga _LUMEN_NVM_SUBCMDS=(
   $'install\t<version>\tInstall a Node.js version'
   $'use\t<version>\tSwitch to a Node.js version'
@@ -1198,6 +1476,16 @@ typeset -ga _LUMEN_NVM_SUBCMDS=(
   $'run\t<version> <args>\tRun a script with a specific Node.js version'
   $'exec\t<version> <cmd>\tRun a command with a specific Node.js version'
   $'which\t[version]\tShow the path to a Node.js version'
+)
+
+typeset -ga _LUMEN_NVM_INSTALL_FLAGS=(
+  $'--lts\t\tInstall the latest LTS release'
+  $'--latest-npm\t\tInstall the latest available npm along with Node'
+  $'--default\t\tAlso set this version as the default'
+)
+
+typeset -ga _LUMEN_NVM_USE_FLAGS=(
+  $'--silent\t\tSuppress output'
 )
 
 typeset -ga _LUMEN_PYENV_SUBCMDS=(
@@ -1213,6 +1501,24 @@ typeset -ga _LUMEN_PYENV_SUBCMDS=(
   $'root\t\tShow the pyenv root directory'
 )
 
+typeset -ga _LUMEN_PYENV_INSTALL_FLAGS=(
+  $'-f\t\tReinstall even if the version is already installed\t1'
+  $'-s\t\tSkip if the version is already installed'
+  $'-v\t\tPrint verbose build output'
+)
+
+typeset -ga _LUMEN_PYENV_UNINSTALL_FLAGS=(
+  $'-f\t\tSkip the confirmation prompt\t1'
+)
+
+typeset -ga _LUMEN_PYENV_LOCAL_FLAGS=(
+  $'--unset\t\tRemove the local version setting'
+)
+
+typeset -ga _LUMEN_PYENV_SHELL_FLAGS=(
+  $'--unset\t\tRemove the shell version setting'
+)
+
 typeset -ga _LUMEN_RBENV_SUBCMDS=(
   $'install\t<version>\tInstall a Ruby version'
   $'uninstall\t<version>\tUninstall a Ruby version'
@@ -1224,6 +1530,24 @@ typeset -ga _LUMEN_RBENV_SUBCMDS=(
   $'rehash\t\tRebuild shim executables'
   $'which\t<command>\tShow the path to a command'
   $'root\t\tShow the rbenv root directory'
+)
+
+typeset -ga _LUMEN_RBENV_INSTALL_FLAGS=(
+  $'-f\t\tReinstall even if the version is already installed\t1'
+  $'-s\t\tSkip if the version is already installed'
+  $'-v\t\tPrint verbose build output'
+)
+
+typeset -ga _LUMEN_RBENV_UNINSTALL_FLAGS=(
+  $'-f\t\tSkip the confirmation prompt\t1'
+)
+
+typeset -ga _LUMEN_RBENV_LOCAL_FLAGS=(
+  $'--unset\t\tRemove the local version setting'
+)
+
+typeset -ga _LUMEN_RBENV_SHELL_FLAGS=(
+  $'--unset\t\tRemove the shell version setting'
 )
 
 typeset -ga _LUMEN_NPX_SUBCMDS=(
@@ -1246,6 +1570,11 @@ typeset -ga _LUMEN_MINIKUBE_SUBCMDS=(
   $'tunnel\t\tCreate a network route to services'
   $'profile\t[list|set]\tManage minikube profiles'
   $'config\t[get|set|view]\tManage minikube configuration'
+)
+
+typeset -ga _LUMEN_MINIKUBE_SERVICE_FLAGS=(
+  $'--url\t\tPrint the service URL instead of opening a browser'
+  $'-n\t<namespace>\tNamespace of the service'
 )
 
 # --- nested (sub-subcommand and flag) tables --------------------------------
@@ -1463,6 +1792,93 @@ typeset -ga _LUMEN_DOCKER_COMPOSE_BUILD_FLAGS=(
   $'--no-cache\t\tBuild without using any cached layers'
 )
 
+typeset -ga _LUMEN_DOCKER_PULL_FLAGS=(
+  $'-q\t\tSuppress verbose pull output'
+  $'-a\t\tDownload all tagged images in the repository'
+  $'--platform\t<os/arch>\tForce a platform, even if the daemon default differs'
+)
+
+typeset -ga _LUMEN_DOCKER_PUSH_FLAGS=(
+  $'-q\t\tSuppress verbose push output'
+  $'--disable-content-trust\t\tSkip image signing'
+)
+
+typeset -ga _LUMEN_DOCKER_INSPECT_FLAGS=(
+  $'-f\t<tmpl>\tFormat the output using a Go template'
+  $'--type\t<container|image|...>\tOnly inspect objects of this type'
+)
+
+typeset -ga _LUMEN_DOCKER_IMAGE_PULL_FLAGS=(
+  $'-q\t\tSuppress verbose pull output'
+  $'-a\t\tDownload all tagged images in the repository'
+  $'--platform\t<os/arch>\tForce a platform, even if the daemon default differs'
+)
+
+typeset -ga _LUMEN_DOCKER_IMAGE_PUSH_FLAGS=(
+  $'-q\t\tSuppress verbose push output'
+  $'--disable-content-trust\t\tSkip image signing'
+)
+
+typeset -ga _LUMEN_DOCKER_IMAGE_INSPECT_FLAGS=(
+  $'-f\t<tmpl>\tFormat the output using a Go template'
+)
+
+typeset -ga _LUMEN_DOCKER_IMAGE_HISTORY_FLAGS=(
+  $'--no-trunc\t\tDo not truncate output'
+  $'-H\t\tPrint sizes in human-readable format (default true)'
+  $'-q\t\tOnly show image IDs'
+)
+
+typeset -ga _LUMEN_DOCKER_CONTAINER_RESTART_FLAGS=(
+  $'-t\t<seconds>\tSeconds to wait for stop before killing (default 10)'
+)
+
+typeset -ga _LUMEN_DOCKER_CONTAINER_INSPECT_FLAGS=(
+  $'-f\t<tmpl>\tFormat the output using a Go template'
+)
+
+typeset -ga _LUMEN_DOCKER_CONTAINER_CP_FLAGS=(
+  $'-a\t\tPreserve uid/gid and file mode bits'
+  $'-L\t\tFollow symbolic links in the source path'
+)
+
+typeset -ga _LUMEN_DOCKER_NETWORK_CREATE_FLAGS=(
+  $'-d\t<driver>\tDriver to manage the network (default bridge)'
+  $'--subnet\t<cidr>\tSubnet for the network'
+  $'--gateway\t<ip>\tGateway for the subnet'
+  $'--attachable\t\tAllow standalone containers to attach'
+)
+
+typeset -ga _LUMEN_DOCKER_NETWORK_RM_FLAGS=(
+  $'-f\t\tForce removal even if the network has active endpoints\t1'
+)
+
+typeset -ga _LUMEN_DOCKER_NETWORK_INSPECT_FLAGS=(
+  $'-f\t<tmpl>\tFormat the output using a Go template'
+)
+
+typeset -ga _LUMEN_DOCKER_NETWORK_CONNECT_FLAGS=(
+  $'--ip\t<addr>\tAssign this container an IP on the network'
+  $'--alias\t<name>\tNetwork-scoped alias for the container'
+)
+
+typeset -ga _LUMEN_DOCKER_NETWORK_DISCONNECT_FLAGS=(
+  $'-f\t\tForce disconnection even if the container is not running'
+)
+
+typeset -ga _LUMEN_DOCKER_VOLUME_CREATE_FLAGS=(
+  $'-d\t<driver>\tDriver to manage the volume (default local)'
+  $'--label\t<k=v>\tMetadata label to set on the volume'
+)
+
+typeset -ga _LUMEN_DOCKER_VOLUME_RM_FLAGS=(
+  $'-f\t\tForce removal of the volume\t1'
+)
+
+typeset -ga _LUMEN_DOCKER_VOLUME_INSPECT_FLAGS=(
+  $'-f\t<tmpl>\tFormat the output using a Go template'
+)
+
 typeset -ga _LUMEN_GIT_STASH_SUBCMDS=(
   $'push\t\tStash changes'
   $'pop\t\tApply and remove the most recent stash'
@@ -1633,6 +2049,41 @@ typeset -ga _LUMEN_GIT_RESET_FLAGS=(
   $'--keep\t\tLike --merge, but abort if the reset would touch uncommitted changes'
 )
 
+typeset -ga _LUMEN_GIT_BLAME_FLAGS=(
+  $'-L\t<start,end>\tOnly annotate this line range'
+  $'-w\t\tIgnore whitespace-only changes'
+  $'-C\t\tDetect lines moved or copied from other files'
+)
+
+typeset -ga _LUMEN_GIT_SHOW_FLAGS=(
+  $'--stat\t\tShow a diffstat instead of the full diff'
+  $'-p\t\tShow the patch (default)'
+  $'--name-only\t\tShow only the names of changed files'
+)
+
+typeset -ga _LUMEN_GIT_MV_FLAGS=(
+  $'-f\t\tOverwrite the destination if it already exists\t1'
+  $'-n\t\tDry run: show what would be renamed without doing it'
+)
+
+typeset -ga _LUMEN_GIT_REMOTE_ADD_FLAGS=(
+  $'-f\t\tFetch from the remote right after adding it'
+  $'--tags\t\tImport every tag from the remote'
+)
+
+typeset -ga _LUMEN_GIT_REMOTE_SET_URL_FLAGS=(
+  $'--push\t\tSet the push URL instead of the fetch URL'
+  $'--add\t\tAdd a new URL instead of replacing the existing one'
+)
+
+typeset -ga _LUMEN_GIT_REMOTE_SHOW_FLAGS=(
+  $'-n\t\tDo not query the remote; use cached information only'
+)
+
+typeset -ga _LUMEN_GIT_REMOTE_PRUNE_FLAGS=(
+  $'--dry-run\t\tShow what would be pruned without deleting anything'
+)
+
 typeset -ga _LUMEN_NPM_CACHE_SUBCMDS=(
   $'clean\t\tClean the npm cache'
   $'verify\t\tVerify the npm cache'
@@ -1672,6 +2123,16 @@ typeset -ga _LUMEN_NPM_PUBLISH_FLAGS=(
 typeset -ga _LUMEN_NPM_RUN_FLAGS=(
   $'--silent\t\tSuppress npm'"'"'s own log output for the script'
   $'--if-present\t\tExit quietly if the script isn'"'"'t defined'
+)
+
+typeset -ga _LUMEN_NPM_VERSION_FLAGS=(
+  $'-m\t<text>\tCustom commit message for the version bump'
+  $'--no-git-tag-version\t\tBump the version without committing or tagging'
+)
+
+typeset -ga _LUMEN_NPM_EXEC_FLAGS=(
+  $'--package\t<pkg>\tPackage to run a binary from'
+  $'-y\t\tSkip the install-confirmation prompt'
 )
 
 typeset -ga _LUMEN_KUBECTL_CONFIG_SUBCMDS=(
@@ -1997,6 +2458,119 @@ typeset -ga _LUMEN_KUBECTL_ROLLOUT_STATUS_FLAGS=(
 typeset -ga _LUMEN_KUBECTL_ROLLOUT_RESTART_FLAGS=(
   $'-n\t<namespace>\tNamespace of the workload'
   $'-l\t<selector>\tRestart every workload matching this label selector'
+)
+
+typeset -ga _LUMEN_KUBECTL_EXPLAIN_FLAGS=(
+  $'--recursive\t\tPrint the full structure of the resource, including all fields'
+  $'--api-version\t<group/version>\tExplain the field for a specific API version'
+)
+
+typeset -ga _LUMEN_KUBECTL_CP_FLAGS=(
+  $'-c\t<container>\tContainer to copy to/from, if the pod has more than one'
+  $'-n\t<namespace>\tNamespace of the pod'
+  $'--no-preserve\t\tSkip preserving file ownership and permissions'
+)
+
+typeset -ga _LUMEN_KUBECTL_DIFF_FLAGS=(
+  $'-f\t<file>\tDiff the resources described in a file against the live objects'
+  $'--server-side\t\tDiff using a server-side apply dry run'
+)
+
+typeset -ga _LUMEN_KUBECTL_EVENTS_FLAGS=(
+  $'--for\t<type>/<name>\tOnly show events for this object'
+  $'-w\t\tStream new events as they happen'
+  $'-n\t<namespace>\tNamespace of the events'
+  $'-A\t\tShow events across all namespaces'
+)
+
+typeset -ga _LUMEN_KUBECTL_REPLACE_FLAGS=(
+  $'-f\t<file>\tReplace the resource described in a file'
+  $'--force\t\tDelete and re-create the resource\t1'
+  $'--grace-period\t<seconds>\tSeconds to allow for graceful termination when forcing'
+  $'--save-config\t\tKeep the config so future kubectl apply calls can track it'
+)
+
+typeset -ga _LUMEN_KUBECTL_CORDON_FLAGS=(
+  $'--dry-run\t<client|server>\tPreview without cordoning'
+  $'-l\t<selector>\tCordon every node matching this label selector'
+)
+
+typeset -ga _LUMEN_KUBECTL_UNCORDON_FLAGS=(
+  $'--dry-run\t<client|server>\tPreview without uncordoning'
+  $'-l\t<selector>\tUncordon every node matching this label selector'
+)
+
+typeset -ga _LUMEN_KUBECTL_TAINT_FLAGS=(
+  $'--overwrite\t\tAllow overwriting an existing taint with the same key and effect'
+  $'--all\t\tTaint every node'
+  $'-l\t<selector>\tTaint every node matching this label selector'
+  $'--dry-run\t<client|server>\tPreview without applying the taint'
+)
+
+typeset -ga _LUMEN_KUBECTL_PROXY_FLAGS=(
+  $'--port\t<port>\tPort to listen on (0 picks a random free port)'
+  $'--address\t<addr>\tAddress to listen on (default 127.0.0.1)'
+  $'--api-prefix\t<path>\tPrefix to serve the proxied API under'
+  $'--disable-filter\t\tDisable request filtering (insecure)\t1'
+)
+
+typeset -ga _LUMEN_KUBECTL_CERTIFICATE_APPROVE_FLAGS=(
+  $'--dry-run\t<client|server>\tPreview without approving'
+)
+
+typeset -ga _LUMEN_KUBECTL_CERTIFICATE_DENY_FLAGS=(
+  $'--dry-run\t<client|server>\tPreview without denying'
+)
+
+typeset -ga _LUMEN_KUBECTL_CONFIG_SET_CONTEXT_FLAGS=(
+  $'--cluster\t<name>\tCluster for this context'
+  $'--user\t<name>\tUser for this context'
+  $'--namespace\t<name>\tDefault namespace for this context'
+  $'--current\t\tModify the current context'
+)
+
+typeset -ga _LUMEN_KUBECTL_CONFIG_SET_CLUSTER_FLAGS=(
+  $'--server\t<url>\tAPI server URL for this cluster'
+  $'--certificate-authority\t<file>\tPath to the CA certificate'
+  $'--insecure-skip-tls-verify\t\tSkip TLS certificate verification (insecure)\t1'
+)
+
+typeset -ga _LUMEN_KUBECTL_CONFIG_SET_CREDENTIALS_FLAGS=(
+  $'--token\t<token>\tBearer token for authentication'
+  $'--username\t<user>\tUsername for basic auth'
+  $'--password\t<pass>\tPassword for basic auth'
+  $'--client-certificate\t<file>\tPath to a client certificate'
+  $'--client-key\t<file>\tPath to the client certificate key'
+)
+
+typeset -ga _LUMEN_KUBECTL_ROLLOUT_HISTORY_FLAGS=(
+  $'--revision\t<n>\tShow the detail of a specific revision'
+  $'-n\t<namespace>\tNamespace of the workload'
+)
+
+typeset -ga _LUMEN_KUBECTL_ROLLOUT_PAUSE_FLAGS=(
+  $'-n\t<namespace>\tNamespace of the workload'
+  $'-l\t<selector>\tPause every workload matching this label selector'
+)
+
+typeset -ga _LUMEN_KUBECTL_ROLLOUT_RESUME_FLAGS=(
+  $'-n\t<namespace>\tNamespace of the workload'
+  $'-l\t<selector>\tResume every workload matching this label selector'
+)
+
+typeset -ga _LUMEN_KUBECTL_SET_SUBJECT_FLAGS=(
+  $'--user\t<name>\tAdd this user as a subject'
+  $'--group\t<name>\tAdd this group as a subject'
+  $'--serviceaccount\t<ns:name>\tAdd this service account as a subject'
+  $'--all\t\tApply to every RoleBinding/ClusterRoleBinding in the namespace'
+  $'--dry-run\t<client|server>\tPreview without applying'
+)
+
+typeset -ga _LUMEN_KUBECTL_AUTH_RECONCILE_FLAGS=(
+  $'-f\t<file>\tRBAC file to reconcile'
+  $'--remove-extra-permissions\t\tRemove rules not in the file from existing roles\t1'
+  $'--remove-extra-subjects\t\tRemove subjects not in the file from existing bindings\t1'
+  $'--dry-run\t<client|server>\tPreview without applying'
 )
 
 # Resource-type words kubectl itself accepts (plural, plus the short alias
@@ -2349,6 +2923,44 @@ typeset -ga _LUMEN_AWS_SSM_SEND_COMMAND_FLAGS=(
   $'--targets\t<targets>\tTarget instance(s)'
 )
 
+typeset -ga _LUMEN_AWS_S3_CP_FLAGS=(
+  $'--recursive\t\tCopy an entire directory tree'
+  $'--exclude\t<pattern>\tExclude paths matching this pattern'
+  $'--include\t<pattern>\tRe-include paths excluded by a previous --exclude'
+  $'--dryrun\t\tPreview without copying anything'
+)
+
+typeset -ga _LUMEN_AWS_S3_MV_FLAGS=(
+  $'--recursive\t\tMove an entire directory tree'
+  $'--exclude\t<pattern>\tExclude paths matching this pattern'
+  $'--dryrun\t\tPreview without moving anything'
+)
+
+typeset -ga _LUMEN_AWS_S3_RM_FLAGS=(
+  $'--recursive\t\tDelete an entire directory tree\t1'
+  $'--exclude\t<pattern>\tExclude paths matching this pattern'
+  $'--dryrun\t\tPreview without deleting anything'
+)
+
+typeset -ga _LUMEN_AWS_S3_MB_FLAGS=(
+  $'--region\t<region>\tRegion to create the bucket in'
+)
+
+typeset -ga _LUMEN_AWS_S3_RB_FLAGS=(
+  $'--force\t\tDelete a non-empty bucket by removing its objects first\t1'
+)
+
+typeset -ga _LUMEN_AWS_S3_PRESIGN_FLAGS=(
+  $'--expires-in\t<seconds>\tHow long the presigned URL stays valid (default 3600)'
+)
+
+typeset -ga _LUMEN_AWS_LOGS_TAIL_FLAGS=(
+  $'--follow\t\tStream new log events as they arrive'
+  $'--since\t<time>\tOnly events newer than this (e.g. 10m, 1h)'
+  $'--filter-pattern\t<pattern>\tOnly events matching this filter pattern'
+  $'--format\t<short|detailed>\tOutput format'
+)
+
 typeset -ga _LUMEN_TERRAFORM_STATE_SUBCMDS=(
   $'list\t[address]\tList resources in the state'
   $'show\t<address>\tShow attributes of a resource in the state'
@@ -2391,6 +3003,48 @@ typeset -ga _LUMEN_TERRAFORM_INIT_FLAGS=(
   $'-reconfigure\t\tReconfigure the backend, ignoring any saved configuration'
 )
 
+typeset -ga _LUMEN_TERRAFORM_IMPORT_FLAGS=(
+  $'-var\t<k=v>\tSet a Terraform variable'
+  $'-var-file\t<file>\tLoad variables from a file'
+  $'-config\t<path>\tPath to the module for the resource being imported (default .)'
+)
+
+typeset -ga _LUMEN_TERRAFORM_TAINT_FLAGS=(
+  $'-allow-missing\t\tDo not error if the resource does not exist'
+)
+
+typeset -ga _LUMEN_TERRAFORM_UNTAINT_FLAGS=(
+  $'-allow-missing\t\tDo not error if the resource does not exist'
+)
+
+typeset -ga _LUMEN_TERRAFORM_FORCE_UNLOCK_FLAGS=(
+  $'-force\t\tSkip the confirmation prompt\t1'
+)
+
+typeset -ga _LUMEN_TERRAFORM_STATE_MV_FLAGS=(
+  $'-dry-run\t\tPreview the move without changing the state'
+)
+
+typeset -ga _LUMEN_TERRAFORM_STATE_RM_FLAGS=(
+  $'-dry-run\t\tPreview the removal without changing the state'
+)
+
+typeset -ga _LUMEN_TERRAFORM_STATE_PUSH_FLAGS=(
+  $'-force\t\tPush even if lineage or serial do not match\t1'
+)
+
+typeset -ga _LUMEN_TERRAFORM_STATE_REPLACE_PROVIDER_FLAGS=(
+  $'-auto-approve\t\tSkip the confirmation prompt\t1'
+)
+
+typeset -ga _LUMEN_TERRAFORM_WORKSPACE_NEW_FLAGS=(
+  $'-state\t<file>\tCopy an existing state file into the new workspace'
+)
+
+typeset -ga _LUMEN_TERRAFORM_WORKSPACE_DELETE_FLAGS=(
+  $'-force\t\tDelete even if the workspace is not empty\t1'
+)
+
 typeset -ga _LUMEN_HELM_REPO_SUBCMDS=(
   $'add\t<name> <url>\tAdd a chart repository'
   $'update\t\tUpdate information of available charts'
@@ -2429,6 +3083,52 @@ typeset -ga _LUMEN_HELM_TEMPLATE_FLAGS=(
   $'-f\t<file>\tSet values from a YAML file'
   $'--values\t<file>\tSet values from a YAML file'
   $'--set\t<key=value>\tSet a value on the command line'
+)
+
+typeset -ga _LUMEN_HELM_STATUS_FLAGS=(
+  $'-n\t<namespace>\tNamespace of the release'
+  $'-o\t<json|yaml|table>\tOutput format'
+  $'--revision\t<n>\tShow status of a specific revision'
+)
+
+typeset -ga _LUMEN_HELM_SEARCH_FLAGS=(
+  $'-l\t\tShow all versions, not just the latest'
+  $'--versions\t\tShow all versions'
+)
+
+typeset -ga _LUMEN_HELM_GET_FLAGS=(
+  $'-n\t<namespace>\tNamespace of the release'
+  $'--revision\t<n>\tGet the manifest/values for a specific revision'
+)
+
+typeset -ga _LUMEN_HELM_HISTORY_FLAGS=(
+  $'-n\t<namespace>\tNamespace of the release'
+  $'--max\t<n>\tMaximum number of revisions to list'
+)
+
+typeset -ga _LUMEN_HELM_PULL_FLAGS=(
+  $'--untar\t\tExtract the chart after downloading'
+  $'-d\t<dir>\tDirectory to download into'
+  $'--version\t<ver>\tSpecific chart version to pull'
+)
+
+typeset -ga _LUMEN_HELM_CREATE_FLAGS=(
+  $'-p\t<dir>\tBase the new chart on a starter template'
+)
+
+typeset -ga _LUMEN_HELM_LINT_FLAGS=(
+  $'--strict\t\tFail on warnings, not just errors'
+  $'-f\t<file>\tValues file to lint against'
+)
+
+typeset -ga _LUMEN_HELM_SHOW_FLAGS=(
+  $'--version\t<ver>\tShow the chart at a specific version'
+)
+
+typeset -ga _LUMEN_HELM_REPO_ADD_FLAGS=(
+  $'--username\t<user>\tUsername for a protected repo'
+  $'--password\t<pass>\tPassword for a protected repo'
+  $'--force-update\t\tReplace an existing repo with the same name'
 )
 
 typeset -ga _LUMEN_GH_PR_SUBCMDS=(
@@ -2527,6 +3227,70 @@ typeset -ga _LUMEN_GH_WORKFLOW_RUN_FLAGS=(
   $'--ref\t<branch>\tBranch or tag to run the workflow on'
 )
 
+typeset -ga _LUMEN_GH_API_FLAGS=(
+  $'-X\t<method>\tHTTP method to use (default GET)'
+  $'-f\t<key=value>\tAdd a string field to the request body'
+  $'-H\t<key:value>\tAdd an HTTP request header'
+  $'--paginate\t\tFollow pagination and fetch every page'
+)
+
+typeset -ga _LUMEN_GH_PR_CHECKOUT_FLAGS=(
+  $'-b\t<branch>\tLocal branch name to use (default: same as the PR)'
+  $'-f\t\tReset the existing local branch to the latest PR commit\t1'
+)
+
+typeset -ga _LUMEN_GH_ISSUE_VIEW_FLAGS=(
+  $'-w\t\tOpen the issue in the browser'
+  $'-c\t\tShow comments as well'
+)
+
+typeset -ga _LUMEN_GH_ISSUE_CLOSE_FLAGS=(
+  $'-c\t<comment>\tLeave a closing comment'
+  $'-r\t<reason>\tReason for closing (completed or not planned)'
+)
+
+typeset -ga _LUMEN_GH_ISSUE_REOPEN_FLAGS=(
+  $'-c\t<comment>\tLeave a reopening comment'
+)
+
+typeset -ga _LUMEN_GH_ISSUE_COMMENT_FLAGS=(
+  $'-b\t<text>\tComment body text'
+  $'-F\t<file>\tRead the comment body from a file'
+)
+
+typeset -ga _LUMEN_GH_REPO_CLONE_FLAGS=(
+  $'--\t<gitflags>\tFlags after -- are passed straight through to git clone'
+)
+
+typeset -ga _LUMEN_GH_RUN_RERUN_FLAGS=(
+  $'--failed\t\tOnly rerun failed jobs'
+  $'-j\t<job-id>\tOnly rerun this specific job'
+)
+
+typeset -ga _LUMEN_GH_RELEASE_VIEW_FLAGS=(
+  $'-w\t\tOpen the release in the browser'
+)
+
+typeset -ga _LUMEN_GH_RELEASE_DELETE_FLAGS=(
+  $'-y\t\tSkip the confirmation prompt\t1'
+  $'--cleanup-tag\t\tAlso delete the associated git tag\t1'
+)
+
+typeset -ga _LUMEN_GH_RELEASE_UPLOAD_FLAGS=(
+  $'--clobber\t\tOverwrite existing assets of the same name'
+)
+
+typeset -ga _LUMEN_GH_RELEASE_EDIT_FLAGS=(
+  $'-t\t<title>\tNew release title'
+  $'-n\t<notes>\tNew release notes'
+  $'--draft\t<true|false>\tMark as a draft'
+)
+
+typeset -ga _LUMEN_GH_WORKFLOW_VIEW_FLAGS=(
+  $'-w\t\tOpen the workflow in the browser'
+  $'-r\t<ref>\tView the workflow at a specific ref'
+)
+
 typeset -ga _LUMEN_GLAB_MR_SUBCMDS=(
   $'create\t\tCreate a merge request'
   $'list\t\tList merge requests'
@@ -2577,6 +3341,15 @@ typeset -ga _LUMEN_GLAB_CI_TRACE_FLAGS=(
   $'--branch\t<branch>\tBranch to search for the job'
   $'-p\t<pipeline-id>\tPipeline ID to search for the job'
   $'--pipeline-id\t<pipeline-id>\tPipeline ID to search for the job'
+)
+
+typeset -ga _LUMEN_GLAB_API_FLAGS=(
+  $'-X\t<method>\tHTTP method to use (default GET)'
+  $'-f\t<key=value>\tAdd a string field to the request body'
+)
+
+typeset -ga _LUMEN_GLAB_MR_CHECKOUT_FLAGS=(
+  $'-b\t<branch>\tLocal branch name to use'
 )
 
 typeset -ga _LUMEN_GCLOUD_COMPUTE_SUBCMDS=(
@@ -2665,6 +3438,17 @@ typeset -ga _LUMEN_GCLOUD_RUN_DEPLOY_FLAGS=(
   $'--port\t<port>\tContainer port to receive requests on'
   $'--min-instances\t<n>\tMinimum instances kept warm'
   $'--max-instances\t<n>\tMaximum concurrent instances'
+)
+
+typeset -ga _LUMEN_GCLOUD_COMPUTE_SSH_FLAGS=(
+  $'--zone\t<zone>\tZone the instance is in'
+  $'--command\t<cmd>\tCommand to run instead of an interactive shell'
+  $'--tunnel-through-iap\t\tTunnel the connection through Identity-Aware Proxy'
+)
+
+typeset -ga _LUMEN_GCLOUD_COMPUTE_SCP_FLAGS=(
+  $'--zone\t<zone>\tZone the instance is in'
+  $'--recurse\t\tCopy directories recursively'
 )
 
 # On-screen row/column the cursor is at, so the box lines up under wherever
@@ -4777,6 +5561,7 @@ _lumen_nested_match() {
 
   case "$tool" in
     git|kubectl|npm|docker|aws|terraform|tf|helm|gh|glab|gcloud|az|tmux|vagrant|cargo|yarn|pnpm|pulumi|systemctl) ;;
+    pip|brew|go|gem|poetry|bundle|nvm|pyenv|rbenv|nx|turbo|minikube|dotnet|heroku|vercel|firebase|flyctl) ;;
     k) _lumen_k_is_kubectl || return 1 ;;
     *) return 1 ;;
   esac
