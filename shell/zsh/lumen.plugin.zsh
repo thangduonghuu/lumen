@@ -5965,6 +5965,86 @@ _lumen_kill_match() {
   (( ${#_LUMEN_CANDIDATES} > 0 ))
 }
 
+# Suggests manifest files/directories for kubectl's -f/--filename value:
+# "kubectl apply -f <TAB>" lists the YAML/JSON files (and folders to drill
+# into) under the cwd or the directory already typed. Only verbs whose -f
+# is --filename are covered — `kubectl logs -f` is --follow, so it's
+# excluded, and exec/run/debug (which technically accept it) are left out
+# since nobody points those at a manifest. The verb list comes from
+# `kubectl <verb> --help` (v1.36): create expose get edit delete scale
+# autoscale describe diff apply patch replace wait label annotate, plus
+# set <env|image|resources|selector|serviceaccount|subject>,
+# rollout <history|pause|restart|resume|status|undo>, auth reconcile and
+# certificate <approve|deny>.
+_lumen_kubectl_file_match() {
+  local tool="${BUFFER%% *}"
+  case "$tool" in kubectl) ;; k) _lumen_k_is_kubectl || return 1 ;; *) return 1 ;; esac
+  [[ "$BUFFER" == "$tool "* ]] || return 1
+
+  local -a words=(${(z)BUFFER})
+  local partial="" prev
+  if [[ "$BUFFER" == *' ' ]]; then
+    prev="${words[-1]}"
+  else
+    partial="${words[-1]}"
+    prev="${words[-2]:-}"
+  fi
+
+  # The value slot: right after "-f"/"--filename", or "--filename=<partial>".
+  local prefix=""
+  if [[ "$partial" == --filename=* ]]; then
+    prefix="--filename="
+    partial="${partial#--filename=}"
+  elif [[ "$prev" != -f && "$prev" != --filename ]]; then
+    return 1
+  fi
+
+  local verb="${words[2]:-}" verb2="${words[3]:-}"
+  case "$verb" in
+    create|expose|get|edit|delete|scale|autoscale|describe|diff|apply|patch|replace|wait|label|annotate) ;;
+    set) [[ "$verb2" == (env|image|resources|selector|serviceaccount|subject) ]] || return 1 ;;
+    rollout) [[ "$verb2" == (history|pause|restart|resume|status|undo) ]] || return 1 ;;
+    auth) [[ "$verb2" == reconcile ]] || return 1 ;;
+    certificate) [[ "$verb2" == (approve|deny) ]] || return 1 ;;
+    *) return 1 ;;
+  esac
+
+  local dir="" base="$partial"
+  if [[ "$partial" == */* ]]; then
+    dir="${partial%/*}/"
+    base="${partial##*/}"
+  fi
+
+  local -a dirs files
+  setopt local_options extended_glob
+  dirs=( ${dir}(#i)${base}*(N/) )
+  files=( ${dir}(#i)${base}*.(yaml|yml|json)(N.) )
+  (( ${#dirs} + ${#files} > 0 )) || return 1
+
+  local entry label icon_kind=$(_lumen_tool_icon_kind kubectl)
+  _LUMEN_CANDIDATES=()
+  _LUMEN_DESCRIPTIONS=()
+  _LUMEN_HINTS=()
+  _LUMEN_LABELS=()
+  _LUMEN_ICONS=()
+  for entry in "${dirs[@]}" "${files[@]}"; do
+    if [[ -d "$entry" ]]; then
+      label="${entry%/}/"
+      _LUMEN_ICONS+=("dir")
+      _LUMEN_DESCRIPTIONS+=("Directory")
+    else
+      label="$entry"
+      _LUMEN_ICONS+=("$icon_kind")
+      _LUMEN_DESCRIPTIONS+=("Manifest")
+    fi
+    _LUMEN_CANDIDATES+=("${BUFFER%$partial}${label}")
+    _LUMEN_LABELS+=("$label")
+    _LUMEN_HINTS+=("")
+    (( ${#_LUMEN_CANDIDATES} >= _LUMEN_MAX_CANDIDATES )) && break
+  done
+  (( ${#_LUMEN_CANDIDATES} > 0 ))
+}
+
 # Tries every no-AI-round-trip match source in order, cheapest/most-specific
 # first, and stops at the first one that produces candidates. Shared entry
 # point for both the automatic (_lumen_suggest_now) and manual
@@ -5986,6 +6066,7 @@ _lumen_static_or_dynamic_match() {
   _lumen_docker_image_match && return 0
   _lumen_docker_network_match && return 0
   _lumen_docker_volume_match && return 0
+  _lumen_kubectl_file_match && return 0
   _lumen_kubectl_pod_match && return 0
   _lumen_kubectl_resource_match && return 0
   _lumen_package_script_match && return 0
