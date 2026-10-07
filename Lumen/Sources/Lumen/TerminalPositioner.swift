@@ -335,11 +335,15 @@ enum TerminalPositioner {
         // so the first candidate that actually looks like a real character
         // grid for the reported columns/lines wins; anything implausible is
         // skipped rather than used.
+        let isVSCode = app.bundleIdentifier?.hasPrefix("com.microsoft.VSCode") == true
         var candidates: [(element: AXUIElement, titleBarHeight: CGFloat, label: String)] = []
         if let paneElement = focusedElement(pid: app.processIdentifier) {
             candidates.append((paneElement, 0, "focused element"))
         }
-        if let windowElement = focusedWindow(pid: app.processIdentifier) {
+        // VS Code's terminal is only a panel inside the window, so dividing
+        // the whole window by columns/lines misplaces the cursor (row 2
+        // lands at the top of the editor). Better to show nothing.
+        if !isVSCode, let windowElement = focusedWindow(pid: app.processIdentifier) {
             let titleBarHeight = app.bundleIdentifier.flatMap { titleBarHeights[$0] } ?? defaultTitleBarHeight
             candidates.append((windowElement, titleBarHeight, "focused window"))
         }
@@ -353,6 +357,28 @@ enum TerminalPositioner {
             guard let position = attribute(candidate.element, kAXPositionAttribute, as: CGPoint.self, axType: .cgPoint),
                   let size = attribute(candidate.element, kAXSizeAttribute, as: CGSize.self, axType: .cgSize)
             else { continue }
+
+            // The focused element can itself be the cursor cell (xterm.js's
+            // hidden textarea in VS Code) before its AXSelectedTextRange is
+            // answering — Chromium's AX tree lags right after focus. Its
+            // frame is already the cursor's position, so use it directly
+            // instead of dividing it by columns/lines (which always rejects).
+            // Scoped to VS Code's AXTextField: elsewhere a small focused
+            // control (the 8x16pt one noted at cellWidthRange) would pass.
+            if isVSCode, candidate.label == "focused element",
+               stringAttribute(candidate.element, kAXRoleAttribute) == (kAXTextFieldRole as String),
+               cellWidthRange.contains(size.width), cellHeightRange.contains(size.height) {
+                let result = ScreenAnchor(
+                    x: position.x,
+                    cellTopY: mainScreenHeight - position.y,
+                    cellBottomY: mainScreenHeight - (position.y + size.height)
+                )
+                if isOnSomeScreen(result) {
+                    debugLog("Lumen: overlay position: using cell-sized focused element for "
+                        + "\(app.localizedName ?? "?") position=\(position) size=\(size) -> \(result)")
+                    return result
+                }
+            }
 
             let cellWidth = size.width / CGFloat(cursor.columns)
             let cellHeight = (size.height - candidate.titleBarHeight) / CGFloat(cursor.lines)
