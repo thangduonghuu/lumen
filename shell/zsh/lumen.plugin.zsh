@@ -854,7 +854,8 @@ typeset -ga _LUMEN_GO_SUBCMDS=(
   $'test\t\tRun tests'
   $'get\t<package>\tAdd dependencies and update go.mod'
   $'install\t<package>\tCompile and install packages'
-  $'mod\t[init|tidy|download|vendor]\tManage go.mod'
+  $'mod\t<command>\tModule maintenance'
+  $'work\t<command>\tWorkspace maintenance (go.work)'
   $'fmt\t\tFormat source code'
   $'vet\t\tReport likely mistakes in packages'
   $'generate\t\tRun generate directives'
@@ -862,21 +863,249 @@ typeset -ga _LUMEN_GO_SUBCMDS=(
   $'env\t\tPrint Go environment information'
   $'clean\t\tRemove object files and cached files'
   $'list\t\tList packages or modules'
-  $'work\t[init|use|edit]\tManage go.work workspace files'
+  $'fix\t\tUpdate packages to use new APIs'
+  $'tool\t<name>\tRun a specified go tool'
+  $'version\t\tPrint Go version'
+  $'bug\t\tStart a bug report'
+  $'telemetry\t[on|off|local]\tManage telemetry data and settings'
+  $'help\t<topic>\tShow help for a command or topic'
+)
+
+# Build flags shared by build, run, test, install, vet and list.
+typeset -ga _LUMEN_GO_COMMON_BUILD_FLAGS=(
+  $'-v\t\tPrint the names of packages as they are compiled'
+  $'-x\t\tPrint the commands'
+  $'-n\t\tPrint the commands but do not run them'
+  $'-a\t\tForce rebuilding of packages that are already up-to-date'
+  $'-p\t<n>\tNumber of programs to run in parallel'
+  $'-race\t\tEnable the race detector'
+  $'-msan\t\tEnable interoperation with memory sanitizer'
+  $'-asan\t\tEnable interoperation with address sanitizer'
+  $'-cover\t\tEnable code coverage instrumentation'
+  $'-tags\t<tag,list>\tBuild tags to consider satisfied'
+  $'-ldflags\t<flags>\tArguments to pass on each go tool link invocation'
+  $'-gcflags\t<flags>\tArguments to pass on each go tool compile invocation'
+  $'-trimpath\t\tRemove file system paths from the binary'
+  $'-mod\t[readonly|vendor|mod]\tModule download mode'
+  $'-modfile\t<file>\tRead (and write) an alternate go.mod file'
+  $'-buildmode\t<mode>\tBuild mode to use (default, pie, plugin, c-shared, ...)'
+  $'-buildvcs\t[true|false|auto]\tStamp binaries with version control information'
+  $'-pgo\t<file>\tProfile-guided optimization profile'
+  $'-overlay\t<file>\tJSON file with build overlay'
+  $'-toolexec\t<cmd>\tProgram used to invoke toolchain programs'
+  $'-work\t\tPrint and keep the temporary work directory'
+  $'-C\t<dir>\tChange to dir before running the command'
+)
+
+typeset -ga _LUMEN_GO_BUILD_FLAGS=(
+  $'-o\t<file>\tWrite the resulting executable to the named file'
+  "${_LUMEN_GO_COMMON_BUILD_FLAGS[@]}"
 )
 
 typeset -ga _LUMEN_GO_RUN_FLAGS=(
-  $'-race\t\tEnable the race detector'
-  $'-v\t\tPrint the names of packages as they are compiled'
+  "${_LUMEN_GO_COMMON_BUILD_FLAGS[@]}"
+  $'-exec\t<cmd>\tInvoke the binary using cmd'
+)
+
+typeset -ga _LUMEN_GO_INSTALL_FLAGS=("${_LUMEN_GO_COMMON_BUILD_FLAGS[@]}")
+
+typeset -ga _LUMEN_GO_TEST_FLAGS=(
+  $'-run\t<regexp>\tRun only tests and examples matching regexp'
+  $'-skip\t<regexp>\tSkip tests matching regexp'
+  $'-bench\t<regexp>\tRun benchmarks matching regexp'
+  $'-benchmem\t\tPrint memory allocation statistics for benchmarks'
+  $'-benchtime\t<t>\tRun each benchmark for duration or Nx iterations'
+  $'-count\t<n>\tRun each test and benchmark n times'
+  $'-cover\t\tEnable coverage analysis'
+  $'-coverprofile\t<file>\tWrite a coverage profile to file'
+  $'-coverpkg\t<pkgs>\tApply coverage analysis to these packages'
+  $'-covermode\t[set|count|atomic]\tCoverage analysis mode'
+  $'-cpu\t<list>\tGOMAXPROCS values to run tests with'
+  $'-failfast\t\tDo not start new tests after the first failure'
+  $'-fuzz\t<regexp>\tRun the fuzz test matching regexp'
+  $'-fuzztime\t<t>\tTime to spend fuzzing'
+  $'-json\t\tConvert test output to JSON'
+  $'-list\t<regexp>\tList tests matching regexp'
+  $'-parallel\t<n>\tMaximum parallel tests'
+  $'-short\t\tTell long-running tests to shorten their run time'
+  $'-shuffle\t[off|on|N]\tRandomize test and benchmark execution order'
+  $'-timeout\t<d>\tPanic if a test binary runs longer than d'
+  $'-c\t\tCompile the test binary but do not run it'
+  $'-o\t<file>\tCompile the test binary to the named file'
+  $'-exec\t<cmd>\tRun the test binary using cmd'
+  $'-vet\t<list>\tChecks to run during go test (or off)'
+  $'-cpuprofile\t<file>\tWrite a CPU profile to file'
+  $'-memprofile\t<file>\tWrite a memory profile to file'
+  $'-blockprofile\t<file>\tWrite a goroutine blocking profile to file'
+  $'-trace\t<file>\tWrite an execution trace to file'
+  "${_LUMEN_GO_COMMON_BUILD_FLAGS[@]}"
 )
 
 typeset -ga _LUMEN_GO_GET_FLAGS=(
   $'-u\t\tUpdate to the latest compatible version'
   $'-t\t\tAlso consider modules needed by tests'
+  $'-x\t\tPrint commands as they are executed'
+  $'-tool\t\tAdd a tool line to go.mod for each listed package'
 )
 
-typeset -ga _LUMEN_GO_INSTALL_FLAGS=(
-  $'-v\t\tPrint the names of packages as they are compiled'
+typeset -ga _LUMEN_GO_VET_FLAGS=(
+  $'-vettool\t<prog>\tUse a different analysis tool'
+  "${_LUMEN_GO_COMMON_BUILD_FLAGS[@]}"
+)
+
+typeset -ga _LUMEN_GO_FMT_FLAGS=(
+  $'-n\t\tPrint commands that would be executed'
+  $'-x\t\tPrint commands as they are executed'
+  $'-mod\t[readonly|vendor|mod]\tModule download mode'
+)
+
+typeset -ga _LUMEN_GO_GENERATE_FLAGS=(
+  $'-run\t<regexp>\tOnly run directives matching regexp'
+  $'-skip\t<regexp>\tSkip directives matching regexp'
+  $'-n\t\tPrint commands that would be executed'
+  $'-v\t\tPrint the names of packages and files as they are processed'
+  $'-x\t\tPrint commands as they are executed'
+)
+
+typeset -ga _LUMEN_GO_LIST_FLAGS=(
+  $'-m\t\tList modules instead of packages'
+  $'-json\t\tPrint package data in JSON format'
+  $'-f\t<template>\tFormat output using a Go template'
+  $'-u\t\tAdd information about available upgrades'
+  $'-versions\t\tList all known versions of each module'
+  $'-deps\t\tAlso list dependencies'
+  $'-test\t\tAlso list test binaries'
+  $'-e\t\tTolerate erroneous packages'
+  $'-find\t\tIdentify packages but do not resolve dependencies'
+  $'-compiled\t\tSet CompiledGoFiles'
+  $'-export\t\tSet Export to the compiled package file'
+  $'-retracted\t\tReport retracted module versions'
+  "${_LUMEN_GO_COMMON_BUILD_FLAGS[@]}"
+)
+
+typeset -ga _LUMEN_GO_DOC_FLAGS=(
+  $'-all\t\tShow all the documentation for the package'
+  $'-c\t\tRespect case when matching symbols'
+  $'-cmd\t\tTreat a command (package main) like a regular package'
+  $'-short\t\tOne-line representation for each symbol'
+  $'-src\t\tShow the full source code for the symbol'
+  $'-u\t\tShow documentation for unexported symbols too'
+  $'-http\t\tServe HTML documentation over HTTP'
+)
+
+typeset -ga _LUMEN_GO_ENV_FLAGS=(
+  $'-json\t\tPrint the environment in JSON format'
+  $'-w\t<NAME=value>\tSet default values for environment variables'
+  $'-u\t<NAME>\tUnset defaults set by go env -w'
+  $'-changed\t\tPrint only settings that differ from the default'
+)
+
+typeset -ga _LUMEN_GO_CLEAN_FLAGS=(
+  $'-i\t\tAlso remove the installed archive or binary'
+  $'-n\t\tPrint the remove commands without running them'
+  $'-r\t\tApply recursively to all dependencies'
+  $'-x\t\tPrint remove commands as they are executed'
+  $'-cache\t\tRemove the entire go build cache'
+  $'-testcache\t\tExpire all test results in the build cache'
+  $'-modcache\t\tRemove the entire module download cache'
+  $'-fuzzcache\t\tRemove files stored for fuzz testing'
+)
+
+typeset -ga _LUMEN_GO_VERSION_FLAGS=(
+  $'-m\t\tPrint each executable\'s embedded module version information'
+  $'-v\t\tReport unrecognized files'
+  $'-json\t\tPrint module information as JSON (with -m)'
+)
+
+typeset -ga _LUMEN_GO_MOD_SUBCMDS=(
+  $'init\t<module>\tInitialize new module in current directory'
+  $'tidy\t\tAdd missing and remove unused modules'
+  $'download\t\tDownload modules to local cache'
+  $'vendor\t\tMake vendored copy of dependencies'
+  $'edit\t\tEdit go.mod from tools or scripts'
+  $'graph\t\tPrint module requirement graph'
+  $'verify\t\tVerify dependencies have expected content'
+  $'why\t<package>\tExplain why packages or modules are needed'
+)
+
+typeset -ga _LUMEN_GO_MOD_TIDY_FLAGS=(
+  $'-v\t\tPrint information about removed modules'
+  $'-e\t\tProceed despite errors loading packages'
+  $'-x\t\tPrint commands as they are executed'
+  $'-diff\t\tPrint the changes as a unified diff instead of writing them'
+  $'-go\t<version>\tSet the go directive version'
+  $'-compat\t<version>\tGo version to stay compatible with'
+)
+
+typeset -ga _LUMEN_GO_MOD_DOWNLOAD_FLAGS=(
+  $'-json\t\tPrint a sequence of JSON objects describing each module'
+  $'-x\t\tPrint commands as they are executed'
+  $'-reuse\t<file>\tReuse results of a previous -json invocation'
+)
+
+typeset -ga _LUMEN_GO_MOD_VENDOR_FLAGS=(
+  $'-v\t\tPrint the names of vendored modules and packages'
+  $'-e\t\tProceed despite errors loading packages'
+  $'-o\t<dir>\tCreate the vendor directory at dir'
+)
+
+typeset -ga _LUMEN_GO_MOD_EDIT_FLAGS=(
+  $'-fmt\t\tReformat go.mod without other changes'
+  $'-module\t<path>\tChange the module path'
+  $'-go\t<version>\tSet the expected Go language version'
+  $'-toolchain\t<name>\tSet the Go toolchain to use'
+  $'-require\t<path@version>\tAdd a requirement'
+  $'-droprequire\t<path>\tDrop a requirement'
+  $'-replace\t<old=new>\tAdd a replacement'
+  $'-dropreplace\t<old>\tDrop a replacement'
+  $'-exclude\t<path@version>\tAdd an exclusion'
+  $'-dropexclude\t<path@version>\tDrop an exclusion'
+  $'-retract\t<version>\tAdd a retraction'
+  $'-dropretract\t<version>\tDrop a retraction'
+  $'-tool\t<path>\tAdd a tool declaration'
+  $'-droptool\t<path>\tDrop a tool declaration'
+  $'-json\t\tPrint the final go.mod in JSON format'
+  $'-print\t\tPrint the final go.mod instead of writing it'
+)
+
+typeset -ga _LUMEN_GO_MOD_GRAPH_FLAGS=(
+  $'-go\t<version>\tReport the graph as loaded by the given Go version'
+  $'-x\t\tPrint commands as they are executed'
+)
+
+typeset -ga _LUMEN_GO_MOD_WHY_FLAGS=(
+  $'-m\t\tTreat arguments as a list of modules'
+  $'-vendor\t\tExclude tests of dependencies'
+)
+
+typeset -ga _LUMEN_GO_WORK_SUBCMDS=(
+  $'init\t<dir>\tInitialize workspace file'
+  $'use\t<dir>\tAdd modules to workspace file'
+  $'edit\t\tEdit go.work from tools or scripts'
+  $'sync\t\tSync workspace build list to modules'
+  $'vendor\t\tMake vendored copy of dependencies'
+)
+
+typeset -ga _LUMEN_GO_WORK_USE_FLAGS=(
+  $'-r\t\tSearch recursively for modules in the argument directories'
+)
+
+typeset -ga _LUMEN_GO_WORK_EDIT_FLAGS=(
+  $'-fmt\t\tReformat go.work without other changes'
+  $'-use\t<path>\tAdd a use directive'
+  $'-dropuse\t<path>\tDrop a use directive'
+  $'-replace\t<old=new>\tAdd a replacement'
+  $'-dropreplace\t<old>\tDrop a replacement'
+  $'-go\t<version>\tSet the expected Go language version'
+  $'-toolchain\t<name>\tSet the Go toolchain to use'
+  $'-json\t\tPrint the final go.work in JSON format'
+  $'-print\t\tPrint the final go.work instead of writing it'
+)
+
+typeset -ga _LUMEN_GO_WORK_VENDOR_FLAGS=(
+  $'-v\t\tPrint the names of vendored modules and packages'
+  $'-e\t\tProceed despite errors loading packages'
+  $'-o\t<dir>\tCreate the vendor directory at dir'
 )
 
 typeset -ga _LUMEN_CARGO_ADD_FLAGS=(
